@@ -2,6 +2,7 @@ package subit.database
 
 import kotlinx.serialization.Serializable
 import subit.dataClasses.*
+import subit.router.home.AdvancedSearchData
 
 interface Posts
 {
@@ -49,7 +50,7 @@ interface Posts
     ): Slice<PostId>
 
     suspend fun getBlockTopPosts(block: BlockId, begin: Long, count: Int): Slice<PostId>
-    suspend fun searchPosts(loginUser: UserId?, key: String, begin: Long, count: Int): Slice<PostId>
+    suspend fun searchPosts(loginUser: UserId?, key: String, advancedSearchData: AdvancedSearchData, begin: Long, count: Int): Slice<PostId>
     suspend fun addView(pid: PostId)
 
     /**

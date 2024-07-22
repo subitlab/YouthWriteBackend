@@ -1,5 +1,6 @@
 package subit.database.sqlImpl
 
+import kotlinx.datetime.Instant
 import org.jetbrains.exposed.dao.id.IdTable
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.Function
@@ -21,6 +22,7 @@ import subit.database.*
 import subit.database.Posts.PostListSort.*
 import subit.database.sqlImpl.PostsImpl.PostsTable.create
 import subit.database.sqlImpl.PostsImpl.PostsTable.view
+import subit.router.home.AdvancedSearchData
 
 /**
  * 帖子数据库交互类
@@ -209,6 +211,7 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
     override suspend fun searchPosts(
         loginUser: UserId?,
         key: String,
+        advancedSearchData: AdvancedSearchData,
         begin: Long,
         count: Int
     ): Slice<PostId> = query()
@@ -221,14 +224,38 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
         val additionalConstraint: (SqlExpressionBuilder.()->Op<Boolean>)? =
             if (loginUser != null) ({ permissionTable.user eq loginUser })
             else null
+
+        val blockConstraint: (SqlExpressionBuilder.()->Op<Boolean>) =
+            if(advancedSearchData.blockIdList != null)({ block inList advancedSearchData.blockIdList })
+            else ({ Op.TRUE })
+        val userConstraint: (SqlExpressionBuilder.()->Op<Boolean>) =
+            if(advancedSearchData.authorIdList != null)({ author inList advancedSearchData.authorIdList })
+            else ({ Op.TRUE })
+        val contentConstraint: (SqlExpressionBuilder.()->Op<Boolean>) =
+            if(advancedSearchData.isOnlyTitle == true) ({ title like "%$key%" })
+            else ({ (title like "%$key%") or (content like "%$key%") })
+        val lastModifiedConstraint: (SqlExpressionBuilder.()->Op<Boolean>) =
+            if(advancedSearchData.lastModifiedAfter != null)({ lastModified greaterEq Instant.fromEpochMilliseconds(advancedSearchData.lastModifiedAfter) })
+            else ({ Op.TRUE })
+        val createTimeConstraint: (SqlExpressionBuilder.()->Op<Boolean>) =
+            if(advancedSearchData.createTime != null)({
+                val (l, r) = advancedSearchData.createTime
+                (create greaterEq Instant.fromEpochMilliseconds(l)) and (create lessEq Instant.fromEpochMilliseconds(r))
+            })
+            else ({ Op.TRUE })
+
         PostsTable.join(blockTable, JoinType.INNER, block, blockTable.id)
             .join(permissionTable, JoinType.LEFT, block, permissionTable.block, additionalConstraint)
             .join(likesTable, JoinType.LEFT, id, likesTable.post)
             .join(starsTable, JoinType.LEFT, id, starsTable.post)
             .join(commentsTable, JoinType.LEFT, id, commentsTable.post)
             .select(id)
-            .where { (title like "%$key%") or (content like "%$key%") }
-            .andWhere { state eq State.NORMAL }
+            .where { state eq State.NORMAL }
+            .andWhere(blockConstraint)
+            .andWhere(userConstraint)
+            .andWhere(contentConstraint)
+            .andWhere(lastModifiedConstraint)
+            .andWhere(createTimeConstraint)
             .groupBy(id, create, blockTable.id, blockTable.reading)
             .having { (permissionTable.permission.max() greaterEq blockTable.reading) or (blockTable.reading lessEq PermissionLevel.NORMAL) }
             .orderBy(hotScoreOrder, SortOrder.DESC)

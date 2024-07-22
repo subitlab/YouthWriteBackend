@@ -7,6 +7,7 @@ import subit.dataClasses.*
 import subit.dataClasses.PostId.Companion.toPostId
 import subit.dataClasses.Slice.Companion.asSlice
 import subit.database.*
+import subit.router.home.AdvancedSearchData
 import java.util.*
 import kotlin.math.pow
 
@@ -102,13 +103,22 @@ class PostsImpl: Posts, KoinComponent
         .asSlice(begin, count)
         .map { it.id }
 
-    override suspend fun searchPosts(loginUser: UserId?, key: String, begin: Long, count: Int): Slice<PostId> = map.values
+    override suspend fun searchPosts(loginUser: UserId?, key: String, advancedSearchData: AdvancedSearchData, begin: Long, count: Int): Slice<PostId> = map.values
         .filter { it.first.title.contains(key) || it.first.content.contains(key) }
         .filter {
             val blockFull = blocks.getBlock(it.first.block) ?: return@filter false
             val permission = loginUser?.let { permissions.getPermission(blockFull.id, loginUser) }
                              ?: PermissionLevel.NORMAL
             permission >= blockFull.reading
+        }
+        .filter{
+            val post = it.first
+            val blockConstraint = if(advancedSearchData.blockIdList != null) (post.block in advancedSearchData.blockIdList) else true
+            val userConstraint = if(advancedSearchData.authorIdList != null) (post.author in advancedSearchData.authorIdList) else true
+            val contentConstraint = if(advancedSearchData.isOnlyTitle == true)( post.title.contains(key) ) else ( (post.title.contains(key)) || (post.content.contains(key)) )
+            val lastModifiedConstraint = if(advancedSearchData.lastModifiedAfter != null) (post.lastModified >= advancedSearchData.lastModifiedAfter) else true
+            val createTimeConstraint = if(advancedSearchData.createTime != null)(post.create >= advancedSearchData.createTime.first && post.create <= advancedSearchData.createTime.second ) else true
+            blockConstraint && userConstraint && contentConstraint && lastModifiedConstraint && createTimeConstraint
         }
         .asSequence()
         .asSlice(begin, count)
