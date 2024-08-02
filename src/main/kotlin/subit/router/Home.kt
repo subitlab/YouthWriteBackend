@@ -148,8 +148,10 @@ private suspend fun Context.searchPost()
 {
     val key = call.parameters["key"] ?: return call.respond(HttpStatus.BadRequest)
     val (begin, count) = call.getPage()
-    val openAdvancedSearch = call.parameters["openAdvancedSearch"]?.toBoolean() ?: false
-    val advancedSearchData: AdvancedSearchData = if(openAdvancedSearch) receiveAndCheckBody<AdvancedSearchData>() else AdvancedSearchData()
+    val openAdvancedSearch = call.parameters["openAdvancedSearch"].toBoolean()
+    val advancedSearchData =
+        if(openAdvancedSearch) receiveAndCheckBody<AdvancedSearchData>()
+        else AdvancedSearchData()
     val posts = get<Posts>().searchPosts(getLoginUser()?.id, key, advancedSearchData, begin, count)
     call.respond(HttpStatus.OK, posts)
 }

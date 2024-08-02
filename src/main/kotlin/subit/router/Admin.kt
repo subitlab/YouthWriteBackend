@@ -11,10 +11,7 @@ import kotlinx.serialization.Serializable
 import subit.JWTAuth.getLoginUser
 import subit.dataClasses.*
 import subit.database.*
-import subit.router.Context
-import subit.router.authenticated
-import subit.router.get
-import subit.router.paged
+import subit.router.*
 import subit.utils.HttpStatus
 import subit.utils.checkUserInfo
 import subit.utils.respond
@@ -151,8 +148,7 @@ private suspend fun Context.prohibitUser()
 private suspend fun Context.prohibitList()
 {
     checkPermission { checkHasGlobalAdmin() }
-    val begin = call.parameters["begin"]?.toLongOrNull() ?: return call.respond(HttpStatus.BadRequest)
-    val count = call.parameters["count"]?.toIntOrNull() ?: return call.respond(HttpStatus.BadRequest)
+    val (begin, count) = call.getPage()
     call.respond(HttpStatus.OK, get<Prohibits>().getProhibitList(begin, count))
 }
 

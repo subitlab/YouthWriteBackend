@@ -26,12 +26,12 @@ fun Route.block() = route("/block", {
             body<NewBlock>
             {
                 required = true
-                description = "新板块信息"
+                description = "新板块信息, parent为null表示创建根板块. 创建根板块需要全局管理员权限, 其他情况需要在父板块中有管理员权限"
                 example(
                     "example", NewBlock(
                         "板块名称",
                         "板块描述",
-                        BlockId(0),
+                        BlockId(1),
                         PermissionLevel.ADMIN,
                         PermissionLevel.ADMIN,
                         PermissionLevel.ADMIN,
@@ -139,7 +139,7 @@ private data class WarpBlockId(val block: BlockId)
 private data class NewBlock(
     val name: String,
     val description: String,
-    val parent: BlockId,
+    val parent: BlockId?,
     val postingPermission: PermissionLevel,
     val commentingPermission: PermissionLevel,
     val readingPermission: PermissionLevel,
@@ -150,9 +150,13 @@ private suspend fun Context.newBlock()
 {
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     val newBlock = receiveAndCheckBody<NewBlock>()
-    checkPermission { checkHasAdminIn(newBlock.parent) }
     val blocks = get<Blocks>()
-    blocks.getBlock(newBlock.parent) ?: return call.respond(HttpStatus.BadRequest)
+    if (newBlock.parent != null)
+    {
+        checkPermission { checkHasAdminIn(newBlock.parent) }
+        blocks.getBlock(newBlock.parent) ?: return call.respond(HttpStatus.BadRequest)
+    }
+    else checkPermission { checkHasGlobalAdmin() }
     val id = blocks.createBlock(
         name = newBlock.name,
         description = newBlock.description,
