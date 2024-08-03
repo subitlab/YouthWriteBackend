@@ -47,20 +47,16 @@ fun Route.user() = route("/user", {
             }
         }
         response {
-            "200: 获取完整用户信息成功" to {
-                description = "当id为0, 即获取当前用户信息或user权限不低于ADMIN时返回"
-                body<UserFull>()
-                {
-                    example("example", UserFull.example)
-                }
-            }
-            "200: 获取基础用户的信息成功" to {
-                description = "当id不为0即获取其他用户的信息且user权限低于ADMIN时返回"
-                body<BasicUserInfo>()
-                {
-                    example("example", BasicUserInfo.example)
-                }
-            }
+            statuses<UserFull>(
+                HttpStatus.OK.copy(message = "获取完整用户信息成功"),
+                bodyDescription = "当id为0, 即获取当前用户信息或user权限不低于ADMIN时返回",
+                example = UserFull.example
+            )
+            statuses<BasicUserInfo>(
+                HttpStatus.OK.copy(message = "获取基础用户的信息成功"),
+                bodyDescription = "当id不为0即获取其他用户的信息且user权限低于ADMIN时返回",
+                example = BasicUserInfo.example
+            )
             statuses(HttpStatus.NotFound, HttpStatus.Unauthorized)
         }
     }) { getUserInfo() }

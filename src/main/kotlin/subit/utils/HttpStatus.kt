@@ -62,39 +62,50 @@ data class HttpStatus(val code: HttpStatusCode, val message: String)
         val TooManyRequests = HttpStatus(HttpStatusCode.TooManyRequests, "请求过于频繁")
     }
 }
-@Serializable
-data class StatusMessage(val message: String)
-val HttpStatus.statusMessage get() = StatusMessage(message)
 
-suspend inline fun ApplicationCall.respond(status: HttpStatus) = this.respond(status.code, status.statusMessage)
-suspend inline fun <reified T: Any> ApplicationCall.respond(status: HttpStatus,t: T) = this.respond(status.code, t)
-fun OpenApiResponses.statuses(vararg statuses: HttpStatus, bodyDescription: String = "错误信息")
+@Serializable
+data class Response<T>(val code: Int, val message: String, val data: T? = null)
 {
+    constructor(status: HttpStatus, data: T? = null): this(status.code.value, status.message, data)
+}
+
+suspend inline fun ApplicationCall.respond(status: HttpStatus) =
+    this.respond(status.code, Response<Nothing>(status))
+suspend inline fun <reified T: Any> ApplicationCall.respond(status: HttpStatus, t: T) =
+    this.respond(status.code, Response(status, t))
+
+fun OpenApiResponses.statuses(vararg statuses: HttpStatus, bodyDescription: String = "错误信息") =
     statuses.forEach {
         it.message to {
             description = "code: ${it.code.value}, message: ${it.message}"
-            body<StatusMessage> {
+            body<Response<Nothing>> {
                 description = bodyDescription
-                example("固定值", it.statusMessage)
+                example("固定值", Response<Nothing>(it))
             }
         }
     }
-}
-inline fun <reified T: Any> OpenApiResponses.statuses(vararg statuses: HttpStatus, bodyDescription: String = "返回体", example: T)
-{
-    return statuses<T>(*statuses, bodyDescription = bodyDescription, examples = listOf(example))
-}
+
+inline fun <reified T: Any> OpenApiResponses.statuses(
+    vararg statuses: HttpStatus,
+    bodyDescription: String = "返回体",
+    example: T
+) = statuses<T>(*statuses, bodyDescription = bodyDescription, examples = listOf(example))
+
 @JvmName("statusesWithBody")
-inline fun <reified T: Any> OpenApiResponses.statuses(vararg statuses: HttpStatus, bodyDescription: String = "返回体", examples: List<T> = emptyList())
+inline fun <reified T: Any> OpenApiResponses.statuses(
+    vararg statuses: HttpStatus,
+    bodyDescription: String = "返回体",
+    examples: List<T> = emptyList()
+)
 {
     statuses.forEach {
         it.message to {
             description = "code: ${it.code.value}, message: ${it.message}"
-            body<T>
+            body<Response<T>>
             {
                 description = bodyDescription
-                if (examples.size == 1) example("example", examples.first())
-                else examples.forEachIndexed { index, t -> example("example$index", t) }
+                if (examples.size == 1) example("example", Response(it, examples[0]))
+                else examples.forEachIndexed { index, t -> example("example$index", Response(it, t)) }
             }
         }
     }

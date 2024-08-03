@@ -56,16 +56,17 @@ fun Route.files() = route("files", {
             }
         }
         response {
-            "200: 获取文件信息" to {
-                description = "当type为INFO时返回文件信息"
-                body<FileUtils.FileInfo>()
-                {
-                    example("example", FileUtils.FileInfo("fileName", UserId(0), true, 0, "md5"))
+            statuses<FileUtils.FileInfo>(
+                HttpStatus.OK.copy(message = "获取文件信息"),
+                bodyDescription = "当type为INFO时返回文件信息",
+                example = FileUtils.FileInfo("fileName", UserId(0), true, 0, "md5")
+            )
+            "获取文件数据" to {
+                description = "200: 获取文件数据"
+                body {
+                    description = "当type为DATA时返回文件数据"
+                    mediaType(ContentType.Application.OctetStream)
                 }
-            }
-            "200: 获取文件数据" to {
-                description = "当type为DATA时返回文件数据"
-                body { mediaType(ContentType.Application.OctetStream) }
             }
             statuses(HttpStatus.NotFound)
         }
