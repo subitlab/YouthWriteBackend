@@ -1,7 +1,9 @@
 package subit.console.command
 
+import subit.config.loggerConfig
 import subit.console.*
 import subit.console.AnsiStyle.Companion.ansi
+import subit.logger.ForumLogger
 
 object Color: TreeCommand(Test, Mode, Effect)
 {
@@ -51,6 +53,7 @@ object Color: TreeCommand(Test, Mode, Effect)
             override suspend fun execute(args: List<String>): Boolean
             {
                 Console.ansiColorMode = ColorDisplayMode.RGB
+                loggerConfig = loggerConfig.copy(color = ColorDisplayMode.RGB)
                 CommandSet.out.println("Color mode: RGB")
                 return true
             }
@@ -62,6 +65,7 @@ object Color: TreeCommand(Test, Mode, Effect)
             override suspend fun execute(args: List<String>): Boolean
             {
                 Console.ansiColorMode = ColorDisplayMode.SIMPLE
+                loggerConfig = loggerConfig.copy(color = ColorDisplayMode.SIMPLE)
                 CommandSet.out.println("Color mode: Simple")
                 return true
             }
@@ -73,6 +77,7 @@ object Color: TreeCommand(Test, Mode, Effect)
             override suspend fun execute(args: List<String>): Boolean
             {
                 Console.ansiColorMode = ColorDisplayMode.NONE
+                loggerConfig = loggerConfig.copy(color = ColorDisplayMode.NONE)
                 CommandSet.out.println("Color mode: None")
                 return true
             }
@@ -89,6 +94,7 @@ object Color: TreeCommand(Test, Mode, Effect)
             override suspend fun execute(args: List<String>): Boolean
             {
                 Console.ansiEffectMode = EffectDisplayMode.ON
+                loggerConfig = loggerConfig.copy(effect = true)
                 CommandSet.out.println("Color effect: On")
                 return true
             }
@@ -100,6 +106,7 @@ object Color: TreeCommand(Test, Mode, Effect)
             override suspend fun execute(args: List<String>): Boolean
             {
                 Console.ansiEffectMode = EffectDisplayMode.OFF
+                loggerConfig = loggerConfig.copy(effect = false)
                 CommandSet.out.println("Color effect: Off")
                 return true
             }
