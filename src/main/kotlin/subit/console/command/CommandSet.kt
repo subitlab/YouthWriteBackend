@@ -52,6 +52,7 @@ object CommandSet: TreeCommand(
 
     fun Application.startCommandThread() = CoroutineScope(Dispatchers.IO).launch()
     {
+        if (Console.lineReader == null) return@launch
         var line: String? = null
         while (true) try
         {
@@ -115,7 +116,7 @@ object CommandSet: TreeCommand(
         {
             if (b == '\n'.code)
             {
-                Console.println("${SimpleAnsiColor.PURPLE.bright()}[COMMAND]$style$level$RESET $arrayOutputStream")
+                Console.println("${SimpleAnsiColor.PURPLE.bright()}[COMMAND]$style$level$RESET $arrayOutputStream$RESET")
                 arrayOutputStream.reset()
             }
             else

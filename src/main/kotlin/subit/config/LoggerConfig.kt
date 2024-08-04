@@ -4,6 +4,8 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 import net.mamoe.yamlkt.Comment
+import subit.console.ColorDisplayMode
+import subit.console.Console
 import subit.logger.ForumLogger
 import java.util.logging.Level
 import java.util.logging.LogRecord
@@ -20,10 +22,15 @@ data class LoggerConfig(
     val levelName: String,
     @Comment("是否在日志中显示日志名称")
     val showLoggerName: Boolean,
+    @Comment("日志的颜色样式, 可选值: RGB, SIMPLE, NONE")
+    val color: ColorDisplayMode,
+    @Comment("是否在日志中使用样式(加粗, 斜体, 下划线等)")
+    val effect: Boolean
 )
 {
     @Transient
     val level: Level = Level.parse(levelName)
+
     @Transient
     val pattern: Pattern = Pattern.compile(matchers.joinToString("|") { "($it)" })
 
@@ -32,6 +39,12 @@ data class LoggerConfig(
 
 var loggerConfig: LoggerConfig by config(
     "logger.yml",
-    LoggerConfig(listOf(), true, "INFO", false),
-    { _, new -> ForumLogger.globalLogger.logger.setLevel(new.level) }
+    LoggerConfig(listOf(), true, "INFO", false, ColorDisplayMode.RGB, true),
+    { _, new ->
+        ForumLogger.globalLogger.logger.setLevel(new.level)
+        Console.ansiEffectMode =
+            if (new.effect) subit.console.EffectDisplayMode.ON
+            else subit.console.EffectDisplayMode.OFF
+        Console.ansiColorMode = new.color
+    }
 )

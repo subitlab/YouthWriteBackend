@@ -300,7 +300,7 @@ object ToFileHandler: Handler()
 
     private fun check()
     {
-        if ((cnt ushr 10) > 0) new()
+        if ((cnt ushr 10) != 0) new()
     }
 
     private fun append(lines: List<String>) = synchronized(this)
