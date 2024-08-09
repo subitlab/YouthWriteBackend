@@ -1,6 +1,11 @@
 package subit.plugin
 
 import io.github.smiley4.ktorswaggerui.SwaggerUI
+import io.github.smiley4.schemakenerator.reflection.processReflection
+import io.github.smiley4.schemakenerator.swagger.compileInlining
+import io.github.smiley4.schemakenerator.swagger.data.TitleType
+import io.github.smiley4.schemakenerator.swagger.generateSwaggerSchema
+import io.github.smiley4.schemakenerator.swagger.withAutoTitle
 import io.ktor.server.application.*
 import io.ktor.server.plugins.ratelimit.*
 
@@ -9,19 +14,22 @@ import io.ktor.server.plugins.ratelimit.*
  */
 fun Application.installApiDoc() = install(SwaggerUI)
 {
-    swagger()
-    {
-        swaggerUrl = "api-docs"
-        // 当直接访问根目录时跳转到/api-docs 因为根目录下没有内容
-        forwardRoot = true
-        // apidocs为了不对外暴露, 因此需要认证, 见Authentication插件
-        authentication = "auth-api-docs"
-    }
     info()
     {
         title = "论坛后端API文档"
         version = subit.version
         description = "SubIT论坛后端API文档"
     }
+    server {
+        url = "http://localhost:8080"
+    }
     this.ignoredRouteSelectors += RateLimitRouteSelector::class
+    schemas {
+        generator = {
+            it.processReflection()
+                .generateSwaggerSchema()
+                .withAutoTitle(TitleType.SIMPLE)
+                .compileInlining()
+        }
+    }
 }

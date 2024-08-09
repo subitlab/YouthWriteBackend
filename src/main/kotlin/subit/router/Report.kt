@@ -2,9 +2,7 @@
 
 package subit.router.report
 
-import io.github.smiley4.ktorswaggerui.dsl.get
-import io.github.smiley4.ktorswaggerui.dsl.post
-import io.github.smiley4.ktorswaggerui.dsl.route
+import io.github.smiley4.ktorswaggerui.dsl.routing.*
 import io.ktor.server.application.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
@@ -14,10 +12,7 @@ import subit.dataClasses.ReportId.Companion.toReportIdOrNull
 import subit.database.Reports
 import subit.database.checkPermission
 import subit.database.receiveAndCheckBody
-import subit.router.Context
-import subit.router.authenticated
-import subit.router.get
-import subit.router.paged
+import subit.router.*
 import subit.utils.HttpStatus
 import subit.utils.respond
 import subit.utils.statuses
@@ -36,9 +31,9 @@ fun Route.report() = route("/report", {
             {
                 required = true
                 description = "举报对象"
-                example = ReportObject.POST
+                example(ReportObject.POST)
             }
-            pathParameter<RawPostId>("id")
+            pathParameter<PostId>("id")
             {
                 required = true
                 description = "帖子id"
@@ -62,7 +57,7 @@ fun Route.report() = route("/report", {
             {
                 required = true
                 description = "all表示全部, true是已受理, false未受理"
-                example = "all"
+                example("all")
             }
             paged()
         }

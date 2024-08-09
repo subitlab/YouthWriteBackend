@@ -1,10 +1,11 @@
 package subit.utils
 
-import io.github.smiley4.ktorswaggerui.dsl.OpenApiResponses
+import io.github.smiley4.ktorswaggerui.dsl.routes.OpenApiResponses
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.response.*
 import kotlinx.serialization.Serializable
+import subit.router.example
 
 /**
  * 定义了一些出现的自定义的HTTP状态码, 更多HTTP状态码请参考[io.ktor.http.HttpStatusCode]

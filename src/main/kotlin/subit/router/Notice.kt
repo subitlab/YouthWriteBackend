@@ -2,9 +2,7 @@
 
 package subit.router.notice
 
-import io.github.smiley4.ktorswaggerui.dsl.delete
-import io.github.smiley4.ktorswaggerui.dsl.get
-import io.github.smiley4.ktorswaggerui.dsl.route
+import io.github.smiley4.ktorswaggerui.dsl.routing.*
 import io.ktor.server.application.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
@@ -38,7 +36,7 @@ fun Route.notice() = route("/notice", {
             {
                 required = false
                 description = "通知类型, 可选值为${Type.entries.joinToString { it.name }}, 不填则获取所有通知"
-                example = Type.SYSTEM
+                example(Type.SYSTEM)
             }
         }
         response {
@@ -58,7 +56,7 @@ fun Route.notice() = route("/notice", {
                 - content: 内容, 当类型为系统通知时, 为通知内容, 其他情况下为null
                 """.trimIndent()
         request {
-            pathParameter<RawNoticeId>("id")
+            pathParameter<NoticeId>("id")
             {
                 required = true
                 description = "通知ID"
@@ -81,11 +79,11 @@ fun Route.notice() = route("/notice", {
     delete("/{id}", {
         description = "删除通知(设为已读)"
         request {
-            pathParameter<RawNoticeId>("id")
+            pathParameter<NoticeId>("id")
             {
                 required = true
                 description = "通知ID"
-                example = NoticeId(0)
+                example(NoticeId(0))
             }
         }
         response {

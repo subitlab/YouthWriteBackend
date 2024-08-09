@@ -2,9 +2,7 @@
 
 package subit.router.privateChat
 
-import io.github.smiley4.ktorswaggerui.dsl.get
-import io.github.smiley4.ktorswaggerui.dsl.post
-import io.github.smiley4.ktorswaggerui.dsl.route
+import io.github.smiley4.ktorswaggerui.dsl.routing.*
 import io.ktor.server.application.*
 import io.ktor.server.routing.*
 import kotlinx.datetime.Instant
@@ -55,7 +53,7 @@ fun Route.privateChat() = route("/privateChat", {
     get("/listChat/{userId}", {
         description = "获取与某人的私信列表"
         request {
-            pathParameter<RawUserId>("userId")
+            pathParameter<UserId>("userId")
             {
                 required = true
                 description = "对方的id"
@@ -69,7 +67,7 @@ fun Route.privateChat() = route("/privateChat", {
                         与before互斥, 且必须传入其中一个. 若传入此项, 返回的消息将按照时间正向排序,
                         即若begin为1, count为3, 将放回晚于after的最早的3条消息, 且这3条消息的时间依次递增
                         """.trimIndent()
-                example = System.currentTimeMillis()
+                example(System.currentTimeMillis())
             }
             queryParameter<Long>("before")
             {
@@ -80,7 +78,7 @@ fun Route.privateChat() = route("/privateChat", {
                         与after互斥, 且必须传入其中一个. 若传入此项, 返回的消息将按照时间逆向排序,
                         即若begin为1, count为3, 将放回早于before的最晚的3条消息, 且这3条消息的时间依次递减
                         """.trimIndent()
-                example = System.currentTimeMillis()
+                example(System.currentTimeMillis())
             }
             paged()
         }
@@ -101,7 +99,7 @@ fun Route.privateChat() = route("/privateChat", {
     get("/unread/{userId}", {
         description = "获取与某人的未读私信数量"
         request {
-            pathParameter<RawUserId>("userId")
+            pathParameter<UserId>("userId")
             {
                 required = true
                 description = "对方的id"
@@ -117,7 +115,7 @@ fun Route.privateChat() = route("/privateChat", {
         description = "获取是否被某人拉黑"
         request {
             authenticated(true)
-            pathParameter<RawUserId>("userId")
+            pathParameter<UserId>("userId")
             {
                 required = true
                 description = "对方的id,注意是对方是否拉黑当前登录者"
@@ -132,7 +130,7 @@ fun Route.privateChat() = route("/privateChat", {
     post("/block/{userId}", {
         description = "修改对某人的拉黑状态"
         request {
-            pathParameter<RawUserId>("userId")
+            pathParameter<UserId>("userId")
             {
                 required = true
                 description = "对方的id"

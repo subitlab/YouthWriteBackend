@@ -2,7 +2,7 @@
 
 package subit.router.posts
 
-import io.github.smiley4.ktorswaggerui.dsl.*
+import io.github.smiley4.ktorswaggerui.dsl.routing.*
 import io.ktor.server.application.*
 import io.ktor.server.plugins.ratelimit.*
 import io.ktor.server.routing.*
@@ -64,7 +64,7 @@ fun Route.posts() = route("/post", {
         description = "获取帖子信息"
         request {
             authenticated(false)
-            pathParameter<RawPostId>("id")
+            pathParameter<PostId>("id")
             {
                 required = true
                 description = "要获取的帖子的id, 若是匿名帖则author始终是null"
@@ -80,7 +80,7 @@ fun Route.posts() = route("/post", {
         description = "删除帖子"
         request {
             authenticated(true)
-            pathParameter<RawPostId>("id")
+            pathParameter<PostId>("id")
             {
                 required = true
                 description = "要删除的帖子的id"
@@ -96,7 +96,7 @@ fun Route.posts() = route("/post", {
         description = "点赞/点踩/取消点赞/收藏/取消收藏 帖子"
         request {
             authenticated(true)
-            pathParameter<RawPostId>("id")
+            pathParameter<PostId>("id")
             {
                 required = true
                 description = "帖子的id"
@@ -118,7 +118,7 @@ fun Route.posts() = route("/post", {
         description = "获取用户发送的帖子列表"
         request {
             authenticated(false)
-            pathParameter<RawUserId>("user")
+            pathParameter<UserId>("user")
             {
                 required = true
                 description = "作者ID"
@@ -134,7 +134,7 @@ fun Route.posts() = route("/post", {
         description = "获取板块帖子列表"
         request {
             authenticated(false)
-            pathParameter<RawBlockId>("block")
+            pathParameter<BlockId>("block")
             {
                 required = true
                 description = "板块ID"
@@ -143,7 +143,7 @@ fun Route.posts() = route("/post", {
             {
                 required = true
                 description = "排序方式"
-                example = Posts.PostListSort.NEW
+                example(Posts.PostListSort.NEW)
             }
             paged()
         }
@@ -156,7 +156,7 @@ fun Route.posts() = route("/post", {
         description = "获取板块置顶帖子列表"
         request {
             authenticated(false)
-            pathParameter<RawBlockId>("block")
+            pathParameter<BlockId>("block")
             {
                 required = true
                 description = "板块ID"
@@ -172,7 +172,7 @@ fun Route.posts() = route("/post", {
         description = "设置帖子是否置顶"
         request {
             authenticated(true)
-            pathParameter<RawPostId>("id")
+            pathParameter<PostId>("id")
             {
                 required = true
                 description = "帖子的id"
@@ -181,7 +181,7 @@ fun Route.posts() = route("/post", {
             {
                 required = true
                 description = "是否置顶"
-                example = true
+                example(true)
             }
         }
         response {

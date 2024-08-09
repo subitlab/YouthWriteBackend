@@ -2,8 +2,7 @@
 
 package subit.router.auth
 
-import io.github.smiley4.ktorswaggerui.dsl.post
-import io.github.smiley4.ktorswaggerui.dsl.route
+import io.github.smiley4.ktorswaggerui.dsl.routing.*
 import io.ktor.server.application.*
 import io.ktor.server.plugins.ratelimit.*
 import io.ktor.server.routing.*
@@ -16,6 +15,7 @@ import subit.database.*
 import subit.plugin.RateLimit
 import subit.router.Context
 import subit.router.authenticated
+import subit.router.example
 import subit.router.get
 import subit.utils.*
 

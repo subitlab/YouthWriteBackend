@@ -2,10 +2,7 @@
 
 package subit.router.files
 
-import io.github.smiley4.ktorswaggerui.dsl.delete
-import io.github.smiley4.ktorswaggerui.dsl.get
-import io.github.smiley4.ktorswaggerui.dsl.post
-import io.github.smiley4.ktorswaggerui.dsl.route
+import io.github.smiley4.ktorswaggerui.dsl.routing.*
 import io.ktor.http.*
 import io.ktor.http.content.*
 import io.ktor.server.application.*
@@ -21,15 +18,13 @@ import subit.database.Operations
 import subit.database.Users
 import subit.database.addOperation
 import subit.database.receiveAndCheckBody
-import subit.router.Context
-import subit.router.authenticated
-import subit.router.get
-import subit.router.paged
+import subit.router.*
 import subit.utils.*
 import subit.utils.FileUtils.canDelete
 import subit.utils.FileUtils.canGet
 import subit.utils.FileUtils.getSpaceInfo
 import subit.utils.FileUtils.getUserFiles
+import java.io.File
 import java.io.InputStream
 import java.util.*
 
@@ -37,40 +32,41 @@ fun Route.files() = route("files", {
     tags = listOf("文件")
 })
 {
-    get("/{id}/{type}", {
-        description =
-            "获取文件, 若是管理员可以获取任意文件, 否则只能获取自己上传的文件. 注意若文件过期则只能获取info"
+    route("/{id}", {
         request {
             authenticated(false)
             pathParameter<String>("id")
             {
                 required = true
                 description = "文件ID"
-                example = UUID.randomUUID().toString()
-            }
-            pathParameter<GetFileType>("type")
-            {
-                required = true
-                description = "获取类型, 可以获取文件信息或文件的数据"
-                example = GetFileType.INFO
+                example(UUID.randomUUID().toString())
             }
         }
-        response {
-            statuses<FileUtils.FileInfo>(
-                HttpStatus.OK.copy(message = "获取文件信息"),
-                bodyDescription = "当type为INFO时返回文件信息",
-                example = FileUtils.FileInfo("fileName", UserId(0), true, 0, "md5")
-            )
-            "获取文件数据" to {
-                description = "200: 获取文件数据"
-                body {
-                    description = "当type为DATA时返回文件数据"
-                    mediaType(ContentType.Application.OctetStream)
+    })
+    {
+        get("/info", {
+            description = "获取文件信息"
+            response {
+                statuses<FileUtils.FileInfo>(
+                    HttpStatus.OK,
+                    example = FileUtils.FileInfo("fileName", UserId(0), true, 0, "md5")
+                )
+                statuses(HttpStatus.NotFound)
+            }
+        }) { getFileInfo() }
+
+        get("/data", {
+            description = "获取文件数据"
+            response {
+                HttpStatus.OK.message to {
+                    body<File>()
+                    {
+                        mediaTypes(ContentType.Application.OctetStream, ContentType.Image.Any)
+                    }
                 }
             }
-            statuses(HttpStatus.NotFound)
-        }
-    }) { getFile() }
+        }) { getFileData() }
+    }
 
     delete("/{id}", {
         description = "删除文件, 除管理员外只能删除自己上传的文件"
@@ -80,7 +76,7 @@ fun Route.files() = route("files", {
             {
                 required = true
                 description = "文件ID"
-                example = UUID.randomUUID().toString()
+                example(UUID.randomUUID().toString())
             }
         }
         response {
@@ -98,8 +94,12 @@ fun Route.files() = route("files", {
             {
                 required = true
                 description = "第一部分是文件信息, 第二部分是文件数据"
+                mediaTypes(ContentType.MultiPart.FormData)
                 part<UploadFile>("info")
-                part<Any>("file")
+                {
+                    mediaTypes = listOf(ContentType.Application.Json)
+                }
+                part<File>("file")
                 {
                     mediaTypes = listOf(ContentType.Application.OctetStream)
                 }
@@ -115,7 +115,7 @@ fun Route.files() = route("files", {
         description = "获取用户上传的文件的列表, 若不是管理员只能获取目标用户公开的文件"
         request {
             authenticated(false)
-            pathParameter<RawUserId>("id")
+            pathParameter<UserId>("id")
             {
                 required = true
                 description = "用户ID, 为0表示当前登陆的用户"
@@ -167,33 +167,28 @@ fun Route.files() = route("files", {
     }) { changePermission() }
 }
 
-@Serializable
-private enum class GetFileType
+private suspend fun Context.getFileInfo0(): Pair<UUID, FileUtils.FileInfo>?
 {
-    INFO,
-    DATA
+    val id = call.parameters["id"].toUUIDOrNull() ?: return call.respond(HttpStatus.BadRequest).let { null }
+    val fileInfo = FileUtils.getFileInfo(id) ?: return call.respond(HttpStatus.NotFound).let { null }
+    val user = getLoginUser()
+    if (!user.canGet(fileInfo)) return call.respond(HttpStatus.Forbidden).let { null }
+    return id to fileInfo
 }
 
-private suspend fun Context.getFile()
+private suspend fun Context.getFileInfo()
 {
-    val id = call.parameters["id"].toUUIDOrNull() ?: return call.respond(HttpStatus.BadRequest)
-    val fileInfo = FileUtils.getFileInfo(id) ?: return call.respond(HttpStatus.NotFound)
-    val user = getLoginUser()
-    if (!user.canGet(fileInfo)) return call.respond(HttpStatus.Forbidden)
-    val type = call.parameters["type"] ?: return call.respond(HttpStatus.BadRequest)
-    return when
-    {
-        type.equals(GetFileType.INFO.name, true) -> call.respond(HttpStatus.OK, fileInfo)
-        type.equals(GetFileType.DATA.name, true) ->
-        {
-            val file = FileUtils.getFile(id, fileInfo) ?: return call.respond(HttpStatus.NotFound)
-            call.response.header("Content-Disposition", "attachment; filename=\"${fileInfo.fileName}\"")
-            call.response.header("Content-md5", fileInfo.md5)
-            call.respondFile(file)
-        }
+    val file = getFileInfo0() ?: return
+    call.respond(HttpStatus.OK, file.second)
+}
 
-        else                                     -> call.respond(HttpStatus.BadRequest)
-    }
+private suspend fun Context.getFileData()
+{
+    val (id, fileInfo) = getFileInfo0() ?: return
+    val file = FileUtils.getFile(id, fileInfo) ?: return call.respond(HttpStatus.NotFound)
+    call.response.header("Content-Disposition", "attachment; filename=\"${fileInfo.fileName}\"")
+    call.response.header("Content-md5", fileInfo.md5)
+    call.respondFile(file)
 }
 
 private suspend fun Context.deleteFile()

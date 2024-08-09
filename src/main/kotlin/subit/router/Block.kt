@@ -2,7 +2,7 @@
 
 package subit.router.block
 
-import io.github.smiley4.ktorswaggerui.dsl.*
+import io.github.smiley4.ktorswaggerui.dsl.routing.*
 import io.ktor.server.application.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
@@ -41,7 +41,7 @@ fun Route.block() = route("/block", {
             }
         }
         response {
-            statuses<WarpBlockId>(HttpStatus.OK)
+            statuses<WarpBlockId>(HttpStatus.OK, example = WarpBlockId(BlockId(0)))
             statuses(HttpStatus.Forbidden, HttpStatus.Unauthorized)
         }
     }) { newBlock() }
@@ -50,7 +50,7 @@ fun Route.block() = route("/block", {
         description = "修改板块信息"
         request {
             authenticated(true)
-            pathParameter<RawBlockId>("id")
+            pathParameter<BlockId>("id")
             {
                 required = true
                 description = "板块ID"
@@ -71,7 +71,7 @@ fun Route.block() = route("/block", {
         description = "获取板块信息"
         request {
             authenticated(false)
-            pathParameter<RawBlockId>("id")
+            pathParameter<BlockId>("id")
             {
                 required = true
                 description = "板块ID"
@@ -87,7 +87,7 @@ fun Route.block() = route("/block", {
         description = "删除板块"
         request {
             authenticated(true)
-            pathParameter<RawBlockId>("id")
+            pathParameter<BlockId>("id")
             {
                 required = true
                 description = "板块ID"
@@ -119,7 +119,7 @@ fun Route.block() = route("/block", {
         request {
             authenticated(false)
             paged()
-            pathParameter<RawBlockId>("id")
+            pathParameter<BlockId>("id")
             {
                 required = true
                 description = "板块ID"

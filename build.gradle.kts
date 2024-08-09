@@ -9,6 +9,7 @@ val hikaricp_version: String by project
 val koin_version: String by project
 val jline_version: String by project
 val swagger_ui_version: String by project
+val schema_kenerator_version: String by project
 
 plugins {
     kotlin("jvm") version "2.0.0"
@@ -43,6 +44,9 @@ dependencies {
     implementation("io.ktor:ktor-server-double-receive-jvm") // 重复接收
     implementation("io.ktor:ktor-server-rate-limit-jvm") // 限流
     implementation("io.github.smiley4:ktor-swagger-ui:$swagger_ui_version") // 创建api页面
+    implementation("io.github.smiley4:schema-kenerator-core:$schema_kenerator_version")
+    implementation("io.github.smiley4:schema-kenerator-swagger:$schema_kenerator_version")
+    implementation("io.github.smiley4:schema-kenerator-reflection:$schema_kenerator_version")
     implementation("com.sun.mail:javax.mail:1.6.2") // 邮件发送
 
     //mysql

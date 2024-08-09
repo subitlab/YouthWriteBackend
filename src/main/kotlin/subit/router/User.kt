@@ -2,10 +2,7 @@
 
 package subit.router.user
 
-import io.github.smiley4.ktorswaggerui.dsl.delete
-import io.github.smiley4.ktorswaggerui.dsl.get
-import io.github.smiley4.ktorswaggerui.dsl.post
-import io.github.smiley4.ktorswaggerui.dsl.route
+import io.github.smiley4.ktorswaggerui.dsl.routing.*
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.request.*
@@ -25,6 +22,7 @@ import subit.utils.HttpStatus
 import subit.utils.respond
 import subit.utils.statuses
 import java.io.ByteArrayOutputStream
+import java.io.File
 import javax.imageio.ImageIO
 
 private val logger = ForumLogger.getLogger()
@@ -40,7 +38,7 @@ fun Route.user() = route("/user", {
                 """.trimIndent()
         request {
             authenticated(false)
-            pathParameter<RawUserId>("id")
+            pathParameter<UserId>("id")
             {
                 required = true
                 description = "用户ID"
@@ -65,7 +63,7 @@ fun Route.user() = route("/user", {
         description = "修改个人简介, 修改自己的需要user权限在NORMAL以上, 修改他人需要在ADMIN以上"
         request {
             authenticated(true)
-            pathParameter<RawUserId>("id")
+            pathParameter<UserId>("id")
             {
                 required = true
                 description = """
@@ -89,15 +87,15 @@ fun Route.user() = route("/user", {
         description = "修改头像, 修改他人头像要求user权限在ADMIN以上"
         request {
             authenticated(true)
-            pathParameter<RawUserId>("id")
+            pathParameter<UserId>("id")
             {
                 required = true
                 description = "要修改的用户ID, 0为当前登陆用户"
             }
-            body()
+            body<File>()
             {
                 required = true
-                mediaType(ContentType.Image.Any)
+                mediaTypes(ContentType.Image.Any)
                 description = "头像图片, 要求是正方形的"
             }
         }
@@ -117,7 +115,7 @@ fun Route.user() = route("/user", {
         description = "获取头像"
         request {
             authenticated(false)
-            pathParameter<RawUserId>("id")
+            pathParameter<UserId>("id")
             {
                 required = true
                 description = "要获取的用户ID, 0为当前登陆用户, 若id不为0则无需登陆, 否则需要登陆"
@@ -127,10 +125,10 @@ fun Route.user() = route("/user", {
             statuses(HttpStatus.BadRequest, HttpStatus.Unauthorized)
             HttpStatus.OK.code to {
                 description = "获取头像成功"
-                body()
+                body<File>()
                 {
                     description = "获取到的头像, 总是png格式的"
-                    mediaType(ContentType.Image.PNG)
+                    mediaTypes(ContentType.Image.PNG)
                 }
             }
         }
@@ -140,7 +138,7 @@ fun Route.user() = route("/user", {
         description = "删除头像, 即恢复默认头像, 删除他人头像要求user权限在ADMIN以上"
         request {
             authenticated(true)
-            pathParameter<RawUserId>("id")
+            pathParameter<UserId>("id")
             {
                 required = true
                 description = "要删除的用户ID, 0为当前登陆用户"
@@ -160,7 +158,7 @@ fun Route.user() = route("/user", {
         description = "获取用户收藏的帖子"
         request {
             authenticated(false)
-            pathParameter<RawUserId>("id")
+            pathParameter<UserId>("id")
             {
                 required = true
                 description = """

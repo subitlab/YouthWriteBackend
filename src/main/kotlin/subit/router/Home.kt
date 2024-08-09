@@ -2,8 +2,7 @@
 
 package subit.router.home
 
-import io.github.smiley4.ktorswaggerui.dsl.get
-import io.github.smiley4.ktorswaggerui.dsl.route
+import io.github.smiley4.ktorswaggerui.dsl.routing.*
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.plugins.ratelimit.*
@@ -35,7 +34,7 @@ fun Route.home() = route("/home", {
                 {
                     required = false
                     description = "获取数量, 不填为10"
-                    example = 10
+                    example(10)
                 }
             }
             response {
@@ -51,7 +50,7 @@ fun Route.home() = route("/home", {
                 {
                     required = true
                     description = "关键字"
-                    example = "关键字"
+                    example("关键字")
                 }
                 paged()
             }
@@ -81,7 +80,7 @@ fun Route.home() = route("/home", {
                     {
                         required = false
                         description = "是否开启高级搜索, 默认为否"
-                        example = false
+                        example(false)
                     }
                     body<AdvancedSearchData>{
                         required = false

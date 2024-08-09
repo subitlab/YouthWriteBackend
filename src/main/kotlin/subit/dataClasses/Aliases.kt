@@ -24,10 +24,9 @@ interface Id<ID, T>: Comparable<ID> where T: Number, T: Comparable<T>, ID: Id<ID
     }
 }
 
-typealias RawBlockId = Int
 @JvmInline
 @Serializable
-value class BlockId(override val value: RawBlockId): Id<BlockId, RawBlockId>
+value class BlockId(override val value: Int): Id<BlockId, Int>
 {
     override fun toString(): String = value.toString()
 
@@ -39,10 +38,9 @@ value class BlockId(override val value: RawBlockId): Id<BlockId, RawBlockId>
     }
 }
 
-typealias RawUserId = Int
 @JvmInline
 @Serializable
-value class UserId(override val value: RawUserId): Id<UserId, RawUserId>
+value class UserId(override val value: Int): Id<UserId, Int>
 {
     override fun toString(): String = value.toString()
 
@@ -54,10 +52,9 @@ value class UserId(override val value: RawUserId): Id<UserId, RawUserId>
     }
 }
 
-typealias RawPostId = Long
 @JvmInline
 @Serializable
-value class PostId(override val value: RawPostId): Id<PostId, RawPostId>
+value class PostId(override val value: Long): Id<PostId, Long>
 {
     override fun toString(): String = value.toString()
 
@@ -69,10 +66,9 @@ value class PostId(override val value: RawPostId): Id<PostId, RawPostId>
     }
 }
 
-typealias RawCommentId = Long
 @JvmInline
 @Serializable
-value class CommentId(override val value: RawCommentId): Id<CommentId, RawCommentId>
+value class CommentId(override val value: Long): Id<CommentId, Long>
 {
     override fun toString(): String = value.toString()
 
@@ -84,10 +80,9 @@ value class CommentId(override val value: RawCommentId): Id<CommentId, RawCommen
     }
 }
 
-typealias RawReportId = Long
 @JvmInline
 @Serializable
-value class ReportId(override val value: RawReportId): Id<ReportId, RawReportId>
+value class ReportId(override val value: Long): Id<ReportId, Long>
 {
     override fun toString(): String = value.toString()
 
@@ -99,10 +94,9 @@ value class ReportId(override val value: RawReportId): Id<ReportId, RawReportId>
     }
 }
 
-typealias RawNoticeId = Long
 @JvmInline
 @Serializable
-value class NoticeId(override val value: RawNoticeId): Id<NoticeId, RawNoticeId>
+value class NoticeId(override val value: Long): Id<NoticeId, Long>
 {
     override fun toString(): String = value.toString()
 

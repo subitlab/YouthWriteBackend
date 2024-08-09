@@ -2,10 +2,7 @@
 
 package subit.router.comment
 
-import io.github.smiley4.ktorswaggerui.dsl.delete
-import io.github.smiley4.ktorswaggerui.dsl.get
-import io.github.smiley4.ktorswaggerui.dsl.post
-import io.github.smiley4.ktorswaggerui.dsl.route
+import io.github.smiley4.ktorswaggerui.dsl.routing.*
 import io.ktor.server.application.*
 import io.ktor.server.plugins.ratelimit.*
 import io.ktor.server.routing.*
@@ -18,6 +15,7 @@ import subit.database.*
 import subit.plugin.RateLimit
 import subit.router.Context
 import subit.router.authenticated
+import subit.router.example
 import subit.router.get
 import subit.utils.HttpStatus
 import subit.utils.respond
@@ -33,7 +31,7 @@ fun Route.comment() = route("/comment", {
             description = "评论一个帖子"
             request {
                 authenticated(true)
-                pathParameter<RawPostId>("postId")
+                pathParameter<PostId>("postId")
                 {
                     required = true
                     description = "帖子id"
@@ -54,7 +52,7 @@ fun Route.comment() = route("/comment", {
             description = "评论一个评论"
             request {
                 authenticated(true)
-                pathParameter<RawCommentId>("commentId")
+                pathParameter<CommentId>("commentId")
                 {
                     required = true
                     description = "评论id"
@@ -76,7 +74,7 @@ fun Route.comment() = route("/comment", {
         description = "删除一个评论, 需要板块管理员权限"
         request {
             authenticated(true)
-            pathParameter<RawCommentId>("commentId")
+            pathParameter<CommentId>("commentId")
             {
                 required = true
                 description = "评论id"
@@ -92,7 +90,7 @@ fun Route.comment() = route("/comment", {
         description = "获取一个帖子的评论列表"
         request {
             authenticated(false)
-            pathParameter<RawPostId>("postId")
+            pathParameter<PostId>("postId")
             {
                 required = true
                 description = "帖子id"
@@ -108,7 +106,7 @@ fun Route.comment() = route("/comment", {
         description = "获取一个评论的评论列表"
         request {
             authenticated(false)
-            pathParameter<RawCommentId>("commentId")
+            pathParameter<CommentId>("commentId")
             {
                 required = true
                 description = "评论id"
@@ -124,7 +122,7 @@ fun Route.comment() = route("/comment", {
         description = "获取一个评论的信息"
         request {
             authenticated(false)
-            pathParameter<RawCommentId>("commentId")
+            pathParameter<CommentId>("commentId")
             {
                 required = true
                 description = "评论id"

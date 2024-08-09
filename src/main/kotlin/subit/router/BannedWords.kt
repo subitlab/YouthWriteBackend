@@ -2,7 +2,7 @@
 
 package subit.router.bannedWords
 
-import io.github.smiley4.ktorswaggerui.dsl.*
+import io.github.smiley4.ktorswaggerui.dsl.routing.*
 import io.ktor.server.application.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
@@ -54,7 +54,7 @@ fun Route.bannedWords() = route("/bannedWord", {
             {
                 required = true
                 description = "违禁词汇"
-                example = "违禁词汇"
+                example("违禁词汇")
             }
         }
         response {
@@ -70,7 +70,7 @@ fun Route.bannedWords() = route("/bannedWord", {
             {
                 required = true
                 description = "违禁词汇"
-                example = "违禁词汇"
+                example("违禁词汇")
             }
             body<NewBannedWord>
             {

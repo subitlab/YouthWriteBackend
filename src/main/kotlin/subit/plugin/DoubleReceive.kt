@@ -1,5 +1,6 @@
 package subit.plugin
 
+import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.plugins.doublereceive.*
 import io.ktor.server.request.*
@@ -10,3 +11,8 @@ import io.ktor.server.request.*
  * 该插件可以让请求体被多次读取, 但是也会消耗更多的内存.
  */
 fun Application.installDoubleReceive() = install(DoubleReceive)
+{
+    cacheRawRequest = true
+    excludeFromCache { call, _ -> !call.request.contentType().match(ContentType.Application.Json) } // 不缓存非json请求
+    useFileForCache { call -> (call.request.contentLength() ?: 0) > 64 * (1 shl 20) } // 超过64MB的请求体使用文件缓存
+}
