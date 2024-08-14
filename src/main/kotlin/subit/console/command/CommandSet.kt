@@ -30,7 +30,6 @@ object CommandSet: TreeCommand(
     Logger,
     Shell,
     Color,
-    Whitelist,
     Maintain,
     TestDatabase
 )

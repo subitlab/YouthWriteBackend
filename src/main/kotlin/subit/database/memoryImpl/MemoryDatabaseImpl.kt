@@ -43,7 +43,6 @@ object MemoryDatabaseImpl: IDatabase, KoinComponent
             singleOf(::BannedWordsImpl).bind<BannedWords>()
             singleOf(::BlocksImpl).bind<Blocks>()
             singleOf(::CommentsImpl).bind<Comments>()
-            singleOf(::EmailCodesImpl).bind<EmailCodes>()
             singleOf(::LikesImpl).bind<Likes>()
             singleOf(::NoticesImpl).bind<Notices>()
             singleOf(::OperationsImpl).bind<Operations>()
@@ -54,7 +53,6 @@ object MemoryDatabaseImpl: IDatabase, KoinComponent
             singleOf(::ReportsImpl).bind<Reports>()
             singleOf(::StarsImpl).bind<Stars>()
             singleOf(::UsersImpl).bind<Users>()
-            singleOf(::WhitelistsImpl).bind<Whitelists>()
         }
         getKoin().loadModules(listOf(module))
     }

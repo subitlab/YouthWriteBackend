@@ -59,12 +59,6 @@ fun Route.home() = route("/home", {
             }
         })
         {
-            get("/user", {
-                description = "搜索用户 会返回所有用户名包含key的用户"
-                response {
-                    statuses<Slice<UserId>>(HttpStatus.OK, example = sliceOf(UserId(0)))
-                }
-            }) { searchUser() }
 
             get("/block", {
                 description = "搜索板块, 会返回板块名称或介绍包含关键词的板块"
@@ -117,13 +111,6 @@ private suspend fun Context.getHotPosts()
     val count = call.parameters["count"]?.toIntOrNull() ?: 10
     val result = posts.getRecommendPosts(count)
     call.respond(HttpStatusCode.OK, result)
-}
-
-private suspend fun Context.searchUser()
-{
-    val username = call.parameters["key"] ?: return call.respond(HttpStatus.BadRequest)
-    val (begin, count) = call.getPage()
-    call.respond(HttpStatus.OK, get<Users>().searchUser(username, begin, count))
 }
 
 private suspend fun Context.searchBlock()

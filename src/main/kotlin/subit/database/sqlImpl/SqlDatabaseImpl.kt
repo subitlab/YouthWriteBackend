@@ -139,7 +139,6 @@ object SqlDatabaseImpl: IDatabase, KoinComponent
             singleOf(::BannedWordsImpl).bind<BannedWords>()
             singleOf(::BlocksImpl).bind<Blocks>()
             singleOf(::CommentsImpl).bind<Comments>()
-            singleOf(::EmailCodesImpl).bind<EmailCodes>()
             singleOf(::LikesImpl).bind<Likes>()
             singleOf(::NoticesImpl).bind<Notices>()
             singleOf(::OperationsImpl).bind<Operations>()
@@ -150,7 +149,6 @@ object SqlDatabaseImpl: IDatabase, KoinComponent
             singleOf(::ReportsImpl).bind<Reports>()
             singleOf(::StarsImpl).bind<Stars>()
             singleOf(::UsersImpl).bind<Users>()
-            singleOf(::WhitelistsImpl).bind<Whitelists>()
         }
         getKoin().loadModules(listOf(module))
 
@@ -162,7 +160,6 @@ object SqlDatabaseImpl: IDatabase, KoinComponent
             (get<BannedWords>() as DaoSqlImpl<*>).table
             (get<Blocks>() as DaoSqlImpl<*>).table
             (get<Comments>() as DaoSqlImpl<*>).table
-            (get<EmailCodes>() as DaoSqlImpl<*>).table
             (get<Likes>() as DaoSqlImpl<*>).table
             (get<Notices>() as DaoSqlImpl<*>).table
             (get<Operations>() as DaoSqlImpl<*>).table
@@ -173,7 +170,6 @@ object SqlDatabaseImpl: IDatabase, KoinComponent
             (get<Reports>() as DaoSqlImpl<*>).table
             (get<Stars>() as DaoSqlImpl<*>).table
             (get<Users>() as DaoSqlImpl<*>).table
-            (get<Whitelists>() as DaoSqlImpl<*>).table
         }
     }
 }

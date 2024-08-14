@@ -233,7 +233,8 @@ private suspend fun Context.uploadFile()
         }
     }
     if (fileInfo == null || input == null) return call.respond(HttpStatus.BadRequest)
-    if (size == null || user.getSpaceInfo().canUpload(size!!)) return call.respond(HttpStatus.NotEnoughSpace)
+    if (size == null || user.toDatabaseUser().getSpaceInfo().canUpload(size!!))
+        return call.respond(HttpStatus.NotEnoughSpace)
     FileUtils.saveFile(
         input = input!!,
         fileName = fileInfo!!.fileName,
@@ -255,11 +256,11 @@ private suspend fun Context.getFileList()
     if (user != null && (user.id == id || id == UserId(0) || user.permission >= PermissionLevel.ADMIN))
     {
         val files = user.id.getUserFiles().map { it.first.toString() }
-        val info = user.getSpaceInfo()
+        val info = user.toDatabaseUser().getSpaceInfo()
         return call.respond(HttpStatus.OK, Files(info, files.asSlice(begin, count)))
     }
     val file = id.getUserFiles().filter { user.canGet(it.second) }.map { it.first.toString() }
-    val info = get<Users>().getUser(id)?.getSpaceInfo() ?: return call.respond(HttpStatus.NotFound)
+    val info = SSO.getDbUser(id)?.getSpaceInfo() ?: return call.respond(HttpStatus.NotFound)
     call.respond(HttpStatus.OK, Files(info, file.asSlice(begin, count)))
 }
 
@@ -281,16 +282,16 @@ private suspend fun Context.changePublic()
 }
 
 @Serializable
-private data class ChangePermission(val id: UserId, val permission: PermissionLevel)
+private data class ChangePermission(val id: UserId, val filePermission: PermissionLevel)
 
 private suspend fun Context.changePermission()
 {
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     val changePermission = receiveAndCheckBody<ChangePermission>()
-    val user = get<Users>().getUser(changePermission.id) ?: return call.respond(HttpStatus.NotFound)
-    if (loginUser.permission < PermissionLevel.ADMIN || loginUser.permission <= user.permission)
+    val user = SSO.getDbUser(changePermission.id) ?: return call.respond(HttpStatus.NotFound)
+    if (loginUser.filePermission < PermissionLevel.ADMIN || loginUser.filePermission <= user.filePermission)
         return call.respond(HttpStatus.Forbidden)
-    get<Users>().changePermission(changePermission.id, changePermission.permission)
+    get<Users>().changeFilePermission(changePermission.id, changePermission.filePermission)
     get<Operations>().addOperation(loginUser.id, changePermission)
     call.respond(HttpStatus.OK)
 }

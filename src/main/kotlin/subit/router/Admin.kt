@@ -10,10 +10,7 @@ import subit.JWTAuth.getLoginUser
 import subit.dataClasses.*
 import subit.database.*
 import subit.router.*
-import subit.utils.HttpStatus
-import subit.utils.checkUserInfo
-import subit.utils.respond
-import subit.utils.statuses
+import subit.utils.*
 
 fun Route.admin() = route("/admin", {
     tags = listOf("用户管理")
@@ -25,27 +22,6 @@ fun Route.admin() = route("/admin", {
     }
 })
 {
-    post("/createUser", {
-        description = "创建用户, 需要超级管理员权限, 使用此接口创建用户无需邮箱验证码, 但需要邮箱为学校邮箱"
-        request {
-            body<CreateUser>
-            {
-                required = true
-                description = "新用户信息"
-                example("example", CreateUser("username", "password", "email"))
-            }
-        }
-        response {
-            statuses(
-                HttpStatus.OK,
-                HttpStatus.EmailExist,
-                HttpStatus.EmailFormatError,
-                HttpStatus.UsernameFormatError,
-                HttpStatus.PasswordFormatError,
-            )
-        }
-    }) { createUser() }
-
     post("/prohibitUser", {
         description = "封禁用户, 需要当前用户的权限大于ADMIN且大于对方的权限"
         request {
@@ -91,33 +67,6 @@ fun Route.admin() = route("/admin", {
 }
 
 @Serializable
-private data class CreateUser(val username: String, val password: String, val email: String)
-
-private suspend fun Context.createUser()
-{
-    checkPermission { checkHasGlobalAdmin() }
-
-    val users = get<Users>()
-    val operations = get<Operations>()
-    val createUser = receiveAndCheckBody<CreateUser>()
-    checkUserInfo(createUser.username, createUser.password, createUser.email).apply {
-        if (this != HttpStatus.OK) return call.respond(this)
-    }
-    users.createUser(
-        username = createUser.username,
-        password = createUser.password,
-        email = createUser.email,
-    ).apply {
-        return if (this == null) call.respond(HttpStatus.EmailExist)
-        else
-        {
-            operations.addOperation(getLoginUser()!!.id, createUser)
-            call.respond(HttpStatus.OK)
-        }
-    }
-}
-
-@Serializable
 private data class ProhibitUser(val id: UserId, val prohibit: Boolean, val time: Long, val reason: String)
 
 private suspend fun Context.prohibitUser()
@@ -127,7 +76,7 @@ private suspend fun Context.prohibitUser()
     val operations = get<Operations>()
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     val prohibitUser = receiveAndCheckBody<ProhibitUser>()
-    val user = users.getUser(prohibitUser.id) ?: return call.respond(HttpStatus.NotFound)
+    val user = SSO.getDbUser(prohibitUser.id) ?: return call.respond(HttpStatus.NotFound)
     if (loginUser.permission < PermissionLevel.ADMIN || loginUser.permission <= user.permission)
         return call.respond(HttpStatus.Forbidden)
     if (prohibitUser.prohibit) prohibits.addProhibit(
@@ -158,7 +107,7 @@ private suspend fun Context.changePermission()
     val users = get<Users>()
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     val changePermission = receiveAndCheckBody<ChangePermission>()
-    val user = users.getUser(changePermission.id) ?: return call.respond(HttpStatus.NotFound)
+    val user = SSO.getDbUser(changePermission.id) ?: return call.respond(HttpStatus.NotFound)
     if (loginUser.permission < PermissionLevel.ADMIN || loginUser.permission <= user.permission)
         return call.respond(HttpStatus.Forbidden)
     users.changePermission(changePermission.id, changePermission.permission)

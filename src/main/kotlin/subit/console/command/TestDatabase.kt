@@ -26,7 +26,6 @@ object TestDatabase: Command, KoinComponent
             "BannedWords" to dao<BannedWords>(),
             "Blocks" to dao<Blocks>(),
             "Comments" to dao<Comments>(),
-            "EmailCodes" to dao<EmailCodes>(),
             "Likes" to dao<Likes>(),
             "Notices" to dao<Notices>(),
             "Operations" to dao<Operations>(),
@@ -37,7 +36,6 @@ object TestDatabase: Command, KoinComponent
             "Reports" to dao<Reports>(),
             "Stars" to dao<Stars>(),
             "Users" to dao<Users>(),
-            "Whitelists" to dao<Whitelists>(),
         )
     }
 

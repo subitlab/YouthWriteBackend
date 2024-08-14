@@ -5,6 +5,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import subit.config.filesConfig
+import subit.dataClasses.DatabaseUser
 import subit.dataClasses.PermissionLevel
 import subit.dataClasses.UserFull
 import subit.dataClasses.UserId
@@ -156,7 +157,7 @@ object FileUtils
     /**
      * 获取使用空间与剩余空间
      */
-    suspend fun UserFull.getSpaceInfo(): SpaceInfo = withContext(Dispatchers.IO)
+    suspend fun DatabaseUser.getSpaceInfo(): SpaceInfo = withContext(Dispatchers.IO)
     {
         val userFolder = File(rawFolder, this@getSpaceInfo.id.value.toString(16))
         val max = if (this@getSpaceInfo.filePermission >= PermissionLevel.ADMIN) filesConfig.adminMaxFileSize
@@ -187,68 +188,5 @@ object FileUtils
     {
         val indexFile = File(indexFolder, "${id}.index")
         indexFile.writeText(fileInfoSerializer.encodeToString(FileInfo.serializer(), info))
-    }
-}
-
-/**
- * 头像工具类
- * 头像存储在本地, 按照用户ID给每个用户创建一个文件夹, 文件夹中存放用户的头像
- * 头像文件名为数字, 从0开始, 依次递增, 数字最大的即为当前使用的头像
- * 默认头像存放在 default 文件夹中, 可以在其中添加任意数量的头像, 用户被设置为默认头像时, 会随机选择一个头像
- */
-object AvatarUtils
-{
-    private val logger = ForumLogger.getLogger()
-    private val avatarFolder = File(FileUtils.dataFolder, "/avatars")
-    private val defaultAvatarFolder = File(avatarFolder, "default")
-
-    init
-    {
-        avatarFolder.mkdirs()
-    }
-
-    fun setAvatar(user: UserId, avatar: BufferedImage)
-    {
-        val userAvatarFolder = File(avatarFolder, user.value.toString(16).padStart(16, '0'))
-        userAvatarFolder.mkdirs()
-        // 文件夹中已有的头像数量
-        val avatarCount = userAvatarFolder.listFiles()?.size ?: 0
-        val avatarFile = File(userAvatarFolder, "${avatarCount}.png")
-        avatarFile.createNewFile()
-        // 将头像大小调整为 1024x1024
-        val resizedAvatar = BufferedImage(1024, 1024, BufferedImage.TYPE_INT_ARGB)
-        val graphics = resizedAvatar.createGraphics()
-        graphics.drawImage(avatar, 0, 0, 1024, 1024, null)
-        graphics.dispose()
-        // 保存头像
-        ImageIO.write(resizedAvatar, "png", avatarFile)
-    }
-
-    fun setDefaultAvatar(user: UserId): BufferedImage
-    {
-        val userAvatarFolder = File(avatarFolder, user.value.toString(16).padStart(16, '0'))
-        userAvatarFolder.mkdirs()
-        // 文件夹中已有的头像数量
-        val avatarCount = userAvatarFolder.listFiles()?.size ?: 0
-        val avatarFile = File(userAvatarFolder, "${avatarCount}.png")
-        // 在默认头像文件夹中随机选择一个头像
-        val defaultAvatarFiles = defaultAvatarFolder.listFiles()
-        val defaultAvatar = defaultAvatarFiles?.randomOrNull()
-        if (defaultAvatar == null)
-        {
-            logger.warning("No default avatar found")
-            return BufferedImage(1024, 1024, BufferedImage.TYPE_INT_ARGB)
-        }
-        // 保存头像
-        defaultAvatar.copyTo(avatarFile)
-        return ImageIO.read(defaultAvatar)
-    }
-
-    fun getAvatar(user: UserId): BufferedImage
-    {
-        val userAvatarFolder = File(avatarFolder, user.value.toString(16).padStart(16, '0'))
-        val avatarCount = userAvatarFolder.listFiles()?.size ?: 0
-        val avatarFile = File(userAvatarFolder, "${avatarCount-1}.png")
-        return if (avatarFile.exists()) ImageIO.read(avatarFile) else setDefaultAvatar(user)
     }
 }

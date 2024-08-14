@@ -66,7 +66,6 @@ class ConfigLoader<T: Any> private constructor(
         fun init() // 初始化所有配置
         {
             apiDocsConfig
-            emailConfig
             filesConfig
             loggerConfig
             systemConfig

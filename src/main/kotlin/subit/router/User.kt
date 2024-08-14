@@ -17,10 +17,7 @@ import subit.dataClasses.UserId.Companion.toUserIdOrNull
 import subit.database.*
 import subit.logger.ForumLogger
 import subit.router.*
-import subit.utils.AvatarUtils
-import subit.utils.HttpStatus
-import subit.utils.respond
-import subit.utils.statuses
+import subit.utils.*
 import java.io.ByteArrayOutputStream
 import java.io.File
 import javax.imageio.ImageIO
@@ -83,77 +80,6 @@ fun Route.user() = route("/user", {
         }
     }) { changeIntroduction() }
 
-    post("/avatar/{id}", {
-        description = "修改头像, 修改他人头像要求user权限在ADMIN以上"
-        request {
-            authenticated(true)
-            pathParameter<UserId>("id")
-            {
-                required = true
-                description = "要修改的用户ID, 0为当前登陆用户"
-            }
-            body<File>()
-            {
-                required = true
-                mediaTypes(ContentType.Image.Any)
-                description = "头像图片, 要求是正方形的"
-            }
-        }
-        response {
-            statuses(
-                HttpStatus.OK,
-                HttpStatus.NotFound,
-                HttpStatus.Forbidden,
-                HttpStatus.Unauthorized,
-                HttpStatus.PayloadTooLarge,
-                HttpStatus.UnsupportedMediaType
-            )
-        }
-    }) { changeAvatar() }
-
-    get("/avatar/{id}", {
-        description = "获取头像"
-        request {
-            authenticated(false)
-            pathParameter<UserId>("id")
-            {
-                required = true
-                description = "要获取的用户ID, 0为当前登陆用户, 若id不为0则无需登陆, 否则需要登陆"
-            }
-        }
-        response {
-            statuses(HttpStatus.BadRequest, HttpStatus.Unauthorized)
-            HttpStatus.OK.code to {
-                description = "获取头像成功"
-                body<File>()
-                {
-                    description = "获取到的头像, 总是png格式的"
-                    mediaTypes(ContentType.Image.PNG)
-                }
-            }
-        }
-    }) { getAvatar() }
-
-    delete("/avatar/{id}", {
-        description = "删除头像, 即恢复默认头像, 删除他人头像要求user权限在ADMIN以上"
-        request {
-            authenticated(true)
-            pathParameter<UserId>("id")
-            {
-                required = true
-                description = "要删除的用户ID, 0为当前登陆用户"
-            }
-        }
-        response {
-            statuses(
-                HttpStatus.OK,
-                HttpStatus.NotFound,
-                HttpStatus.Forbidden,
-                HttpStatus.Unauthorized,
-            )
-        }
-    }) { deleteAvatar() }
-
     get("/stars/{id}", {
         description = "获取用户收藏的帖子"
         request {
@@ -205,11 +131,10 @@ private suspend fun Context.getUserInfo()
     }
     else
     {
-        val user = get<Users>().getUser(id) ?: return call.respond(HttpStatus.NotFound)
-        if (loginUser != null && loginUser.permission >= PermissionLevel.ADMIN)
-            call.respond(HttpStatus.OK, user)
-        else
-            call.respond(HttpStatus.OK, user.toBasicUserInfo())
+        val user = SSO.getBasicUserInfo(id) ?: return call.respond(HttpStatus.NotFound)
+        // 这里需要判断类型并转换再返回, 因为respond的返回体类型是编译时确定的
+        if (user is UserFull) return call.respond(HttpStatus.OK, user as UserFull)
+        return call.respond(HttpStatus.OK, user as BasicUserInfo)
     }
 }
 
@@ -239,67 +164,6 @@ private suspend fun Context.changeIntroduction()
     }
 }
 
-private suspend fun Context.changeAvatar()
-{
-    val id = call.parameters["id"]?.toUserIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
-    val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
-    // 检查body大小
-    val size = call.request.headers["Content-Length"]?.toLongOrNull() ?: return call.respond(HttpStatus.BadRequest)
-    // 若图片大于10MB( 10 << 20 ), 返回请求实体过大
-    if (size >= 10 shl 20) return call.respond(HttpStatus.PayloadTooLarge)
-    val image = runCatching()
-                {
-                    withContext(Dispatchers.IO)
-                    {
-                        ImageIO.read(call.receiveStream())
-                    }
-                }.getOrNull() ?: return call.respond(HttpStatus.UnsupportedMediaType)
-    if (id == UserId(0) && loginUser.permission >= PermissionLevel.NORMAL)
-    {
-        AvatarUtils.setAvatar(loginUser.id, image)
-    }
-    else
-    {
-        checkPermission { checkHasGlobalAdmin() }
-        val user = get<Users>().getUser(id) ?: return call.respond(HttpStatus.NotFound)
-        AvatarUtils.setAvatar(user.id, image)
-    }
-    call.respond(HttpStatus.OK)
-}
-
-private suspend fun Context.deleteAvatar()
-{
-    val id = call.parameters["id"]?.toUserIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
-    val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
-    if (id == UserId(0))
-    {
-        AvatarUtils.setDefaultAvatar(loginUser.id)
-        call.respond(HttpStatus.OK)
-    }
-    else
-    {
-        checkPermission { checkHasGlobalAdmin() }
-        val user = get<Users>().getUser(id) ?: return call.respond(HttpStatus.NotFound)
-        AvatarUtils.setDefaultAvatar(user.id)
-        call.respond(HttpStatus.OK)
-    }
-}
-
-private suspend fun Context.getAvatar()
-{
-    val id = (call.parameters["id"]?.toUserIdOrNull() ?: return call.respond(HttpStatus.BadRequest)).let {
-        if (it == UserId(0)) getLoginUser()?.id ?: return call.respond(HttpStatus.Unauthorized)
-        else it
-    }
-    val avatar = AvatarUtils.getAvatar(id)
-    call.respondBytes(ContentType.Image.Any, HttpStatusCode.OK)
-    {
-        val output = ByteArrayOutputStream()
-        ImageIO.write(avatar, "png", output)
-        output.toByteArray()
-    }
-}
-
 private suspend fun Context.getStars()
 {
     val id = call.parameters["id"]?.toUserIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
@@ -314,7 +178,7 @@ private suspend fun Context.getStars()
         return call.respond(HttpStatus.OK, stars)
     }
     // 查询其他用户的收藏
-    val user = get<Users>().getUser(id) ?: return call.respond(HttpStatus.NotFound)
+    val user = SSO.getDbUser(id) ?: return call.respond(HttpStatus.NotFound)
     // 若对方不展示收藏, 而当前用户未登录或不是管理员, 返回Forbidden
     if (!user.showStars && (loginUser == null || loginUser.permission < PermissionLevel.ADMIN))
         return call.respond(HttpStatus.Forbidden)
