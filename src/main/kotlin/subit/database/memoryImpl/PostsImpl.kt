@@ -25,7 +25,7 @@ class PostsImpl: Posts, KoinComponent
         block: BlockId,
         parent: PostId?,
         top: Boolean
-    ): PostId?
+    ): PostId
     {
         val id = (map.size + 1).toPostId()
         map[id] = PostInfo(

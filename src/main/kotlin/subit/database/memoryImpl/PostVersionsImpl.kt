@@ -4,16 +4,13 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.Instant
 import org.koin.core.component.KoinComponent
-import org.koin.core.component.inject
 import subit.dataClasses.*
 import subit.database.PostVersions
-import subit.database.Posts
 import subit.dataClasses.Slice.Companion.asSlice
 import subit.utils.toInstant
 
 class PostVersionsImpl: PostVersions, KoinComponent
 {
-    private val posts: Posts by inject()
 
     private val lock = Mutex()
     internal val list: MutableList<PostVersionInfo> = mutableListOf()

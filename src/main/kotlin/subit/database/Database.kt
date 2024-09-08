@@ -10,7 +10,6 @@ import subit.database.sqlImpl.SqlDatabaseImpl
 import subit.logger.ForumLogger
 import subit.utils.Power.shutdown
 import kotlin.reflect.KClass
-import kotlin.reflect.KType
 
 val databaseImpls: List<IDatabase> = listOf(
     SqlDatabaseImpl,

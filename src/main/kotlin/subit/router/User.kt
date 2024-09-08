@@ -130,7 +130,7 @@ private suspend fun Context.getUserInfo()
     {
         val user = SSO.getBasicUserInfo(id) ?: return call.respond(HttpStatus.NotFound)
         // 这里需要判断类型并转换再返回, 因为respond的返回体类型是编译时确定的
-        if (user is UserFull) return call.respond(HttpStatus.OK, user as UserFull)
+        if (user is UserFull) return call.respond<UserFull>(HttpStatus.OK, user)
         return call.respond(HttpStatus.OK, user as BasicUserInfo)
     }
 }

@@ -2,7 +2,8 @@
 
 package subit.router.home
 
-import io.github.smiley4.ktorswaggerui.dsl.routing.*
+import io.github.smiley4.ktorswaggerui.dsl.routing.get
+import io.github.smiley4.ktorswaggerui.dsl.routing.route
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.plugins.ratelimit.*
@@ -13,7 +14,6 @@ import subit.JWTAuth.getLoginUser
 import subit.dataClasses.*
 import subit.database.Blocks
 import subit.database.Posts
-import subit.database.Users
 import subit.database.receiveAndCheckBody
 import subit.plugin.RateLimit
 import subit.router.*

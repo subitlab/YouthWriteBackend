@@ -5,7 +5,6 @@ package subit.router.posts
 import io.github.smiley4.ktorswaggerui.dsl.routing.*
 import io.ktor.server.application.*
 import io.ktor.server.plugins.ratelimit.*
-import io.ktor.server.request.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
 import subit.JWTAuth.getLoginUser
@@ -331,6 +330,8 @@ private suspend fun Context.editPost()
             title = operators.newTitle ?: oldVersionInfo.title,
             content = newContent.toString()
         )
+
+        markings.map { it.copy(postVersion = newVersion) }
 
         //////////////////////////// 以下为对划词评论的处理 ////////////////////////////
 
