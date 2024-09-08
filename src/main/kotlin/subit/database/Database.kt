@@ -9,6 +9,8 @@ import subit.database.memoryImpl.MemoryDatabaseImpl
 import subit.database.sqlImpl.SqlDatabaseImpl
 import subit.logger.ForumLogger
 import subit.utils.Power.shutdown
+import kotlin.reflect.KClass
+import kotlin.reflect.KType
 
 val databaseImpls: List<IDatabase> = listOf(
     SqlDatabaseImpl,
@@ -44,6 +46,8 @@ fun Application.loadDatabaseImpl()
     logger.severe("${RED}Available implementations: $GREEN${impls.keys.joinToString(", ")}")
     shutdown(1, "Database implementation not found")
 }
+
+data class DaoImpl<T: Any>(val constructor: () -> T, val type: KClass<T>)
 
 interface IDatabase
 {

@@ -109,7 +109,7 @@ private suspend fun Context.getHotPosts()
 {
     val posts = get<Posts>()
     val count = call.parameters["count"]?.toIntOrNull() ?: 10
-    val result = posts.getRecommendPosts(count)
+    val result = posts.getRecommendPosts(getLoginUser()?.id, count)
     call.respond(HttpStatusCode.OK, result)
 }
 
@@ -128,6 +128,7 @@ data class AdvancedSearchData(
     val isOnlyTitle: Boolean? = null,
     val lastModifiedAfter: Long? = null,
     val createTime: Pair<Long, Long>? = null,
+    val isOnlyPost: Boolean? = null
 )
 
 private suspend fun Context.searchPost()
@@ -138,6 +139,6 @@ private suspend fun Context.searchPost()
     val advancedSearchData =
         if(openAdvancedSearch) receiveAndCheckBody<AdvancedSearchData>()
         else AdvancedSearchData()
-    val posts = get<Posts>().searchPosts(getLoginUser()?.id, key, advancedSearchData, begin, count)
+    val posts = get<Posts>().searchPosts(getLoginUser()?.toDatabaseUser(), key, advancedSearchData, begin, count)
     call.respond(HttpStatus.OK, posts)
 }

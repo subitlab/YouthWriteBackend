@@ -4,8 +4,8 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.serializer
 import org.jetbrains.exposed.sql.Table
 import org.jetbrains.exposed.sql.insert
-import org.jetbrains.exposed.sql.kotlin.datetime.CurrentTimestamp
-import org.jetbrains.exposed.sql.kotlin.datetime.timestamp
+import org.jetbrains.exposed.sql.kotlin.datetime.CurrentTimestampWithTimeZone
+import org.jetbrains.exposed.sql.kotlin.datetime.timestampWithTimeZone
 import org.koin.core.component.KoinComponent
 import subit.dataClasses.UserId
 import subit.database.Operations
@@ -15,10 +15,10 @@ class OperationsImpl: DaoSqlImpl<OperationsImpl.OperationsTable>(OperationsTable
 {
     object OperationsTable: Table("operations")
     {
-        val admin = reference("operator", UsersImpl.UserTable).index()
+        val admin = reference("operator", UsersImpl.UsersTable).index()
         val operationType = varchar("operation_type", 255)
         val operation = text("operation")
-        val time = timestamp("time").defaultExpression(CurrentTimestamp).index()
+        val time = timestampWithTimeZone("time").defaultExpression(CurrentTimestampWithTimeZone).index()
     }
 
     private val operationSerializer = Json()

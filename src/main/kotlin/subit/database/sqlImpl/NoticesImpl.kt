@@ -17,7 +17,7 @@ class NoticesImpl: DaoSqlImpl<NoticesImpl.NoticesTable>(NoticesTable), Notices, 
     object NoticesTable: IdTable<NoticeId>("notices")
     {
         override val id = noticeId("id").autoIncrement().entityId()
-        val user = reference("user", UsersImpl.UserTable).index()
+        val user = reference("user", UsersImpl.UsersTable).index()
         val type = enumerationByName<Type>("type", 20).index()
         val obj = long("object").nullable()
         val content = text("content")

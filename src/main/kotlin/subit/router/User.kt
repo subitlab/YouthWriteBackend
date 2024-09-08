@@ -2,14 +2,11 @@
 
 package subit.router.user
 
-import io.github.smiley4.ktorswaggerui.dsl.routing.*
-import io.ktor.http.*
+import io.github.smiley4.ktorswaggerui.dsl.routing.get
+import io.github.smiley4.ktorswaggerui.dsl.routing.post
+import io.github.smiley4.ktorswaggerui.dsl.routing.route
 import io.ktor.server.application.*
-import io.ktor.server.request.*
-import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import subit.JWTAuth.getLoginUser
 import subit.dataClasses.*
@@ -17,10 +14,10 @@ import subit.dataClasses.UserId.Companion.toUserIdOrNull
 import subit.database.*
 import subit.logger.ForumLogger
 import subit.router.*
-import subit.utils.*
-import java.io.ByteArrayOutputStream
-import java.io.File
-import javax.imageio.ImageIO
+import subit.utils.HttpStatus
+import subit.utils.SSO
+import subit.utils.respond
+import subit.utils.statuses
 
 private val logger = ForumLogger.getLogger()
 fun Route.user() = route("/user", {

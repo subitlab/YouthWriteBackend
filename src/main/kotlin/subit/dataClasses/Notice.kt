@@ -1,7 +1,6 @@
 package subit.dataClasses
 
 import kotlinx.serialization.Serializable
-import subit.dataClasses.CommentId.Companion.toCommentId
 import subit.dataClasses.PostId.Companion.toPostId
 
 /**
@@ -55,7 +54,7 @@ sealed interface Notice
         ): ObjectNotice = when (type)
         {
             Type.POST_COMMENT  -> PostCommentNotice(id, user, obj.value.toPostId(), count)
-            Type.COMMENT_REPLY -> CommentReplyNotice(id, user, obj.value.toCommentId(), count)
+            Type.COMMENT_REPLY -> CommentReplyNotice(id, user, obj.value.toPostId(), count)
             Type.LIKE          -> LikeNotice(id, user, obj.value.toPostId(), count)
             Type.STAR          -> StarNotice(id, user, obj.value.toPostId(), count)
             else               -> throw IllegalArgumentException("Invalid type: $type")
@@ -118,7 +117,7 @@ sealed interface Notice
     data class CommentReplyNotice(
         override val id: NoticeId,
         override val user: UserId,
-        val comment: CommentId,
+        val comment: PostId,
         override val count: Long
     ): ObjectNotice
     {
@@ -126,7 +125,7 @@ sealed interface Notice
         override val obj: Id<*, *> get() = comment
         companion object
         {
-            val example = CommentReplyNotice(NoticeId(1), UserId(1), CommentId(1), 1)
+            val example = CommentReplyNotice(NoticeId(1), UserId(1), PostId(1), 1)
         }
     }
 

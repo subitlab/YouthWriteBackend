@@ -8,7 +8,7 @@ import java.util.*
 
 class BlocksImpl: Blocks
 {
-    private val map = Collections.synchronizedMap(hashMapOf<BlockId, BlockFull>())
+    private val map = Collections.synchronizedMap(hashMapOf<BlockId, Block>())
     override suspend fun createBlock(
         name: String,
         description: String,
@@ -21,7 +21,7 @@ class BlocksImpl: Blocks
     ): BlockId
     {
         val id = (map.size+1).toBlockId()
-        map[id] = BlockFull(
+        map[id] = Block(
             id = id,
             name = name,
             description = description,
@@ -53,7 +53,7 @@ class BlocksImpl: Blocks
         )
     }
 
-    override suspend fun getBlock(block: BlockId): BlockFull? = map[block]
+    override suspend fun getBlock(block: BlockId): Block? = map[block]
     override suspend fun setState(block: BlockId, state: State)
     {
         val b = map[block] ?: return

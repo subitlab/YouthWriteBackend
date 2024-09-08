@@ -9,14 +9,10 @@ import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
 import subit.JWTAuth.getLoginUser
 import subit.dataClasses.*
-import subit.dataClasses.CommentId.Companion.toCommentIdOrNull
 import subit.dataClasses.PostId.Companion.toPostIdOrNull
 import subit.database.*
 import subit.plugin.RateLimit
-import subit.router.Context
-import subit.router.authenticated
-import subit.router.example
-import subit.router.get
+import subit.router.*
 import subit.utils.HttpStatus
 import subit.utils.respond
 import subit.utils.statuses
@@ -27,93 +23,70 @@ fun Route.comment() = route("/comment", {
 {
     rateLimit(RateLimit.Post.rateLimitName)
     {
-        post("/post/{postId}", {
-            description = "评论一个帖子"
+        post("/{postId}", {
+            description = "评论一个帖子/回复一个评论"
             request {
                 authenticated(true)
                 pathParameter<PostId>("postId")
                 {
                     required = true
-                    description = "帖子id"
+                    description = "帖子id/评论id"
                 }
-                body<CommentContent>
+                body<NewComment>
                 {
                     description = "评论内容"
-                    example("example", CommentContent("评论内容"))
+                    example("example", NewComment("评论内容", WordMarking(PostId(1), 0, 10), false))
                 }
             }
             response {
-                statuses<CommentIdResponse>(HttpStatus.OK, example = CommentIdResponse(CommentId(0)))
+                statuses<PostId>(HttpStatus.OK, example = PostId(0), bodyDescription = "创建的评论的id")
                 statuses(HttpStatus.Forbidden, HttpStatus.NotFound)
             }
         }) { commentPost() }
-
-        post("/comment/{commentId}", {
-            description = "评论一个评论"
-            request {
-                authenticated(true)
-                pathParameter<CommentId>("commentId")
-                {
-                    required = true
-                    description = "评论id"
-                }
-                body<CommentContent>
-                {
-                    description = "评论内容"
-                    example("example", CommentContent("评论内容"))
-                }
-            }
-            response {
-                statuses<CommentIdResponse>(HttpStatus.OK, example = CommentIdResponse(CommentId(0)))
-                statuses(HttpStatus.Forbidden, HttpStatus.NotFound)
-            }
-        }) { commentComment() }
     }
 
-    delete("/{commentId}", {
-        description = "删除一个评论, 需要板块管理员权限"
-        request {
-            authenticated(true)
-            pathParameter<CommentId>("commentId")
-            {
-                required = true
-                description = "评论id"
-            }
-        }
-        response {
-            statuses(HttpStatus.OK)
-            statuses(HttpStatus.Forbidden, HttpStatus.NotFound)
-        }
-    }) { deleteComment() }
-
     get("/post/{postId}", {
-        description = "获取一个帖子的评论列表"
+        description = "获取一个帖子的评论列表(仅包含一级评论, 不包括回复即2~n级评论)"
         request {
             authenticated(false)
+            paged()
             pathParameter<PostId>("postId")
             {
                 required = true
                 description = "帖子id"
             }
+            queryParameter<Posts.PostListSort>("sort")
+            {
+                description = "排序方式"
+                required = false
+                example(Posts.PostListSort.NEW)
+            }
         }
         response {
-            statuses<List<CommentId>>(HttpStatus.OK, example = listOf(CommentId(0)))
+            statuses<Slice<PostFull>>(HttpStatus.OK, example = sliceOf(PostFull.example))
             statuses(HttpStatus.NotFound)
         }
     }) { getPostComments() }
 
     get("/comment/{commentId}", {
-        description = "获取一个评论的评论列表"
+        description = "获取一个评论的回复列表, 即该评论下的所有回复, 包括2~n级评论"
         request {
             authenticated(false)
-            pathParameter<CommentId>("commentId")
+            paged()
+            pathParameter<PostId>("commentId")
             {
                 required = true
                 description = "评论id"
             }
+            queryParameter<Posts.PostListSort>("sort")
+            {
+                description = "排序方式"
+                required = false
+                example(Posts.PostListSort.NEW)
+            }
         }
         response {
-            statuses<List<CommentId>>(HttpStatus.OK, example = listOf(CommentId(0)))
+            statuses<Slice<PostFull>>(HttpStatus.OK, example = sliceOf(PostFull.example))
             statuses(HttpStatus.NotFound)
         }
     }) { getCommentComments() }
@@ -122,42 +95,51 @@ fun Route.comment() = route("/comment", {
         description = "获取一个评论的信息"
         request {
             authenticated(false)
-            pathParameter<CommentId>("commentId")
+            pathParameter<PostId>("commentId")
             {
                 required = true
                 description = "评论id"
             }
         }
         response {
-            statuses<Comment>(HttpStatus.OK, example = Comment.example)
+            statuses<PostFull>(HttpStatus.OK, example = PostFull.example)
             statuses(HttpStatus.NotFound)
         }
     }) { getComment() }
 }
 
 @Serializable
-private data class CommentContent(val content: String)
+private data class NewComment(val content: String, val wordMarking: WordMarking? = null, val anonymous: Boolean)
 
 @Serializable
-private data class CommentIdResponse(val id: CommentId)
+private data class WordMarking(val postId: PostId, val start: Int, val end: Int)
 
 private suspend fun Context.commentPost()
 {
     val postId = call.parameters["postId"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
-    val content = receiveAndCheckBody<CommentContent>().content
-    val author = get<Posts>().getPost(postId)?.let { postInfo ->
-        checkPermission { checkCanComment(postInfo) }
-        postInfo.author
-    } ?: return call.respond(HttpStatus.NotFound)
+    val newComment = receiveAndCheckBody<NewComment>()
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
+    val posts = get<Posts>()
 
-    get<Comments>().createComment(post = postId, parent = null, author = loginUser.id, content = content)
-    ?: return call.respond(HttpStatus.NotFound)
+    val parent = posts.getPostInfo(postId) ?: return call.respond(HttpStatus.NotFound)
+    checkPermission { checkCanComment(parent) }
+    val commentId = posts.createPost(parent = postId, author = loginUser.id, block = parent.block, anonymous = newComment.anonymous) ?: return call.respond(HttpStatus.NotFound)
+    if (newComment.wordMarking != null)
+    {
+        val markingPost = posts.getPostFullBasicInfo(newComment.wordMarking.postId) ?: return call.respond(HttpStatus.NotFound)
+        get<WordMarkings>().addWordMarking(
+            postVersion = markingPost.lastVersionId,
+            comment = commentId,
+            start = newComment.wordMarking.start,
+            end = newComment.wordMarking.end,
+            state = WordMarkingState.NORMAL
+        )
+    }
 
-    if (loginUser.id != author) get<Notices>().createNotice(
+    if (loginUser.id != parent.author) get<Notices>().createNotice(
         Notice.makeObjectMessage(
-            type = Notice.Type.POST_COMMENT,
-            user = author,
+            type = if (postId == commentId) Notice.Type.POST_COMMENT else Notice.Type.COMMENT_REPLY,
+            user = parent.author,
             obj = postId,
         )
     )
@@ -165,74 +147,45 @@ private suspend fun Context.commentPost()
     call.respond(HttpStatus.OK)
 }
 
-private suspend fun Context.commentComment()
-{
-    val commentId = call.parameters["commentId"]?.toCommentIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
-    val content = receiveAndCheckBody<CommentContent>().content
-    val author = get<Comments>().getComment(commentId)?.let { comment ->
-        get<Posts>().getPost(comment.post)?.let { postInfo ->
-            checkPermission { checkCanComment(postInfo) }
-        }
-        comment.author
-    } ?: return call.respond(HttpStatus.NotFound)
-    val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
-
-    get<Comments>().createComment(post = null, parent = commentId, author = loginUser.id, content = content)
-    ?: return call.respond(HttpStatus.NotFound)
-
-    if (loginUser.id != author) get<Notices>().createNotice(
-        Notice.makeObjectMessage(
-            type = Notice.Type.COMMENT_REPLY,
-            user = author,
-            obj = commentId,
-        )
-    )
-
-    call.respond(HttpStatus.OK)
-}
-
-private suspend fun Context.deleteComment()
-{
-    val commentId = call.parameters["commentId"]?.toCommentIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
-    get<Comments>().getComment(commentId)?.let { comment ->
-        get<Posts>().getPost(comment.post)?.let { postInfo ->
-            checkPermission { checkCanDelete(postInfo) }
-        }
-    } ?: return call.respond(HttpStatus.NotFound)
-    get<Comments>().setCommentState(commentId, State.DELETED)
-    call.respond(HttpStatus.OK)
-}
-
 private suspend fun Context.getPostComments()
 {
     val postId = call.parameters["postId"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
-    get<Posts>().getPost(postId)?.let { postInfo ->
-        checkPermission { checkCanRead(postInfo) }
-    } ?: return call.respond(HttpStatus.NotFound)
-    get<Comments>().getComments(post = postId)?.map(Comment::id)?.let { call.respond(HttpStatus.OK, it) }
-    ?: call.respond(HttpStatus.NotFound)
+    val type = call.parameters["sort"]
+                   ?.runCatching { Posts.PostListSort.valueOf(this) }
+                   ?.getOrNull() ?: return call.respond(HttpStatus.BadRequest)
+    val (begin, count) = call.getPage()
+    val posts = get<Posts>()
+    val post = posts.getPostInfo(postId) ?: return call.respond(HttpStatus.NotFound)
+    checkPermission { checkCanRead(post) }
+    val comments = posts.getChildPosts(postId, type, begin, count)
+    if (getLoginUser().hasGlobalAdmin())
+        call.respond(HttpStatus.OK, comments)
+    else
+        call.respond(HttpStatus.OK, comments.map { if (it.anonymous) it.copy(author = UserId(0)) else it })
 }
 
 private suspend fun Context.getCommentComments()
 {
-    val commentId = call.parameters["commentId"]?.toCommentIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
-    get<Comments>().getComment(commentId)?.let { comment ->
-        get<Posts>().getPost(comment.post)?.let { postInfo ->
-            checkPermission { checkCanRead(postInfo) }
-        }
-    } ?: return call.respond(HttpStatus.NotFound)
-    get<Comments>().getComments(parent = commentId)
-        ?.map(Comment::id)
-        ?.let { call.respond(HttpStatus.OK, it) } ?: call.respond(HttpStatus.NotFound)
+    val commentId = call.parameters["commentId"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
+    val type = call.parameters["sort"]
+                   ?.runCatching { Posts.PostListSort.valueOf(this) }
+                   ?.getOrNull() ?: return call.respond(HttpStatus.BadRequest)
+    val (begin, count) = call.getPage()
+    val posts = get<Posts>()
+    val comment = posts.getPostInfo(commentId) ?: return call.respond(HttpStatus.NotFound)
+    checkPermission { checkCanRead(comment) }
+    val comments = posts.getDescendants(commentId, type, begin, count)
+    if (getLoginUser().hasGlobalAdmin())
+        call.respond(HttpStatus.OK, comments)
+    else
+        call.respond(HttpStatus.OK, comments.map { if (it.anonymous) it.copy(author = UserId(0)) else it })
 }
 
 private suspend fun Context.getComment()
 {
-    val commentId = call.parameters["commentId"]?.toCommentIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
-    val comment = get<Comments>().getComment(commentId) ?: return call.respond(HttpStatus.NotFound)
-    get<Posts>().getPost(comment.post)?.let { postInfo ->
-        checkPermission { checkCanRead(postInfo) }
-    } ?: return call.respond(HttpStatus.NotFound)
-    if (comment.state != State.NORMAL) checkPermission { checkHasGlobalAdmin() }
-    call.respond(HttpStatus.OK, comment)
+    val commentId = call.parameters["commentId"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
+    val posts = get<Posts>()
+    val comment = posts.getPostFull(commentId) ?: return call.respond(HttpStatus.NotFound)
+    checkPermission { checkCanRead(comment.toPostInfo()) }
+    call.respond(HttpStatus.OK, if (comment.anonymous) comment.copy(author = UserId(0)) else comment)
 }

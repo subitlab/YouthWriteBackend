@@ -2,10 +2,13 @@ package subit.dataClasses
 
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.sql.Query
+import org.jetbrains.exposed.sql.QueryBuilder
 import org.jetbrains.exposed.sql.ResultRow
 import subit.dataClasses.Slice.Companion.asSlice
 import subit.dataClasses.Slice.Companion.fromSequence
 import subit.database.sqlImpl.utils.WindowFunctionQuery
+import subit.debug
+import subit.logger.ForumLogger
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.contract
 
@@ -28,6 +31,7 @@ data class Slice<T>(
     @Suppress("unused")
     companion object
     {
+        private val logger = ForumLogger.getLogger()
         /**
          * 生成一个空切片
          */
@@ -45,8 +49,13 @@ data class Slice<T>(
          */
         fun Query.asSlice(begin: Long, limit: Int): Slice<ResultRow>
         {
-            val list = WindowFunctionQuery(this, begin, limit).toList()
-            val totalSize = list.firstOrNull()?.getOrNull(WindowFunctionQuery.totalCount) ?: 0
+            val query = WindowFunctionQuery(this, begin, limit)
+            if (debug)
+            {
+                logger.config(QueryBuilder(false).apply { query.prepareSQL(this) }.toString())
+            }
+            val list = query.toList()
+            val totalSize = list.firstOrNull()?.get(WindowFunctionQuery.totalCount) ?: this.count()
             return Slice(totalSize, begin, list)
         }
 

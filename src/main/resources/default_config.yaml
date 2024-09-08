@@ -1,3 +1,7 @@
+ktor:
+  deployment:
+    port: 8080
+    rootPath: '/api'
 database:
   # 数据库实现, 可选值: sql, memory
   impl: sql

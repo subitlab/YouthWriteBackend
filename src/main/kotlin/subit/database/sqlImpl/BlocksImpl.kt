@@ -26,7 +26,7 @@ class BlocksImpl: DaoSqlImpl<BlocksImpl.BlocksTable>(BlocksTable), Blocks, KoinC
         val parent = reference("parent", BlocksTable, ReferenceOption.CASCADE, ReferenceOption.CASCADE).nullable()
             .default(null)
             .index()
-        val creator = reference("creator", UsersImpl.UserTable).index()
+        val creator = reference("creator", UsersImpl.UsersTable).index()
         val state = enumerationByName<State>("state", 20).default(State.NORMAL)
         val posting = enumeration<PermissionLevel>("posting").default(PermissionLevel.NORMAL)
         val commenting = enumeration<PermissionLevel>("commenting").default(PermissionLevel.NORMAL)
@@ -35,7 +35,7 @@ class BlocksImpl: DaoSqlImpl<BlocksImpl.BlocksTable>(BlocksTable), Blocks, KoinC
         override val primaryKey: PrimaryKey = PrimaryKey(id)
     }
 
-    private fun deserializeBlock(row: ResultRow): BlockFull = BlockFull(
+    private fun deserializeBlock(row: ResultRow): Block = Block(
         id = row[BlocksTable.id].value,
         name = row[BlocksTable.name],
         description = row[BlocksTable.description],
@@ -88,7 +88,7 @@ class BlocksImpl: DaoSqlImpl<BlocksImpl.BlocksTable>(BlocksTable), Blocks, KoinC
         }
     }
 
-    override suspend fun getBlock(block: BlockId): BlockFull? = query()
+    override suspend fun getBlock(block: BlockId): Block? = query()
     {
         selectAll().where { id eq block }.singleOrNull()?.let(::deserializeBlock)
     }
@@ -107,7 +107,7 @@ class BlocksImpl: DaoSqlImpl<BlocksImpl.BlocksTable>(BlocksTable), Blocks, KoinC
         val additionalConstraint: (SqlExpressionBuilder.()->Op<Boolean>)? =
             if (loginUser != null) ({ permissionTable.user eq loginUser })
             else null
-        BlocksTable.join(permissionTable, JoinType.LEFT, id, permissionTable.block, additionalConstraint)
+        BlocksTable.join(permissionTable, JoinType.LEFT, id, permissionTable.block, additionalConstraint = additionalConstraint)
             .select(id)
             .where { BlocksTable.parent eq parent }
             .andWhere { state eq State.NORMAL }
@@ -124,7 +124,7 @@ class BlocksImpl: DaoSqlImpl<BlocksImpl.BlocksTable>(BlocksTable), Blocks, KoinC
         val additionalConstraint: (SqlExpressionBuilder.()->Op<Boolean>)? =
             if (loginUser != null) ({ permissionTable.user eq loginUser })
             else null
-        BlocksTable.join(permissionTable, JoinType.LEFT, id, permissionTable.block, additionalConstraint)
+        BlocksTable.join(permissionTable, JoinType.LEFT, id, permissionTable.block, additionalConstraint = additionalConstraint)
             .select(BlocksTable.columns)
             .where { (name like "%$key%") or (description like "%$key%") }
             .andWhere { state eq State.NORMAL }

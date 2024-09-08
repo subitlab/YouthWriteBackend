@@ -1,9 +1,8 @@
 package subit.database
 
-import subit.JWTAuth
-import subit.dataClasses.*
-import subit.database.sqlImpl.UsersImpl
-import subit.utils.SSO
+import subit.dataClasses.DatabaseUser
+import subit.dataClasses.PermissionLevel
+import subit.dataClasses.UserId
 
 interface Users
 {

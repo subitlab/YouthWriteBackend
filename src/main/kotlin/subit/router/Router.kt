@@ -23,14 +23,17 @@ import subit.router.posts.posts
 import subit.router.privateChat.privateChat
 import subit.router.report.report
 import subit.router.user.user
+import subit.router.wordMarkings.wordMarkings
 import subit.utils.HttpStatus
 import subit.utils.respond
 
 fun Application.router() = routing()
 {
+    val rootPath = this.application.environment.rootPath
+
     get("/", { hidden = true })
     {
-        call.respondRedirect("/api-docs")
+        call.respondRedirect("$rootPath/api-docs")
     }
 
     authenticate("auth-api-docs")
@@ -41,7 +44,7 @@ fun Application.router() = routing()
             {
                 openApiSpec()
             }
-            swaggerUI("/api-docs/api.json")
+            swaggerUI("$rootPath/api-docs/api.json")
         }
     }
 
@@ -81,5 +84,6 @@ fun Application.router() = routing()
         privateChat()
         report()
         user()
+        wordMarkings()
     }
 }

@@ -78,7 +78,7 @@ fun Route.block() = route("/block", {
             }
         }
         response {
-            statuses<BlockFull>(HttpStatus.OK)
+            statuses<Block>(HttpStatus.OK)
             statuses(HttpStatus.Forbidden, HttpStatus.Unauthorized)
         }
     }) { getBlockInfo() }

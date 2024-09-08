@@ -20,10 +20,10 @@ class ProhibitsImpl: DaoSqlImpl<ProhibitsImpl.ProhibitsTable>(ProhibitsTable), P
 {
     object ProhibitsTable: IdTable<UserId>("prohibits")
     {
-        val user = reference("user", UsersImpl.UserTable)
+        val user = reference("user", UsersImpl.UsersTable)
         val time = timestamp("time")
         val reason = text("reason")
-        val operator = reference("operator", UsersImpl.UserTable).index()
+        val operator = reference("operator", UsersImpl.UsersTable).index()
         override val id = user
         override val primaryKey = PrimaryKey(user)
     }

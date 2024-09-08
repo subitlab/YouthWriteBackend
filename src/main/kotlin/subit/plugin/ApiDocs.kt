@@ -20,9 +20,6 @@ fun Application.installApiDoc() = install(SwaggerUI)
         version = subit.version
         description = "SubIT论坛后端API文档"
     }
-    server {
-        url = "http://localhost:8080"
-    }
     this.ignoredRouteSelectors += RateLimitRouteSelector::class
     schemas {
         generator = {

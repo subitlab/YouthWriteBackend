@@ -9,11 +9,11 @@ import subit.dataClasses.Slice.Companion.singleOrNull
 import subit.dataClasses.UserId
 import subit.database.Permissions
 
-class PermissionsImpl: DaoSqlImpl<PermissionsImpl.PermissionTable>(PermissionTable), Permissions, KoinComponent
+class PermissionsImpl: DaoSqlImpl<PermissionsImpl.PermissionsTable>(PermissionsTable), Permissions, KoinComponent
 {
-    object PermissionTable: Table("permissions")
+    object PermissionsTable: Table("permissions")
     {
-        val user = reference("user", UsersImpl.UserTable).index()
+        val user = reference("user", UsersImpl.UsersTable).index()
         val block = reference("block", BlocksImpl.BlocksTable).index()
         val permission = enumeration("permission", PermissionLevel::class).default(PermissionLevel.NORMAL)
     }
@@ -30,7 +30,7 @@ class PermissionsImpl: DaoSqlImpl<PermissionsImpl.PermissionTable>(PermissionTab
         }
         val count = update({ (user eq uid) and (block eq bid) })
         {
-            it[PermissionTable.permission] = permission
+            it[PermissionsTable.permission] = permission
         }
 
         if (count > 0) return@query
@@ -40,14 +40,14 @@ class PermissionsImpl: DaoSqlImpl<PermissionsImpl.PermissionTable>(PermissionTab
         {
             it[user] = uid
             it[block] = bid
-            it[PermissionTable.permission] = permission
+            it[PermissionsTable.permission] = permission
         }
     }
 
     override suspend fun getPermission(block: BlockId, user: UserId): PermissionLevel = query()
     {
         select(permission).where {
-            (PermissionTable.user eq user) and (PermissionTable.block eq block)
+            (PermissionsTable.user eq user) and (PermissionsTable.block eq block)
         }.singleOrNull()?.getOrNull(permission) ?: PermissionLevel.NORMAL
     }
 }

@@ -2,20 +2,16 @@ package subit.database.sqlImpl
 
 import org.jetbrains.exposed.dao.id.IdTable
 import org.jetbrains.exposed.sql.*
-import org.jetbrains.exposed.sql.kotlin.datetime.CurrentTimestamp
-import org.jetbrains.exposed.sql.kotlin.datetime.timestamp
-import subit.JWTAuth
 import subit.dataClasses.*
-import subit.dataClasses.Slice.Companion.asSlice
 import subit.dataClasses.Slice.Companion.single
 import subit.database.Users
 
-class UsersImpl: DaoSqlImpl<UsersImpl.UserTable>(UserTable), Users
+class UsersImpl: DaoSqlImpl<UsersImpl.UsersTable>(UsersTable), Users
 {
     /**
      * 用户信息表
      */
-    object UserTable: IdTable<UserId>("users")
+    object UsersTable: IdTable<UserId>("users")
     {
         override val id = userId("id").entityId()
         val introduction = text("introduction").nullable().default(null)
@@ -26,36 +22,36 @@ class UsersImpl: DaoSqlImpl<UsersImpl.UserTable>(UserTable), Users
     }
 
     private fun deserialize(row: ResultRow) = DatabaseUser(
-        id = row[UserTable.id].value,
-        introduction = row[UserTable.introduction] ?: "",
-        showStars = row[UserTable.showStars],
-        permission = row[UserTable.permission],
-        filePermission = row[UserTable.filePermission]
+        id = row[UsersTable.id].value,
+        introduction = row[UsersTable.introduction] ?: "",
+        showStars = row[UsersTable.showStars],
+        permission = row[UsersTable.permission],
+        filePermission = row[UsersTable.filePermission]
     )
 
     override suspend fun changeIntroduction(id: UserId, introduction: String): Boolean = query()
     {
-        update({ UserTable.id eq id }) { it[UserTable.introduction] = introduction } > 0
+        update({ UsersTable.id eq id }) { it[UsersTable.introduction] = introduction } > 0
     }
 
     override suspend fun changeShowStars(id: UserId, showStars: Boolean): Boolean = query()
     {
-        update({ UserTable.id eq id }) { it[UserTable.showStars] = showStars } > 0
+        update({ UsersTable.id eq id }) { it[UsersTable.showStars] = showStars } > 0
     }
 
     override suspend fun changePermission(id: UserId, permission: PermissionLevel): Boolean = query()
     {
-        update({ UserTable.id eq id }) { it[UserTable.permission] = permission } > 0
+        update({ UsersTable.id eq id }) { it[UsersTable.permission] = permission } > 0
     }
 
     override suspend fun changeFilePermission(id: UserId, permission: PermissionLevel): Boolean = query()
     {
-        update({ UserTable.id eq id }) { it[filePermission] = permission } > 0
+        update({ UsersTable.id eq id }) { it[filePermission] = permission } > 0
     }
 
     override suspend fun getOrCreateUser(id: UserId): DatabaseUser = query()
     {
-        insertIgnore { it[UserTable.id] = id }
-        selectAll().where { UserTable.id eq id }.single().let(::deserialize)
+        insertIgnore { it[UsersTable.id] = id }
+        selectAll().where { UsersTable.id eq id }.single().let(::deserialize)
     }
 }

@@ -31,7 +31,7 @@ object CommandSet: TreeCommand(
     Shell,
     Color,
     Maintain,
-    TestDatabase
+    TestDatabase,
 )
 {
     private val logger = ForumLogger.getLogger()

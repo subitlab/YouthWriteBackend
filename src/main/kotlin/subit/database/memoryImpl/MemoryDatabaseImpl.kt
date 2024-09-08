@@ -42,17 +42,18 @@ object MemoryDatabaseImpl: IDatabase, KoinComponent
 
             singleOf(::BannedWordsImpl).bind<BannedWords>()
             singleOf(::BlocksImpl).bind<Blocks>()
-            singleOf(::CommentsImpl).bind<Comments>()
             singleOf(::LikesImpl).bind<Likes>()
             singleOf(::NoticesImpl).bind<Notices>()
             singleOf(::OperationsImpl).bind<Operations>()
             singleOf(::PermissionsImpl).bind<Permissions>()
             singleOf(::PostsImpl).bind<Posts>()
+            singleOf(::PostVersionsImpl).bind<PostVersions>()
             singleOf(::PrivateChatsImpl).bind<PrivateChats>()
             singleOf(::ProhibitsImpl).bind<Prohibits>()
             singleOf(::ReportsImpl).bind<Reports>()
             singleOf(::StarsImpl).bind<Stars>()
             singleOf(::UsersImpl).bind<Users>()
+            singleOf(::WordMarkingsImpl).bind<WordMarkings>()
         }
         getKoin().loadModules(listOf(module))
     }

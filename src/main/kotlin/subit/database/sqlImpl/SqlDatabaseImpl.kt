@@ -24,6 +24,7 @@ import subit.database.*
 import subit.logger.ForumLogger
 import subit.utils.Power.shutdown
 import java.sql.Driver
+import kotlin.reflect.KClass
 
 /**
  * @param T 表类型
@@ -31,8 +32,8 @@ import java.sql.Driver
  */
 abstract class DaoSqlImpl<T: Table>(table: T): KoinComponent
 {
-    suspend inline fun <R> query(crossinline block: suspend T.()->R) = table.run {
-        newSuspendedTransaction(Dispatchers.IO) { block() }
+    suspend inline fun <R> query(crossinline block: suspend T.(Transaction)->R) = table.run {
+        newSuspendedTransaction(Dispatchers.IO) { block(this) }
     }
 
     private val database: Database by inject()
@@ -130,25 +131,35 @@ object SqlDatabaseImpl: IDatabase, KoinComponent
         else driver0
 
         logger.info("Load database configuration. url: $url, driver: $driver, user: $user")
+
+        val impls: List<DaoImpl<*>> = listOf(
+            DaoImpl(::BannedWordsImpl, BannedWords::class),
+            DaoImpl(::BlocksImpl, Blocks::class),
+            DaoImpl(::LikesImpl, Likes::class),
+            DaoImpl(::NoticesImpl, Notices::class),
+            DaoImpl(::OperationsImpl, Operations::class),
+            DaoImpl(::PermissionsImpl, Permissions::class),
+            DaoImpl(::PostsImpl, Posts::class),
+            DaoImpl(::PostVersionsImpl, PostVersions::class),
+            DaoImpl(::PrivateChatsImpl, PrivateChats::class),
+            DaoImpl(::ProhibitsImpl, Prohibits::class),
+            DaoImpl(::ReportsImpl, Reports::class),
+            DaoImpl(::StarsImpl, Stars::class),
+            DaoImpl(::UsersImpl, Users::class),
+            DaoImpl(::WordMarkingsImpl, WordMarkings::class)
+        )
+
         val module = module(!lazyInit)
         {
             named("sql-database-impl")
 
             single { Database.connect(createHikariDataSource(url, driver, user, password)) }.bind<Database>()
 
-            singleOf(::BannedWordsImpl).bind<BannedWords>()
-            singleOf(::BlocksImpl).bind<Blocks>()
-            singleOf(::CommentsImpl).bind<Comments>()
-            singleOf(::LikesImpl).bind<Likes>()
-            singleOf(::NoticesImpl).bind<Notices>()
-            singleOf(::OperationsImpl).bind<Operations>()
-            singleOf(::PermissionsImpl).bind<Permissions>()
-            singleOf(::PostsImpl).bind<Posts>()
-            singleOf(::PrivateChatsImpl).bind<PrivateChats>()
-            singleOf(::ProhibitsImpl).bind<Prohibits>()
-            singleOf(::ReportsImpl).bind<Reports>()
-            singleOf(::StarsImpl).bind<Stars>()
-            singleOf(::UsersImpl).bind<Users>()
+            for (impl in impls)
+            {
+                @Suppress("UNCHECKED_CAST")
+                singleOf(impl.constructor).bind(impl.type as KClass<Any>)
+            }
         }
         getKoin().loadModules(listOf(module))
 
@@ -157,19 +168,7 @@ object SqlDatabaseImpl: IDatabase, KoinComponent
             logger.info("${CYAN}Using database implementation: ${RED}sql${CYAN}, and ${RED}lazyInit${CYAN} is ${GREEN}false.")
             logger.info("${CYAN}It may take a while to initialize the database. Please wait patiently.")
 
-            (get<BannedWords>() as DaoSqlImpl<*>).table
-            (get<Blocks>() as DaoSqlImpl<*>).table
-            (get<Comments>() as DaoSqlImpl<*>).table
-            (get<Likes>() as DaoSqlImpl<*>).table
-            (get<Notices>() as DaoSqlImpl<*>).table
-            (get<Operations>() as DaoSqlImpl<*>).table
-            (get<Permissions>() as DaoSqlImpl<*>).table
-            (get<Posts>() as DaoSqlImpl<*>).table
-            (get<PrivateChats>() as DaoSqlImpl<*>).table
-            (get<Prohibits>() as DaoSqlImpl<*>).table
-            (get<Reports>() as DaoSqlImpl<*>).table
-            (get<Stars>() as DaoSqlImpl<*>).table
-            (get<Users>() as DaoSqlImpl<*>).table
+            impls.map { it.type }.map { getKoin().get(it) as DaoSqlImpl<*> }.forEach { it.table }
         }
     }
 }
@@ -209,9 +208,9 @@ fun Table.userId(name: String) = registerColumn(name, UserIdColumnType())
 class PostIdColumnType: WarpColumnType<Long, PostId>(LongColumnType(), ::PostId, PostId::value)
 fun Table.postId(name: String) = registerColumn(name, PostIdColumnType())
 
-// CommentId
-class CommentIdColumnType: WarpColumnType<Long, CommentId>(LongColumnType(), ::CommentId, CommentId::value)
-fun Table.commentId(name: String) = registerColumn(name, CommentIdColumnType())
+// PostVersionId
+class PostVersionIdColumnType: WarpColumnType<Long, PostVersionId>(LongColumnType(), ::PostVersionId, PostVersionId::value)
+fun Table.postVersionId(name: String) = registerColumn(name, PostVersionIdColumnType())
 
 // ReportId
 class ReportIdColumnType: WarpColumnType<Long, ReportId>(LongColumnType(), ::ReportId, ReportId::value)
@@ -220,3 +219,7 @@ fun Table.reportId(name: String) = registerColumn(name, ReportIdColumnType())
 // NoticeId
 class NoticeIdColumnType: WarpColumnType<Long, NoticeId>(LongColumnType(), ::NoticeId, NoticeId::value)
 fun Table.noticeId(name: String) = registerColumn(name, NoticeIdColumnType())
+
+// WordMarkingId
+class WordMarkingIdColumnType: WarpColumnType<Long, WordMarkingId>(LongColumnType(), ::WordMarkingId, WordMarkingId::value)
+fun Table.wordMarkingId(name: String) = registerColumn(name, WordMarkingIdColumnType())

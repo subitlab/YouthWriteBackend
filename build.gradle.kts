@@ -12,8 +12,8 @@ val swagger_ui_version: String by project
 val schema_kenerator_version: String by project
 
 plugins {
-    kotlin("jvm") version "2.0.0"
-    kotlin("plugin.serialization") version "2.0.0"
+    kotlin("jvm") version "2.0.10"
+    kotlin("plugin.serialization") version "2.0.10"
     id("io.ktor.plugin") version "2.3.11"
 }
 
@@ -55,6 +55,7 @@ dependencies {
     //postgresql
     val pg_version: String by project
     implementation("com.impossibl.pgjdbc-ng:pgjdbc-ng:$pg_version")
+    implementation("org.postgresql:postgresql:42.7.3")
     //h2
     val h2_version: String by project
     implementation("com.h2database:h2:$h2_version")

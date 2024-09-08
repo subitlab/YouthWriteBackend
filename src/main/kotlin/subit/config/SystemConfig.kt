@@ -14,5 +14,5 @@ data class SystemConfig(
 
 var systemConfig: SystemConfig by config(
     "system.yml", 
-    SystemConfig(false, "https://ssubito.subit.org.cn/api")
+    SystemConfig(false, "https://ssubito.subit.org.cn/api"),
 )

@@ -6,23 +6,27 @@ import org.koin.core.component.KoinComponent
 import subit.dataClasses.PostId
 import subit.dataClasses.UserId
 import subit.database.Likes
+import subit.utils.Locks
 
 class LikesImpl: DaoSqlImpl<LikesImpl.LikesTable>(LikesTable), Likes, KoinComponent
 {
     object LikesTable: Table("likes")
     {
-        val user = reference("user", UsersImpl.UserTable).index()
+        val user = reference("user", UsersImpl.UsersTable).index()
         val post = reference("post", PostsImpl.PostsTable).index()
-        // true为点赞, false为点踩
-        val like = bool("like").index()
     }
 
-    override suspend fun like(uid: UserId, pid: PostId, like: Boolean): Unit = query()
+    private val locks = Locks<Pair<UserId, PostId>>()
+
+    override suspend fun like(uid: UserId, pid: PostId): Unit = query()
     {
-        insert {
-            it[user] = uid
-            it[post] = pid
-            it[table.like] = like
+        locks.withLock(uid to pid)
+        {
+            if (getLike(uid, pid)) return@query
+            insert {
+                it[user] = uid
+                it[post] = pid
+            }
         }
     }
 
@@ -35,15 +39,11 @@ class LikesImpl: DaoSqlImpl<LikesImpl.LikesTable>(LikesTable), Likes, KoinCompon
 
     override suspend fun getLike(uid: UserId, pid: PostId): Boolean = query()
     {
-        select(like).where {
-            (user eq uid) and (post eq pid)
-        }.singleOrNull()?.get(like) ?: false
+        selectAll().where { (user eq uid) and (post eq pid) }.count() > 0
     }
 
-    override suspend fun getLikes(post: PostId):Pair<Long,Long> = query()
+    override suspend fun getLikes(post: PostId): Long = query()
     {
-        val likes = selectAll().where { (LikesTable.post eq post) and (like eq true) }.count()
-        val dislikes = selectAll().where { (LikesTable.post eq post) and (like eq false) }.count()
-        likes to dislikes
+        selectAll().where { table.post eq post }.count()
     }
 }

@@ -17,8 +17,8 @@ class PrivateChatsImpl: DaoSqlImpl<PrivateChatsImpl.PrivateChatsTable>(PrivateCh
 {
     object PrivateChatsTable: Table("private_chats")
     {
-        val from = reference("from", UsersImpl.UserTable).index()
-        val to = reference("to", UsersImpl.UserTable).index()
+        val from = reference("from", UsersImpl.UsersTable).index()
+        val to = reference("to", UsersImpl.UsersTable).index()
         val time = timestamp("time").index().defaultExpression(CurrentTimestamp)
         val content = text("content")
     }

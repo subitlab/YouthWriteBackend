@@ -25,17 +25,18 @@ object TestDatabase: Command, KoinComponent
         mapOf(
             "BannedWords" to dao<BannedWords>(),
             "Blocks" to dao<Blocks>(),
-            "Comments" to dao<Comments>(),
             "Likes" to dao<Likes>(),
             "Notices" to dao<Notices>(),
             "Operations" to dao<Operations>(),
             "Permissions" to dao<Permissions>(),
             "Posts" to dao<Posts>(),
+            "PostVersions" to dao<PostVersions>(),
             "PrivateChats" to dao<PrivateChats>(),
             "Prohibits" to dao<Prohibits>(),
             "Reports" to dao<Reports>(),
             "Stars" to dao<Stars>(),
             "Users" to dao<Users>(),
+            "WordMarkings" to dao<WordMarkings>(),
         )
     }
 
@@ -151,7 +152,15 @@ object TestDatabase: Command, KoinComponent
                     return emptyList()
 
                 // 注意计算, 例如第一个参数, 此时args.size是3, 而我们需要读取method.parameters[1](这里排除掉了this所以是1), 所以这里是-2
-                listOf("<${method.parameters[args.size - 2].name}>")
+                val param = method.parameters[args.size - 2]
+
+                if (param.type.classifier is KClass<*> && (param.type.classifier as KClass<*>).isSubclassOf(Enum::class))
+                {
+                    @Suppress("UNCHECKED_CAST")
+                    return (param.type.classifier as KClass<Enum<*>>).java.enumConstants.map { Candidate(it.name) }
+                }
+
+                listOf("<${param.name}>")
             }
         }.map { Candidate(it) }
     }

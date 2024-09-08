@@ -18,7 +18,7 @@ class StarsImpl: DaoSqlImpl<StarsImpl.StarsTable>(StarsTable), Stars
 {
     object StarsTable: Table("stars")
     {
-        val user = reference("user", UsersImpl.UserTable).index()
+        val user = reference("user", UsersImpl.UsersTable).index()
         val post = reference("post", PostsImpl.PostsTable).index()
         val time = timestamp("time").defaultExpression(CurrentTimestamp).index()
     }
@@ -61,12 +61,11 @@ class StarsImpl: DaoSqlImpl<StarsImpl.StarsTable>(StarsTable), Stars
         limit: Int,
     ): Slice<Star> = query()
     {
-        selectAll().where()
-        {
-            var op: Op<Boolean> = Op.TRUE
-            if (user != null) op = op and (StarsTable.user eq user)
-            if (post != null) op = op and (StarsTable.post eq post)
-            op
-        }.asSlice(begin, limit).map(::deserialize)
+        var q = selectAll()
+
+        if (user != null) q = q.andWhere { StarsTable.user eq user }
+        if (post != null) q = q.andWhere { StarsTable.post eq post }
+
+        q.asSlice(begin, limit).map(::deserialize)
     }
 }

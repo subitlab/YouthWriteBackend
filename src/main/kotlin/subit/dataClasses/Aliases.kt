@@ -68,15 +68,29 @@ value class PostId(override val value: Long): Id<PostId, Long>
 
 @JvmInline
 @Serializable
-value class CommentId(override val value: Long): Id<CommentId, Long>
+value class PostVersionId(override val value: Long): Id<PostVersionId, Long>
 {
     override fun toString(): String = value.toString()
 
     companion object
     {
-        fun String.toCommentId() = CommentId(toLong())
-        fun String.toCommentIdOrNull() = toLongOrNull()?.let(::CommentId)
-        fun Number.toCommentId() = CommentId(toLong())
+        fun String.toPostVersionId() = PostVersionId(toLong())
+        fun String.toPostVersionIdOrNull() = toLongOrNull()?.let(::PostVersionId)
+        fun Number.toPostVersionId() = PostVersionId(toLong())
+    }
+}
+
+@JvmInline
+@Serializable
+value class WordMarkingId(override val value: Long): Id<WordMarkingId, Long>
+{
+    override fun toString(): String = value.toString()
+
+    companion object
+    {
+        fun String.toWordMarkingId() = WordMarkingId(toLong())
+        fun String.toWordMarkingIdOrNull() = toLongOrNull()?.let(::WordMarkingId)
+        fun Number.toWordMarkingId() = WordMarkingId(toLong())
     }
 }
 

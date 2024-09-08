@@ -14,7 +14,7 @@ import kotlinx.serialization.Serializable
  * @property reading 阅读权限
  */
 @Serializable
-data class BlockFull(
+data class Block(
     val id: BlockId,
     val name: String,
     val description: String,
@@ -29,7 +29,7 @@ data class BlockFull(
 {
     companion object
     {
-        val example = BlockFull(
+        val example = Block(
             BlockId(1),
             "板块名称",
             "板块描述",

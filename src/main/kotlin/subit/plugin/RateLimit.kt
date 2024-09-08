@@ -5,7 +5,8 @@ import io.ktor.server.application.*
 import io.ktor.server.plugins.ratelimit.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
-import subit.router.posts.WarpPostId
+import subit.dataClasses.PostId.Companion.toPostId
+import subit.dataClasses.PostId.Companion.toPostIdOrNull
 import subit.utils.HttpStatus
 import subit.utils.respond
 import java.util.*
@@ -77,7 +78,7 @@ sealed interface RateLimit
         override suspend fun getKey(call: ApplicationCall): Any
         {
             val auth = call.request.headers["Authorization"] ?: return UUID.randomUUID()
-            val postId = call.receive<WarpPostId>().post
+            val postId = call.parameters["id"]?.toPostId()
             return auth to postId
         }
     }

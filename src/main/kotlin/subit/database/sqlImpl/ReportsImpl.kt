@@ -10,45 +10,45 @@ import subit.dataClasses.Slice.Companion.asSlice
 import subit.dataClasses.Slice.Companion.singleOrNull
 import subit.database.Reports
 
-class ReportsImpl: DaoSqlImpl<ReportsImpl.ReportTable>(ReportTable), Reports
+class ReportsImpl: DaoSqlImpl<ReportsImpl.ReportsTable>(ReportsTable), Reports
 {
-    object ReportTable: IdTable<ReportId>("reports")
+    object ReportsTable: IdTable<ReportId>("reports")
     {
         override val id = reportId("id").autoIncrement().entityId()
-        val reportBy = reference("user", UsersImpl.UserTable)
+        val reportBy = reference("user", UsersImpl.UsersTable)
         val objectType = enumerationByName("object_type", 16, ReportObject::class).index()
         val objectId = long("object_id").index()
         val reason = text("reason")
-        val handledBy = reference("handled_by", UsersImpl.UserTable).nullable().index()
+        val handledBy = reference("handled_by", UsersImpl.UsersTable).nullable().index()
         override val primaryKey: PrimaryKey = PrimaryKey(id)
     }
 
     private fun deserialize(row: ResultRow) = Report(
-        row[ReportTable.id].value,
-        row[ReportTable.objectType],
-        row[ReportTable.objectId],
-        row[ReportTable.reportBy].value,
-        row[ReportTable.reason]
+        row[ReportsTable.id].value,
+        row[ReportsTable.objectType],
+        row[ReportsTable.objectId],
+        row[ReportsTable.reportBy].value,
+        row[ReportsTable.reason]
     )
 
     override suspend fun addReport(objectType: ReportObject, id: Long, user: UserId, reason: String): Unit = query()
     {
         insert {
-            it[ReportTable.objectType] = objectType
+            it[ReportsTable.objectType] = objectType
             it[objectId] = id
             it[reportBy] = user
-            it[ReportTable.reason] = reason
+            it[ReportsTable.reason] = reason
         }
     }
 
     override suspend fun getReport(id: ReportId): Report? = query()
     {
-        ReportTable.selectAll().where { ReportTable.id eq id }.singleOrNull()?.let(::deserialize)
+        ReportsTable.selectAll().where { ReportsTable.id eq id }.singleOrNull()?.let(::deserialize)
     }
 
     override suspend fun handleReport(id: ReportId, user: UserId): Unit = query()
     {
-        ReportTable.update({ ReportTable.id eq id }) { it[handledBy] = user }
+        ReportsTable.update({ ReportsTable.id eq id }) { it[handledBy] = user }
     }
 
     override suspend fun getReports(
@@ -57,8 +57,8 @@ class ReportsImpl: DaoSqlImpl<ReportsImpl.ReportTable>(ReportTable), Reports
         handled: Boolean?
     ):Slice<Report> = query()
     {
-        return@query (if (handled == null) ReportTable.selectAll()
-        else ReportTable.selectAll().where {
+        return@query (if (handled == null) ReportsTable.selectAll()
+        else ReportsTable.selectAll().where {
             if (handled) (handledBy neq null)
             else (handledBy eq null)
         }).asSlice(begin, count).map(::deserialize)

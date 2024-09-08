@@ -14,19 +14,25 @@ import java.net.URL
 object SSO: KoinComponent
 {
     val users: Users by inject()
-    val json = Json {
+    private val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
         allowStructuredMapKeys = true
         encodeDefaults = true
     }
 
-    private fun decodeSsoUser(response: String): SsoUser? =
-        runCatching { json.decodeFromString(SsoUserFull.serializer(), response) }
-            .getOrElse {
-                runCatching { json.decodeFromString(SsoUserInfo.serializer(), response) }
-                    .getOrNull()
-            }
+    private fun decodeSsoUser(response: String): SsoUser?
+    {
+        runCatching {
+            return json.decodeFromString<Response<SsoUserFull>>(response).data
+        }
+
+        runCatching {
+            return json.decodeFromString<Response<SsoUserInfo>>(response).data
+        }
+
+        return null
+    }
 
     suspend fun getUser(userId: UserId): SsoUser? = withContext(Dispatchers.IO)
     {
