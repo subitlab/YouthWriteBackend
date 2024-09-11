@@ -274,11 +274,14 @@ private suspend fun Context.getPermission()
     val bid = call.parameters["id"]?.toBlockIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val uid = call.parameters["user"]?.toUserIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val blocks = get<Blocks>()
-    val user = SSO.getDbUser(uid) ?: return call.respond(HttpStatus.NotFound)
-    withPermission {
+    withPermission()
+    {
         checkCanRead(blocks.getBlock(bid) ?: return call.respond(HttpStatus.NotFound))
-        checkHasAdminIn(bid)
+        if (uid != UserId(0)) checkHasAdminIn(bid)
     }
+    val user =
+        if (uid == UserId(0)) getLoginUser()?.toDatabaseUser()
+        else SSO.getDbUser(uid)
     call.respond(HttpStatus.OK, withPermission(user) { getPermission(bid) })
 }
 
