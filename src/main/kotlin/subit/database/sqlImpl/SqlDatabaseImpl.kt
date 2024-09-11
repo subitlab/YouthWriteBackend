@@ -56,13 +56,7 @@ object SqlDatabaseImpl: IDatabase, KoinComponent
     private lateinit var config: ApplicationConfig
     private val logger = ForumLogger.getLogger()
     private val drivers:List<Driver> = listOf(
-        org.h2.Driver(),
-        com.impossibl.postgres.jdbc.PGDriver(),
-        org.sqlite.JDBC(),
-        com.mysql.cj.jdbc.Driver(),
-        oracle.jdbc.OracleDriver(),
-        com.microsoft.sqlserver.jdbc.SQLServerDriver(),
-        org.mariadb.jdbc.Driver()
+        org.postgresql.Driver(),
     )
 
     /**

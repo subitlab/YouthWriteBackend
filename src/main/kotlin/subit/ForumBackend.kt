@@ -47,7 +47,7 @@ private fun parseCommandLineArgs(args: Array<String>): Pair<Array<String>, File>
     // 去除命令行中的-config参数, 因为ktor会解析此参数进而不加载打包的application.yaml
     // 其余参数还原为字符串数组
     val resArgs = argsMap.entries
-        .filterNot { it.key == "-config" || it.key == "-workDir" || it.key == "-debug" || it.key == "-youthwrite" }
+        .filterNot { it.key == "-config" || it.key == "-workDir" || it.key == "-debug" }
         .map { (k, v) -> "$k=$v" }
         .toTypedArray()
     // 命令行中输入的自定义配置文件
@@ -70,9 +70,11 @@ fun main(args: Array<String>)
     if (!configFile.exists())
     {
         configFile.createNewFile()
-        val defaultConfig =
-            Loader.getResource("default_config.yaml")?.readAllBytes() ?: error("default_config.yaml not found")
-        configFile.writeBytes(defaultConfig)
+        Loader
+            .getResource("default_config.yaml")
+            ?.readAllBytes()
+            ?.let(configFile::writeBytes)
+            ?: error("default_config.yaml not found")
         ForumLogger.getLogger().severe(
             "config.yaml not found, the default config has been created, " +
             "please modify it and restart the program"
@@ -93,10 +95,6 @@ fun main(args: Array<String>)
 
     // 生成环境
     val environment = commandLineEnvironment(args = resArgs)
-    {
-        ForumLogger.getLogger().info("rootPath: ${this.rootPath}")
-        ForumLogger.getLogger().info("port: ${this.config}")
-    }
     // 启动服务器
     embeddedServer(Netty, environment).start(wait = true)
     // 若服务器关闭则终止整个程序

@@ -49,28 +49,9 @@ dependencies {
     implementation("io.github.smiley4:schema-kenerator-reflection:$schema_kenerator_version")
     implementation("com.sun.mail:javax.mail:1.6.2") // 邮件发送
 
-    //mysql
-    val mysql_version: String by project
-    implementation("mysql:mysql-connector-java:$mysql_version")
     //postgresql
-    val pg_version: String by project
-    implementation("com.impossibl.pgjdbc-ng:pgjdbc-ng:$pg_version")
-    implementation("org.postgresql:postgresql:42.7.3")
-    //h2
-    val h2_version: String by project
-    implementation("com.h2database:h2:$h2_version")
-    //MariaDB
-    val mariadb_version: String by project
-    implementation("org.mariadb.jdbc:mariadb-java-client:$mariadb_version")
-    //Oracle
-    val oracle_version: String by project
-    implementation("com.oracle.database.jdbc:ojdbc8:$oracle_version")
-    //MicrosoftSQLServer
-    val mssql_version: String by project
-    implementation("com.microsoft.sqlserver:mssql-jdbc:$mssql_version")
-    //SQLite
-    val sqlite_version: String by project
-    implementation("org.xerial:sqlite-jdbc:$sqlite_version")
+    val postgresql_version: String by project
+    implementation("org.postgresql:postgresql:$postgresql_version")
 
     //数据库
     implementation("org.jetbrains.exposed:exposed-core:$exposed_version") // 数据库
