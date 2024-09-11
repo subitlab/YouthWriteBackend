@@ -1,3 +1,5 @@
+@file:Suppress("ConvertCallChainIntoSequence")
+
 package subit.database.memoryImpl
 
 import kotlinx.coroutines.runBlocking

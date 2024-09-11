@@ -8,7 +8,6 @@ import io.ktor.server.auth.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.koin.ktor.ext.inject
-import subit.JWTAuth.getLoginUser
 import subit.config.systemConfig
 import subit.database.Prohibits
 import subit.database.checkParameters

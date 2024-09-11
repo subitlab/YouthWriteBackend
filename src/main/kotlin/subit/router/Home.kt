@@ -10,7 +10,6 @@ import io.ktor.server.plugins.ratelimit.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
-import subit.JWTAuth.getLoginUser
 import subit.dataClasses.*
 import subit.database.Blocks
 import subit.database.Posts

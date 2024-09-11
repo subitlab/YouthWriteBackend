@@ -481,6 +481,7 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
             if (loginUser != null) ({ permissionTable.user eq loginUser.id })
             else null
 
+        @Suppress("LiftReturnOrAssignment")
         fun Query.whereConstraint(): Query
         {
             var q = this

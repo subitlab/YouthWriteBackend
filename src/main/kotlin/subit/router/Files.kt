@@ -2,7 +2,10 @@
 
 package subit.router.files
 
-import io.github.smiley4.ktorswaggerui.dsl.routing.*
+import io.github.smiley4.ktorswaggerui.dsl.routing.delete
+import io.github.smiley4.ktorswaggerui.dsl.routing.get
+import io.github.smiley4.ktorswaggerui.dsl.routing.post
+import io.github.smiley4.ktorswaggerui.dsl.routing.route
 import io.ktor.http.*
 import io.ktor.http.content.*
 import io.ktor.server.application.*
@@ -10,10 +13,12 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
-import subit.JWTAuth.getLoginUser
-import subit.dataClasses.*
+import subit.dataClasses.PermissionLevel
+import subit.dataClasses.Slice
 import subit.dataClasses.Slice.Companion.asSlice
+import subit.dataClasses.UserId
 import subit.dataClasses.UserId.Companion.toUserIdOrNull
+import subit.dataClasses.sliceOf
 import subit.database.*
 import subit.router.*
 import subit.utils.*

@@ -1,3 +1,5 @@
+@file:Suppress("NOTHING_TO_INLINE")
+
 package subit.router
 
 import io.github.smiley4.ktorswaggerui.data.ValueExampleDescriptor
@@ -5,10 +7,12 @@ import io.github.smiley4.ktorswaggerui.dsl.routes.OpenApiRequest
 import io.github.smiley4.ktorswaggerui.dsl.routes.OpenApiRequestParameter
 import io.github.smiley4.ktorswaggerui.dsl.routes.OpenApiSimpleBody
 import io.ktor.server.application.*
+import io.ktor.server.auth.*
 import io.ktor.util.pipeline.*
 import org.koin.core.parameter.ParametersDefinition
 import org.koin.core.qualifier.Qualifier
 import org.koin.ktor.ext.get
+import subit.dataClasses.UserFull
 
 typealias Context = PipelineContext<*, ApplicationCall>
 
@@ -21,7 +25,7 @@ inline fun <reified T: Any> Context.get(
  * 辅助方法, 标记此接口需要验证token(需要登陆)
  * @param required 是否必须登陆
  */
-fun OpenApiRequest.authenticated(required: Boolean) = headerParameter<String>("Authorization")
+inline fun OpenApiRequest.authenticated(required: Boolean) = headerParameter<String>("Authorization")
 {
     this.description = "Bearer token"
     this.required = required
@@ -30,7 +34,7 @@ fun OpenApiRequest.authenticated(required: Boolean) = headerParameter<String>("A
 /**
  * 辅助方法, 标记此方法返回需要传入begin和count, 用于分页
  */
-fun OpenApiRequest.paged()
+inline fun OpenApiRequest.paged()
 {
     queryParameter<Long>("begin")
     {
@@ -46,7 +50,7 @@ fun OpenApiRequest.paged()
     }
 }
 
-fun ApplicationCall.getPage(): Pair<Long, Int>
+inline fun ApplicationCall.getPage(): Pair<Long, Int>
 {
     val begin = request.queryParameters["begin"]?.toLongOrNull() ?: 0
     val count = request.queryParameters["count"]?.toIntOrNull() ?: 10
@@ -62,3 +66,5 @@ inline fun <reified T> OpenApiRequestParameter.example(any: T)
 {
     this.example = ValueExampleDescriptor("example", any)
 }
+
+inline fun Context.getLoginUser(): UserFull? = call.principal<UserFull>()

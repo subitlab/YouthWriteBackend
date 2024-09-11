@@ -11,6 +11,7 @@ import subit.database.Users
 import java.net.HttpURLConnection
 import java.net.URL
 
+@Suppress("MemberVisibilityCanBePrivate")
 object SSO: KoinComponent
 {
     val users: Users by inject()

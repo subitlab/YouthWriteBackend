@@ -9,15 +9,12 @@ import subit.dataClasses.DatabaseUser
 import subit.dataClasses.PermissionLevel
 import subit.dataClasses.UserFull
 import subit.dataClasses.UserId
-import subit.logger.ForumLogger
 import subit.workDir
-import java.awt.image.BufferedImage
 import java.io.File
 import java.io.FileInputStream
 import java.io.InputStream
 import java.security.MessageDigest
 import java.util.*
-import javax.imageio.ImageIO
 
 /**
  * 文件工具类

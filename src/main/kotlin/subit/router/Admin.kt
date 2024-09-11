@@ -2,15 +2,19 @@
 
 package subit.router.admin
 
-import io.github.smiley4.ktorswaggerui.dsl.routing.*
+import io.github.smiley4.ktorswaggerui.dsl.routing.get
+import io.github.smiley4.ktorswaggerui.dsl.routing.post
+import io.github.smiley4.ktorswaggerui.dsl.routing.route
 import io.ktor.server.application.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
-import subit.JWTAuth.getLoginUser
 import subit.dataClasses.*
 import subit.database.*
 import subit.router.*
-import subit.utils.*
+import subit.utils.HttpStatus
+import subit.utils.SSO
+import subit.utils.respond
+import subit.utils.statuses
 
 fun Route.admin() = route("/admin", {
     tags = listOf("用户管理")

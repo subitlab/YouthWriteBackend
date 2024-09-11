@@ -6,6 +6,7 @@ import net.mamoe.yamlkt.YamlMap
 import java.io.File
 import java.io.InputStream
 
+@Suppress("unused")
 object Loader
 {
     /**

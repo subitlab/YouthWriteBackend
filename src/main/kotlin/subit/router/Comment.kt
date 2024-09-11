@@ -2,12 +2,13 @@
 
 package subit.router.comment
 
-import io.github.smiley4.ktorswaggerui.dsl.routing.*
+import io.github.smiley4.ktorswaggerui.dsl.routing.get
+import io.github.smiley4.ktorswaggerui.dsl.routing.post
+import io.github.smiley4.ktorswaggerui.dsl.routing.route
 import io.ktor.server.application.*
 import io.ktor.server.plugins.ratelimit.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
-import subit.JWTAuth.getLoginUser
 import subit.dataClasses.*
 import subit.dataClasses.PostId.Companion.toPostIdOrNull
 import subit.database.*
@@ -16,6 +17,7 @@ import subit.router.*
 import subit.utils.HttpStatus
 import subit.utils.respond
 import subit.utils.statuses
+import subit.utils.toEnumOrNull
 
 fun Route.comment() = route("/comment", {
     tags = listOf("评论")
@@ -150,9 +152,7 @@ private suspend fun Context.commentPost()
 private suspend fun Context.getPostComments()
 {
     val postId = call.parameters["postId"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
-    val type = call.parameters["sort"]
-                   ?.runCatching { Posts.PostListSort.valueOf(this) }
-                   ?.getOrNull() ?: return call.respond(HttpStatus.BadRequest)
+    val type = call.parameters["sort"]?.toEnumOrNull<Posts.PostListSort>() ?: Posts.PostListSort.NEW
     val (begin, count) = call.getPage()
     val posts = get<Posts>()
     val post = posts.getPostInfo(postId) ?: return call.respond(HttpStatus.NotFound)
@@ -167,9 +167,7 @@ private suspend fun Context.getPostComments()
 private suspend fun Context.getCommentComments()
 {
     val commentId = call.parameters["commentId"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
-    val type = call.parameters["sort"]
-                   ?.runCatching { Posts.PostListSort.valueOf(this) }
-                   ?.getOrNull() ?: return call.respond(HttpStatus.BadRequest)
+    val type = call.parameters["sort"].toEnumOrNull<Posts.PostListSort>() ?: return call.respond(HttpStatus.BadRequest)
     val (begin, count) = call.getPage()
     val posts = get<Posts>()
     val comment = posts.getPostInfo(commentId) ?: return call.respond(HttpStatus.NotFound)

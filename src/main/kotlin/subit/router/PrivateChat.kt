@@ -7,7 +7,6 @@ import io.ktor.server.application.*
 import io.ktor.server.routing.*
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
-import subit.JWTAuth.getLoginUser
 import subit.dataClasses.*
 import subit.dataClasses.UserId.Companion.toUserIdOrNull
 import subit.database.PrivateChats

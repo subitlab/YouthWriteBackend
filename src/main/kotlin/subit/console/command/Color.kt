@@ -3,7 +3,6 @@ package subit.console.command
 import subit.config.loggerConfig
 import subit.console.*
 import subit.console.AnsiStyle.Companion.ansi
-import subit.logger.ForumLogger
 
 object Color: TreeCommand(Test, Mode, Effect)
 {

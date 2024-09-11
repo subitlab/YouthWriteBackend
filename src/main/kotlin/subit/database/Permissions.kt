@@ -5,11 +5,11 @@ package subit.database
 import io.ktor.server.application.*
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.get
-import subit.JWTAuth.getLoginUser
 import subit.dataClasses.*
 import subit.dataClasses.State.DELETED
 import subit.dataClasses.State.NORMAL
 import subit.router.Context
+import subit.router.getLoginUser
 import subit.utils.HttpStatus
 import subit.utils.respond
 
