@@ -9,12 +9,38 @@ interface Posts
     @Serializable
     enum class PostListSort
     {
+        /**
+         * 按照时间从新到旧排序
+         */
         NEW,
+        /**
+         * 按照时间从旧到新排序
+         */
         OLD,
+        /**
+         * 按照浏览量从高到低排序
+         */
         MORE_VIEW,
+        /**
+         * 按照点赞数从高到低排序
+         */
         MORE_LIKE,
+        /**
+         * 按照收藏数从高到低排序
+         */
         MORE_STAR,
+        /**
+         * 按照评论数从高到低排序
+         */
         MORE_COMMENT,
+        /**
+         * 按照热度排序
+         */
+        HOT,
+        /**
+         * 按照热度并带一定随机性排序
+         */
+        RANDOM_HOT,
     }
 
     /**
@@ -56,25 +82,23 @@ interface Posts
     suspend fun getPostFullBasicInfo(pid: PostId): PostFullBasicInfo?
 
     /**
-     * 获取用户发布的帖子
+     * 获得帖子列表
      * @param loginUser 当前操作用户, null表示未登录, 返回的帖子应是该用户可见的.
+     * @param author 作者, null表示所有作者
+     * @param block 板块, null表示所有板块
+     * @param top 是否置顶, null表示所有
+     * @param sortBy 排序方式
      */
-    suspend fun getUserPosts(
+    suspend fun getPosts(
         loginUser: DatabaseUser? = null,
-        author: UserId,
+        author: UserId?,
+        block: BlockId?,
+        top: Boolean?,
         sortBy: PostListSort,
         begin: Long,
-        limit: Int,
+        limit: Int
     ): Slice<PostFullBasicInfo>
 
-    suspend fun getBlockPosts(
-        block: BlockId,
-        sortBy: PostListSort,
-        begin: Long,
-        count: Int
-    ): Slice<PostFullBasicInfo>
-
-    suspend fun getBlockTopPosts(block: BlockId, begin: Long, count: Int): Slice<PostFullBasicInfo>
     suspend fun searchPosts(
         loginUser: DatabaseUser?,
         key: String,
@@ -84,10 +108,4 @@ interface Posts
     ): Slice<PostFullBasicInfo>
 
     suspend fun addView(pid: PostId)
-
-    /**
-     * 获取首页推荐, 应按照时间/浏览量/点赞等参数随机, 即越新/点赞越高/浏览量越高...随机到的几率越大.
-     * @param count 推荐数量
-     */
-    suspend fun getRecommendPosts(loginUser: UserId?, count: Int): Slice<PostFullBasicInfo>
 }

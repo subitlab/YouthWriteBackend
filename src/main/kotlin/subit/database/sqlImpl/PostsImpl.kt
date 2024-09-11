@@ -9,9 +9,10 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.coalesce
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.div
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.minus
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.plus
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.times
 import org.jetbrains.exposed.sql.functions.math.PowerFunction
 import org.jetbrains.exposed.sql.kotlin.datetime.CurrentTimestamp
-import org.jetbrains.exposed.sql.kotlin.datetime.Minute
+import org.jetbrains.exposed.sql.kotlin.datetime.Second
 import org.jetbrains.exposed.sql.statements.Statement
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -113,6 +114,33 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
      * ```
      */
     private val comment = PostsTable.alias("comments")[PostsTable.id].count().alias("commentCount")
+
+    /**
+     * 热度
+     */
+    private val hotScore by lazy {
+        val x =
+            (view +
+             TimesOp(like.delegate, longParam(3), LongColumnType()) +
+             TimesOp(star.delegate, longParam(5), LongColumnType()) +
+             TimesOp(comment.delegate, longParam(2), LongColumnType()) +
+             1)
+
+
+        val second = (Second(CurrentTimestamp - create.aliasOnlyExpression()) + 1) / 60000
+
+        @Suppress("UNCHECKED_CAST")
+        val order = x / (PowerFunction(second, doubleParam(1.8)) as Expression<Long>)
+        @Suppress("UNCHECKED_CAST")
+        order as Expression<Double>
+    }
+
+    /**
+     * 随机热度(即热度乘以一个随机数)
+     */
+    private val randomHotScore by lazy {
+        CustomFunction("RANDOM", DoubleColumnType()) * hotScore
+    }
 
     /**
      * 进行反序列化到data class, 考虑到此处有3种可能的反序列化目标([PostFullBasicInfo], [PostInfo], [PostFull]),
@@ -383,14 +411,18 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
             MORE_LIKE    -> like.delegate to SortOrder.DESC
             MORE_STAR    -> star.delegate to SortOrder.DESC
             MORE_COMMENT -> comment.delegate to SortOrder.DESC
+            HOT          -> hotScore to SortOrder.DESC
+            RANDOM_HOT   -> randomHotScore to SortOrder.DESC
         }
 
     /**
      * 获取帖子列表
      */
-    override suspend fun getUserPosts(
+    override suspend fun getPosts(
         loginUser: DatabaseUser?,
-        author: UserId,
+        author: UserId?,
+        block: BlockId?,
+        top: Boolean?,
         sortBy: Posts.PostListSort,
         begin: Long,
         limit: Int
@@ -400,69 +432,43 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
         val permissionTable = (permissions as PermissionsImpl).table
         val blockTable = (blocks as BlocksImpl).table
 
-        if (loginUser == null)
-        {
-            return@query PostsTable
-                .joinPostFull()
-                .join(blockTable, JoinType.INNER, block, blockTable.id)
-                .select(postFullBasicInfoColumns)
-                .andWhere { PostsTable.author eq author }
-                .andWhere { state eq State.NORMAL }
-                .andWhere { parent.isNull() }
-                .andWhere { blockTable.reading lessEq PermissionLevel.NORMAL }
-                .groupPostFull()
-                .orderBy(sortBy.order)
-                .asSlice(begin, limit)
-                .map { deserializePost<PostFullBasicInfo>(it) }
+        val checkState: Query.() -> Query = {
+            if (loginUser.hasGlobalAdmin()) this
+            else this.andWhere { state eq State.NORMAL }
+        }
+
+        val checkBlock: Query.() -> Query = {
+            if (block != null) this.andWhere { PostsTable.block eq block }
+            else this
+        }
+
+        val checkAuthor: Query.() -> Query = {
+            if (author != null) this.andWhere { PostsTable.author eq author }
+            else this
+        }
+
+        val checkTop: Query.() -> Query = {
+            if (top != null) this.andWhere { PostsTable.top eq top }
+            else this
         }
 
         PostsTable
             .joinPostFull()
-            .join(blockTable, JoinType.INNER, block, blockTable.id)
-            .join(permissionTable, JoinType.LEFT, block, permissionTable.block) { permissionTable.user eq loginUser.id }
+            .join(blockTable, JoinType.INNER, table.block, blockTable.id)
+            .join(permissionTable, JoinType.LEFT, table.block, permissionTable.block) { permissionTable.user eq loginUser?.id }
             .select(postFullBasicInfoColumns)
             .andWhere { PostsTable.author eq author }
-            .andWhere { if (loginUser.hasGlobalAdmin()) Op.TRUE else state eq State.NORMAL }
             .andWhere { parent.isNull() }
+            .checkState()
+            .checkBlock()
+            .checkAuthor()
+            .checkTop()
             .groupBy(id, create, blockTable.id, blockTable.reading)
             .groupPostFull()
             .orHaving { permissionTable.permission.max() greaterEq blockTable.reading }
             .orHaving { blockTable.reading lessEq PermissionLevel.NORMAL }
             .orderBy(sortBy.order)
             .asSlice(begin, limit)
-            .map { deserializePost<PostFullBasicInfo>(it) }
-    }
-
-    override suspend fun getBlockPosts(
-        block: BlockId,
-        sortBy: Posts.PostListSort,
-        begin: Long,
-        count: Int
-    ): Slice<PostFullBasicInfo> = query()
-    {
-        return@query table
-            .joinPostFull()
-            .select(postFullBasicInfoColumns)
-            .andWhere { PostsTable.block eq block }
-            .andWhere { state eq State.NORMAL }
-            .andWhere { parent.isNull() }
-            .groupPostFull()
-            .orderBy(sortBy.order)
-            .asSlice(begin, count)
-            .map { deserializePost<PostFullBasicInfo>(it) }
-    }
-
-    override suspend fun getBlockTopPosts(block: BlockId, begin: Long, count: Int): Slice<PostFullBasicInfo> = query()
-    {
-        PostsTable
-            .joinPostFull()
-            .select(postFullBasicInfoColumns)
-            .andWhere { PostsTable.block eq block }
-            .andWhere { top eq true }
-            .andWhere { state eq State.NORMAL }
-            .andWhere { parent.isNull() }
-            .groupPostFull()
-            .asSlice(begin, count)
             .map { deserializePost<PostFullBasicInfo>(it) }
     }
 
@@ -532,7 +538,7 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
             .groupPostFull()
             .orHaving { permissionTable.permission.max() greaterEq blockTable.reading }
             .orHaving { blockTable.reading lessEq PermissionLevel.NORMAL }
-            .orderBy(hotScoreOrder, SortOrder.DESC)
+            .orderBy(hotScore, SortOrder.DESC)
             .asSlice(begin, count)
             .map { deserializePost<PostFullBasicInfo>(it) }
     }
@@ -540,46 +546,5 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
     override suspend fun addView(pid: PostId): Unit = query()
     {
         PostsTable.update({ id eq pid }) { it[view] = view + 1 }
-    }
-
-    private val hotScoreOrder by lazy {
-        val x =
-            (view +
-             TimesOp(like.delegate, longParam(3), LongColumnType()) +
-             TimesOp(star.delegate, longParam(5), LongColumnType()) +
-             TimesOp(comment.delegate, longParam(2), LongColumnType()) +
-             1)
-
-
-        val minute = (Minute(CurrentTimestamp - create.aliasOnlyExpression()) + 1) / 1024
-
-        @Suppress("UNCHECKED_CAST")
-        val order = x / (PowerFunction(minute, doubleParam(1.8)) as Expression<Long>)
-        order
-    }
-
-    override suspend fun getRecommendPosts(loginUser: UserId?, count: Int): Slice<PostFullBasicInfo> = query()
-    {
-        val blocksTable = (blocks as BlocksImpl).table
-        val permissionTable = (permissions as PermissionsImpl).table
-
-        /**
-         * 选择所属板块的reading权限小于等于NORMAL的帖子
-         *
-         * 按照 (浏览量+点赞数*3+收藏数*5+评论数*2)/(发帖到现在的时间(单位: 时间)的1.8次方)
-         */
-
-        table
-            .joinPostFull()
-            .join(blocksTable, JoinType.INNER, block, blocksTable.id)
-            .join(permissionTable, JoinType.LEFT, block, permissionTable.block) { permissionTable.user eq loginUser }
-            .select(postFullBasicInfoColumns)
-            .andWhere { blocksTable.reading lessEq PermissionLevel.NORMAL }
-            .andWhere { state eq State.NORMAL }
-            .andWhere { rootPost.isNull() } // 不是评论
-            .groupPostFull()
-            .orderBy(hotScoreOrder, SortOrder.DESC)
-            .asSlice(0, count)
-            .map { deserializePost<PostFullBasicInfo>(it) }
     }
 }

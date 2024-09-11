@@ -17,7 +17,6 @@ class PostsImpl: Posts, KoinComponent
 {
     private val map = Collections.synchronizedMap(hashMapOf<PostId, Pair<PostInfo, Boolean>>())
     private val blocks: Blocks by inject()
-    private val permissions: Permissions by inject()
     private val likes: Likes by inject()
     private val stars: Stars by inject()
     private val postVersions: PostVersions by inject()
@@ -64,6 +63,8 @@ class PostsImpl: Posts, KoinComponent
             Posts.PostListSort.MORE_LIKE    -> runBlocking { -stars.getStarsCount(it.id) }
             Posts.PostListSort.MORE_STAR    -> runBlocking { -likes.getLikes(it.id) }
             Posts.PostListSort.MORE_COMMENT -> map.values.count { post -> post.first.root == it.id }.toLong()
+            Posts.PostListSort.HOT          -> -getHotScore(it.id).toLong()
+            Posts.PostListSort.RANDOM_HOT   -> -getHotScore(it.id).toLong() + Random().nextInt(100)
         }
     }
 
@@ -74,15 +75,9 @@ class PostsImpl: Posts, KoinComponent
         count: Int
     ): Slice<PostFull>
     {
-        val post = map[pid]?.first ?: return Slice.empty()
         val descendants = map.values
             .filter { isAncestor(pid, it.first.id) }
             .filter { it.first.state == State.NORMAL }
-            .filter {
-                val blockFull = blocks.getBlock(it.first.block) ?: return@filter false
-                val permission = permissions.getPermission(blockFull.id, post.author)
-                permission >= blockFull.reading
-            }
             .map { it.first }
             .map { getPostFull(it.id)!! }
             .sortedBy(sortBy(sortBy))
@@ -98,15 +93,9 @@ class PostsImpl: Posts, KoinComponent
         count: Int
     ): Slice<PostFull>
     {
-        val post = map[pid]?.first ?: return Slice.empty()
         val children = map.values
             .filter { it.first.parent == pid }
             .filter { it.first.state == State.NORMAL }
-            .filter {
-                val blockFull = blocks.getBlock(it.first.block) ?: return@filter false
-                val permission = permissions.getPermission(blockFull.id, post.author)
-                permission >= blockFull.reading
-            }
             .map { it.first }
             .map { getPostFull(it.id)!! }
             .sortedBy(sortBy(sortBy))
@@ -153,51 +142,32 @@ class PostsImpl: Posts, KoinComponent
     override suspend fun getPostFullBasicInfo(pid: PostId): PostFullBasicInfo? = getPostFull(pid)?.toPostFullBasicInfo()
 
     @Suppress("ConvertCallChainIntoSequence")
-    override suspend fun getUserPosts(
+    override suspend fun getPosts(
         loginUser: DatabaseUser?,
-        author: UserId,
+        author: UserId?,
+        block: BlockId?,
+        top: Boolean?,
         sortBy: Posts.PostListSort,
         begin: Long,
         limit: Int
-    ): Slice<PostFullBasicInfo> =
+    ): Slice<PostFullBasicInfo> = withPermission(loginUser)
+    {
         map.values
-            .filter { it.first.author == author }
+            .filter {
+                (author == null || it.first.author == author)
+                && (block == null || it.first.block == block)
+                && (top == null || it.second == top)
+            }
             .filter {
                 val blockFull = blocks.getBlock(it.first.block) ?: return@filter false
-                val permission = loginUser?.let { permissions.getPermission(blockFull.id, loginUser.id) }
-                                 ?: PermissionLevel.NORMAL
-                permission >= blockFull.reading && (it.first.state == State.NORMAL)
+                getPermission(it.first.block) >= blockFull.reading && (it.first.state == State.NORMAL || loginUser.hasGlobalAdmin())
             }
-            .map { it.first }
-            .map { getPostFull(it.id)!! }
+            .map { getPostFull(it.first.id)!! }
             .sortedBy(sortBy(sortBy))
             .asSequence()
             .asSlice(begin, limit)
             .map { it.toPostFullBasicInfo() }
-
-    @Suppress("ConvertCallChainIntoSequence")
-    override suspend fun getBlockPosts(
-        block: BlockId,
-        sortBy: Posts.PostListSort,
-        begin: Long,
-        count: Int
-    ): Slice<PostFullBasicInfo> = map.values
-        .filter { it.first.block == block }
-        .map { it.first }
-        .map { getPostFull(it.id)!! }
-        .sortedBy(sortBy(sortBy))
-        .asSequence()
-        .asSlice(begin, count)
-        .map { it.toPostFullBasicInfo() }
-
-    override suspend fun getBlockTopPosts(block: BlockId, begin: Long, count: Int): Slice<PostFullBasicInfo> =
-        map.values
-            .filter { it.first.block == block && it.second }
-            .map { it.first }
-            .map { getPostFull(it.id)!! }
-            .asSequence()
-            .asSlice(begin, count)
-            .map { it.toPostFullBasicInfo() }
+    }
 
     override suspend fun searchPosts(
         loginUser: DatabaseUser?,
@@ -205,17 +175,15 @@ class PostsImpl: Posts, KoinComponent
         advancedSearchData: AdvancedSearchData,
         begin: Long,
         count: Int
-    ): Slice<PostFullBasicInfo> =
+    ): Slice<PostFullBasicInfo> = withPermission(loginUser)
+    {
         map.values
             .map { it.first }
             .map { getPostFull(it.id)!! }
             .filter { it.title.contains(key) || it.content.contains(key) }
             .filter {
                 val blockFull = blocks.getBlock(it.block) ?: return@filter false
-                val permission =
-                    loginUser?.let { permissions.getPermission(blockFull.id, loginUser.id) }
-                    ?: PermissionLevel.NORMAL
-                permission >= blockFull.reading
+                getPermission(it.block) >= blockFull.reading
             }
             .filter {
                 val post = it
@@ -230,17 +198,18 @@ class PostsImpl: Posts, KoinComponent
                     else ((post.title.contains(key)) || (post.content.contains(key)))
                 val lastModifiedConstraint =
                     if (advancedSearchData.lastModifiedAfter != null)
-                            (post.lastModified >= advancedSearchData.lastModifiedAfter)
+                        (post.lastModified >= advancedSearchData.lastModifiedAfter)
                     else true
                 val createTimeConstraint =
                     if (advancedSearchData.createTime != null)
-                            (post.create >= advancedSearchData.createTime.first && post.create <= advancedSearchData.createTime.second)
+                        (post.create >= advancedSearchData.createTime.first && post.create <= advancedSearchData.createTime.second)
                     else true
                 blockConstraint && userConstraint && contentConstraint && lastModifiedConstraint && createTimeConstraint
             }
             .asSequence()
             .asSlice(begin, count)
             .map { it.toPostFullBasicInfo() }
+    }
 
     override suspend fun addView(pid: PostId)
     {
@@ -258,20 +227,4 @@ class PostsImpl: Posts, KoinComponent
         val time = (System.currentTimeMillis() - createTime).toDouble() /1000/*s*/ /60/*m*/ /60/*h*/
         return (post.view + likesCount * 3 + starsCount * 5 + commentsCount * 2) / time.pow(1.8)
     }
-
-    @Suppress("ConvertCallChainIntoSequence")
-    override suspend fun getRecommendPosts(loginUser: UserId?, count: Int): Slice<PostFullBasicInfo> = map.values
-        .filter { it.first.state == State.NORMAL }
-        .filter {
-            val blockFull = blocks.getBlock(it.first.block) ?: return@filter false
-            val permission = loginUser?.let { permissions.getPermission(blockFull.id, loginUser) }
-                             ?: PermissionLevel.NORMAL
-            permission >= blockFull.reading
-        }
-        .sortedByDescending { getHotScore(it.first.id) }
-        .map { it.first }
-        .map { getPostFull(it.id)!! }
-        .map { it.toPostFullBasicInfo() }
-        .asSequence()
-        .asSlice(1, count)
 }

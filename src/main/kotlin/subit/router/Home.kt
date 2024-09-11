@@ -26,22 +26,6 @@ fun Route.home() = route("/home", {
 {
     rateLimit(RateLimit.Search.rateLimitName)
     {
-        get("/recommend", {
-            description = "获取首页推荐帖子"
-            request {
-                queryParameter<Int>("count")
-                {
-                    required = false
-                    description = "获取数量, 不填为10"
-                    example(10)
-                }
-            }
-            response {
-                statuses<Slice<PostId>>(HttpStatus.OK, example = sliceOf(PostId(0)))
-                statuses(HttpStatus.NotFound)
-            }
-        }) { getHotPosts() }
-
         route("/search", {
             request {
                 authenticated(false)
@@ -102,14 +86,6 @@ fun Route.home() = route("/home", {
             }) { searchPost() }
         }
     }
-}
-
-private suspend fun Context.getHotPosts()
-{
-    val posts = get<Posts>()
-    val count = call.parameters["count"]?.toIntOrNull() ?: 10
-    val result = posts.getRecommendPosts(getLoginUser()?.id, count)
-    call.respond(HttpStatusCode.OK, result)
 }
 
 private suspend fun Context.searchBlock()

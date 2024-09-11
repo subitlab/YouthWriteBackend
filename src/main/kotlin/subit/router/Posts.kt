@@ -15,10 +15,7 @@ import subit.dataClasses.UserId.Companion.toUserIdOrNull
 import subit.database.*
 import subit.plugin.RateLimit
 import subit.router.*
-import subit.utils.HttpStatus
-import subit.utils.Locks
-import subit.utils.respond
-import subit.utils.statuses
+import subit.utils.*
 
 fun Route.posts() = route("/post", {
     tags = listOf("帖子")
@@ -45,24 +42,39 @@ fun Route.posts() = route("/post", {
         }) { newPost() }
     }
 
-    get("/top/{block}", {
-        description = "获取板块置顶帖子列表"
+    get("/list",{
+        description = "获取帖子列表, 不登录也可以获取, 但是登录/有相应权限的人可能会看到更多内容"
         request {
             authenticated(false)
-            pathParameter<BlockId>("block")
+            paged()
+            queryParameter<Posts.PostListSort>("sort")
             {
                 required = true
-                description = "板块ID"
+                description = "排序方式"
+                example(Posts.PostListSort.NEW)
             }
-            paged()
+            queryParameter<UserId>("author")
+            {
+                required = false
+                description = "作者ID, 不填则为所有用户"
+            }
+            queryParameter<BlockId>("block")
+            {
+                required = false
+                description = "板块ID, 不填则为所有板块"
+            }
+            queryParameter<Boolean>("top")
+            {
+                required = false
+                description = "是否置顶, 不填则为所有"
+            }
         }
         response {
             statuses<Slice<PostFullBasicInfo>>(HttpStatus.OK, example = sliceOf(PostFullBasicInfo.example))
         }
-    }) { getBlockTopPosts() }
+    }) { getPosts() }
 
     id()
-    list()
     version()
 }
 
@@ -105,16 +117,11 @@ private fun Route.id() = route("/{id}",{
             description = "编辑帖子(block及以上管理员可修改)"
             request {
                 authenticated(true)
-                pathParameter<PostId>("id")
-                {
-                    required = true
-                    description = "帖子ID"
-                }
                 body<EditPost>
                 {
                     required = true
                     description = "编辑帖子"
-                    example("example", EditPost("新标题", "新内容"))
+                    example("example", EditPost(mapOf(0 to "a"), listOf(Interval(1, 2)), "new title"))
                 }
             }
             response {
@@ -146,11 +153,6 @@ private fun Route.id() = route("/{id}",{
             description = "增加帖子浏览量, 应在用户打开帖子时调用. 若未登陆将不会增加浏览量"
             request {
                 authenticated(true)
-                queryParameter<PostId>("id")
-                {
-                    required = true
-                    description = "帖子ID"
-                }
             }
             response {
                 statuses(HttpStatus.OK, HttpStatus.TooManyRequests, HttpStatus.Unauthorized)
@@ -173,45 +175,6 @@ private fun Route.id() = route("/{id}",{
             statuses(HttpStatus.OK)
         }
     }) { setBlockTopPosts() }
-}
-
-private fun Route.list() = route("/list",{
-    request {
-        authenticated(false)
-        paged()
-        queryParameter<Posts.PostListSort>("sort")
-        {
-            required = true
-            description = "排序方式"
-            example(Posts.PostListSort.NEW)
-        }
-    }
-    response {
-        statuses<Slice<PostFullBasicInfo>>(HttpStatus.OK, example = sliceOf(PostFullBasicInfo.example))
-    }
-})
-{
-    get("/user/{user}", {
-        description = "获取用户发送的帖子列表"
-        request {
-            pathParameter<UserId>("user")
-            {
-                required = true
-                description = "作者ID"
-            }
-        }
-    }) { getUserPosts() }
-
-    get("/block/{block}", {
-        description = "获取板块帖子列表"
-        request {
-            pathParameter<BlockId>("block")
-            {
-                required = true
-                description = "板块ID"
-            }
-        }
-    }) { getBlockPosts() }
 }
 
 private fun Route.version() = route("/version", {
@@ -268,13 +231,10 @@ private suspend fun Context.getPost()
     else call.respond(HttpStatus.OK, postFull) // 若是匿名帖且用户权限足够则返回
 }
 
-@Serializable
-private data class EditPost(val title: String, val content: String)
-
 @Serializable data class Interval(val start: Int, val end: Int)
 
 @Serializable
-data class Operators(
+data class EditPost(
     val insert: Map<Int, String> = mapOf(),
     val del: List<Interval> = listOf(),
     val newTitle: String? = null
@@ -285,11 +245,12 @@ data class Operators(
 private val editPostLock = Locks<UserId>()
 private suspend fun Context.editPost()
 {
-    val operators = receiveAndCheckBody<Operators>()
+    val operators = receiveAndCheckBody<EditPost>()
     val id = call.parameters["id"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     val postInfo = get<Posts>().getPostInfo(id) ?: return call.respond(HttpStatus.NotFound)
     if (postInfo.author != loginUser.id) call.respond(HttpStatus.Forbidden.copy(message = "文章仅允许作者编辑"))
+    if ((operators.newTitle?.length ?: 0) >= 256) return call.respond(HttpStatus.BadRequest.copy(message = "标题过长"))
 
     editPostLock.tryWithLock(loginUser.id, { call.respond(HttpStatus.TooManyRequests) })
     {
@@ -459,10 +420,16 @@ private suspend fun Context.newPost()
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
 
     val block = get<Blocks>().getBlock(newPost.block) ?: return call.respond(HttpStatus.NotFound)
-    withPermission { checkCanPost(block) }
 
-    if (newPost.anonymous) withPermission { checkCanAnonymous(block) }
-    if (newPost.top) withPermission { checkHasAdminIn(block.id) }
+    withPermission()
+    {
+        checkCanPost(block)
+        if (newPost.anonymous) checkCanAnonymous(block)
+        if (newPost.top) checkHasAdminIn(block.id)
+    }
+
+    if (newPost.title.length >= 256) return call.respond(HttpStatus.BadRequest.copy(message = "标题过长"))
+
     val id = get<Posts>().createPost(
         author = loginUser.id,
         anonymous = newPost.anonymous,
@@ -478,38 +445,15 @@ private suspend fun Context.newPost()
     call.respond(HttpStatus.OK, id)
 }
 
-private suspend fun Context.getUserPosts()
+private suspend fun Context.getPosts()
 {
     val loginUser = getLoginUser()
-    val author = call.parameters["user"]?.toUserIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
-    val type = call.parameters["sort"]
-                   ?.runCatching { Posts.PostListSort.valueOf(this) }
-                   ?.getOrNull() ?: return call.respond(HttpStatus.BadRequest)
+    val author = call.parameters["author"]?.toUserIdOrNull()
+    val block = call.parameters["block"]?.toBlockIdOrNull()
+    val top = call.parameters["top"]?.lowercase()?.toBooleanStrictOrNull()
+    val type = call.parameters["sort"].toEnumOrNull<Posts.PostListSort>() ?: return call.respond(HttpStatus.BadRequest)
     val (begin, count) = call.getPage()
-    val posts = get<Posts>().getUserPosts(loginUser?.toDatabaseUser(), author, type, begin, count)
-    call.respond(HttpStatus.OK, posts)
-}
-
-private suspend fun Context.getBlockPosts()
-{
-    val block = call.parameters["block"]?.toBlockIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
-    val blockFull = get<Blocks>().getBlock(block) ?: return call.respond(HttpStatus.NotFound)
-    withPermission { checkCanRead(blockFull) }
-    val type = call.parameters["sort"]
-                   ?.runCatching { Posts.PostListSort.valueOf(this) }
-                   ?.getOrNull() ?: return call.respond(HttpStatus.BadRequest)
-    val (begin, count) = call.getPage()
-    val posts = get<Posts>().getBlockPosts(block, type, begin, count)
-    call.respond(HttpStatus.OK, posts)
-}
-
-private suspend fun Context.getBlockTopPosts()
-{
-    val block = call.parameters["block"]?.toBlockIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
-    val blockFull = get<Blocks>().getBlock(block) ?: return call.respond(HttpStatus.NotFound)
-    withPermission { checkCanRead(blockFull) }
-    val (begin, count) = call.getPage()
-    val posts = get<Posts>().getBlockTopPosts(block, begin, count)
+    val posts = get<Posts>().getPosts(loginUser?.toDatabaseUser(), author, block, top, type, begin, count)
     call.respond(HttpStatus.OK, posts)
 }
 
