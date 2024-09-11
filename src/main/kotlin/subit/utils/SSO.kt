@@ -56,7 +56,7 @@ object SSO: KoinComponent
         val response =
             runCatching { connection.inputStream.bufferedReader().readText() }.getOrNull() ?: return@withContext null
         connection.disconnect()
-        return@withContext json.decodeFromString(SsoUserFull.serializer(), response)
+        return@withContext decodeSsoUser(response) as? SsoUserFull
     }
 
     suspend fun getUserFull(token: String): UserFull?
