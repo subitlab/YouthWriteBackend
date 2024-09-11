@@ -40,7 +40,7 @@ fun Route.notice() = route("/notice", {
             }
         }
         response {
-            statuses<Slice<NoticeId>>(HttpStatus.OK, example = sliceOf(NoticeId(0)))
+            statuses<Slice<NoticeResponse>>(HttpStatus.OK, example = NoticeResponse.example)
             statuses(HttpStatus.Unauthorized)
         }
     }) { getList() }
@@ -63,15 +63,7 @@ fun Route.notice() = route("/notice", {
             }
         }
         response {
-            statuses<NoticeResponse>(
-                HttpStatus.OK, examples = listOf(
-                    NoticeResponse.fromNotice(StarNotice.example),
-                    NoticeResponse.fromNotice(LikeNotice.example),
-                    NoticeResponse.fromNotice(SystemNotice.example),
-                    NoticeResponse.fromNotice(PostCommentNotice.example),
-                    NoticeResponse.fromNotice(CommentReplyNotice.example),
-                )
-            )
+            statuses<NoticeResponse>(HttpStatus.OK, examples = NoticeResponse.example.list)
             statuses(HttpStatus.Unauthorized, HttpStatus.NotFound, HttpStatus.BadRequest)
         }
     }) { getNotice() }
@@ -100,15 +92,9 @@ fun Route.notice() = route("/notice", {
     }) { deleteAll() }
 }
 
-private suspend fun Context.getList()
-{
-    val (begin, count) = call.getPage()
-    val type = call.parameters["type"]?.runCatching { Type.valueOf(this) }?.getOrNull()
-    val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
-    val notices = get<Notices>()
-    notices.getNotices(loginUser.id, type, begin, count).map(Notice::id).let { call.respond(HttpStatus.OK, it) }
-}
-
+/**
+ * 注意由于[Notice.type]不在构造函数中等问题, 无法序列化, 故手动转为[NoticeResponse]
+ */
 @Serializable
 private data class NoticeResponse(
     val id: NoticeId,
@@ -135,7 +121,27 @@ private data class NoticeResponse(
             )
             return response
         }
+
+        val example = sliceOf(
+            fromNotice(StarNotice.example),
+            fromNotice(LikeNotice.example),
+            fromNotice(SystemNotice.example),
+            fromNotice(PostCommentNotice.example),
+            fromNotice(CommentReplyNotice.example),
+        )
     }
+}
+
+private suspend fun Context.getList()
+{
+    val (begin, count) = call.getPage()
+    val type = call.parameters["type"]?.runCatching { Type.valueOf(this) }?.getOrNull()
+    val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
+    val notices = get<Notices>()
+    notices
+        .getNotices(loginUser.id, type, begin, count)
+        .map { NoticeResponse.fromNotice(it) }
+        .let { call.respond(HttpStatus.OK, it) }
 }
 
 private suspend fun Context.getNotice()
@@ -144,10 +150,6 @@ private suspend fun Context.getNotice()
     val notices = get<Notices>()
     val user = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     val notice = notices.getNotice(id)?.takeIf { it.user == user.id } ?: return call.respond(HttpStatus.NotFound)
-    /*
-     * 注意由于[Notice.type]不在构造函数中等问题, 无法序列化, 故手动转为[NoticeResponse]
-     */
-
     call.respond(HttpStatus.OK, NoticeResponse.fromNotice(notice))
 }
 
