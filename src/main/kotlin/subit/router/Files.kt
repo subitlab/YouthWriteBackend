@@ -14,10 +14,7 @@ import subit.JWTAuth.getLoginUser
 import subit.dataClasses.*
 import subit.dataClasses.Slice.Companion.asSlice
 import subit.dataClasses.UserId.Companion.toUserIdOrNull
-import subit.database.Operations
-import subit.database.Users
-import subit.database.addOperation
-import subit.database.receiveAndCheckBody
+import subit.database.*
 import subit.router.*
 import subit.utils.*
 import subit.utils.FileUtils.canDelete
@@ -289,8 +286,7 @@ private suspend fun Context.changePermission()
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     val changePermission = receiveAndCheckBody<ChangePermission>()
     val user = SSO.getDbUser(changePermission.id) ?: return call.respond(HttpStatus.NotFound)
-    if (loginUser.filePermission < PermissionLevel.ADMIN || loginUser.filePermission <= user.filePermission)
-        return call.respond(HttpStatus.Forbidden)
+    checkPermission { checkChangePermission(null, user, changePermission.filePermission) }
     get<Users>().changeFilePermission(changePermission.id, changePermission.filePermission)
     get<Operations>().addOperation(loginUser.id, changePermission)
     call.respond(HttpStatus.OK)

@@ -20,16 +20,16 @@ interface Permissions
 }
 
 inline fun <reified T> Context.checkPermission(
-    user: UserFull? = getLoginUser(),
+    user: DatabaseUser? = getLoginUser()?.toDatabaseUser(),
     body: CheckPermissionInContextScope.()->T
 ): T = CheckPermissionInContextScope(this, user).body()
 
 inline fun <reified T> checkPermission(
-    user: UserFull?,
+    user: DatabaseUser?,
     body: CheckPermissionScope.()->T
 ): T = CheckPermissionScope(user).body()
 
-open class CheckPermissionScope @PublishedApi internal constructor(val user: UserFull?): KoinComponent
+open class CheckPermissionScope @PublishedApi internal constructor(val user: DatabaseUser?): KoinComponent
 {
     protected val permissions = get<Permissions>()
     protected val blocks = get<Blocks>()
@@ -116,7 +116,7 @@ open class CheckPermissionScope @PublishedApi internal constructor(val user: Use
      * @param other 被修改权限的用户, 可以是自己
      * @param permission 目标权限(修改后的权限)
      */
-    suspend fun canChangePermission(block: Block?, other: UserFull, permission: PermissionLevel): Boolean
+    suspend fun canChangePermission(block: Block?, other: DatabaseUser, permission: PermissionLevel): Boolean
     {
         // 如果在尝试修改自己的权限
         if (other.id == user?.id)
@@ -148,7 +148,7 @@ open class CheckPermissionScope @PublishedApi internal constructor(val user: Use
     }
 }
 
-class CheckPermissionInContextScope @PublishedApi internal constructor(val context: Context, user: UserFull?):
+class CheckPermissionInContextScope @PublishedApi internal constructor(val context: Context, user: DatabaseUser?):
     CheckPermissionScope(user)
 {
     /**
@@ -210,7 +210,7 @@ class CheckPermissionInContextScope @PublishedApi internal constructor(val conte
             finish(HttpStatus.Forbidden)
     }
 
-    suspend fun checkChangePermission(block: Block?, other: UserFull, permission: PermissionLevel)
+    suspend fun checkChangePermission(block: Block?, other: DatabaseUser, permission: PermissionLevel)
     {
         /**
          * 详见[CheckPermissionScope.canChangePermission]

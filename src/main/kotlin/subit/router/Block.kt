@@ -9,9 +9,11 @@ import kotlinx.serialization.Serializable
 import subit.JWTAuth.getLoginUser
 import subit.dataClasses.*
 import subit.dataClasses.BlockId.Companion.toBlockIdOrNull
+import subit.dataClasses.UserId.Companion.toUserIdOrNull
 import subit.database.*
 import subit.router.*
 import subit.utils.HttpStatus
+import subit.utils.SSO
 import subit.utils.respond
 import subit.utils.statuses
 
@@ -67,37 +69,6 @@ fun Route.block() = route("/block", {
         }
     }) { editBlockInfo() }
 
-    get("/{id}", {
-        description = "获取板块信息"
-        request {
-            authenticated(false)
-            pathParameter<BlockId>("id")
-            {
-                required = true
-                description = "板块ID"
-            }
-        }
-        response {
-            statuses<Block>(HttpStatus.OK)
-            statuses(HttpStatus.Forbidden, HttpStatus.Unauthorized)
-        }
-    }) { getBlockInfo() }
-
-    delete("/{id}", {
-        description = "删除板块"
-        request {
-            authenticated(true)
-            pathParameter<BlockId>("id")
-            {
-                required = true
-                description = "板块ID"
-            }
-        }
-        response {
-            statuses(HttpStatus.OK, HttpStatus.Forbidden, HttpStatus.Unauthorized)
-        }
-    }) { deleteBlock() }
-
     post("/changePermission", {
         description = "修改用户在板块的权限"
         request {
@@ -114,22 +85,65 @@ fun Route.block() = route("/block", {
         }
     }) { changePermission() }
 
-    get("/{id}/children", {
-        description = "获取板块的子板块, 若id为0则表示获取没有父板块的板块"
+    route("/{id}", {
         request {
-            authenticated(false)
-            paged()
             pathParameter<BlockId>("id")
             {
                 required = true
                 description = "板块ID"
             }
         }
-        response {
-            statuses<Slice<BlockId>>(HttpStatus.OK, example = sliceOf(BlockId(0)))
-            statuses(HttpStatus.Forbidden, HttpStatus.Unauthorized)
-        }
-    }) { getChildren() }
+    })
+    {
+        get("", {
+            description = "获取板块信息"
+            request {
+                authenticated(false)
+            }
+            response {
+                statuses<Block>(HttpStatus.OK)
+                statuses(HttpStatus.Forbidden, HttpStatus.Unauthorized)
+            }
+        }) { getBlockInfo() }
+
+        delete("", {
+            description = "删除板块"
+            request {
+                authenticated(true)
+            }
+            response {
+                statuses(HttpStatus.OK, HttpStatus.Forbidden, HttpStatus.Unauthorized)
+            }
+        }) { deleteBlock() }
+
+        get("/children", {
+            description = "获取板块的子板块, 若id为0则表示获取没有父板块的板块"
+            request {
+                authenticated(false)
+                paged()
+            }
+            response {
+                statuses<Slice<BlockId>>(HttpStatus.OK, example = sliceOf(BlockId(0)))
+                statuses(HttpStatus.Forbidden, HttpStatus.Unauthorized)
+            }
+        }) { getChildren() }
+
+        get("/permission/{user}", {
+            description = "获取用户在板块的权限"
+            request {
+                authenticated(true)
+                pathParameter<UserId>("user")
+                {
+                    required = true
+                    description = "用户ID, 0表示当前用户"
+                }
+            }
+            response {
+                statuses<PermissionLevel>(HttpStatus.OK)
+                statuses(HttpStatus.Forbidden, HttpStatus.Unauthorized)
+            }
+        }) { getPermission() }
+    }
 }
 
 @Serializable
@@ -236,7 +250,9 @@ private suspend fun Context.changePermission()
 {
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     val changePermission = receiveAndCheckBody<ChangePermission>()
-    checkPermission { checkHasAdminIn(changePermission.block) }
+    val block = get<Blocks>().getBlock(changePermission.block) ?: return call.respond(HttpStatus.NotFound)
+    val user = SSO.getDbUser(changePermission.user) ?: return call.respond(HttpStatus.NotFound)
+    checkPermission { checkChangePermission(block, user, changePermission.permission) }
     get<Permissions>().setPermission(
         bid = changePermission.block,
         uid = changePermission.user,
@@ -250,6 +266,20 @@ private suspend fun Context.changePermission()
         )
     )
     call.respond(HttpStatus.OK)
+}
+
+private suspend fun Context.getPermission()
+{
+    getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
+    val bid = call.parameters["id"]?.toBlockIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
+    val uid = call.parameters["user"]?.toUserIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
+    val blocks = get<Blocks>()
+    val user = SSO.getDbUser(uid) ?: return call.respond(HttpStatus.NotFound)
+    checkPermission {
+        checkCanRead(blocks.getBlock(bid) ?: return call.respond(HttpStatus.NotFound))
+        checkHasAdminIn(bid)
+    }
+    call.respond(HttpStatus.OK, checkPermission(user) { getPermission(bid) })
 }
 
 private suspend fun Context.getChildren()
