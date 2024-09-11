@@ -159,7 +159,7 @@ private fun Route.id() = route("/{id}",{
         }) { addView() }
     }
 
-    post("/{id}/setTop/{top}", {
+    post("/setTop/{top}", {
         description = "设置帖子是否置顶"
         request {
             authenticated(true)
@@ -192,7 +192,7 @@ private fun Route.list() = route("/list",{
     }
 })
 {
-    get("/list/user/{user}", {
+    get("/user/{user}", {
         description = "获取用户发送的帖子列表"
         request {
             pathParameter<UserId>("user")
@@ -203,7 +203,7 @@ private fun Route.list() = route("/list",{
         }
     }) { getUserPosts() }
 
-    get("/list/block/{block}", {
+    get("/block/{block}", {
         description = "获取板块帖子列表"
         request {
             pathParameter<BlockId>("block")
