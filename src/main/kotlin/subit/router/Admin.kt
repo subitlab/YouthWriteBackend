@@ -71,7 +71,6 @@ private data class ProhibitUser(val id: UserId, val prohibit: Boolean, val time:
 
 private suspend fun Context.prohibitUser()
 {
-    val users = get<Users>()
     val prohibits = get<Prohibits>()
     val operations = get<Operations>()
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
@@ -94,7 +93,7 @@ private suspend fun Context.prohibitUser()
 
 private suspend fun Context.prohibitList()
 {
-    checkPermission { checkHasGlobalAdmin() }
+    withPermission { checkHasGlobalAdmin() }
     val (begin, count) = call.getPage()
     call.respond(HttpStatus.OK, get<Prohibits>().getProhibitList(begin, count))
 }
@@ -108,7 +107,7 @@ private suspend fun Context.changePermission()
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     val changePermission = receiveAndCheckBody<ChangePermission>()
     val user = SSO.getDbUser(changePermission.id) ?: return call.respond(HttpStatus.NotFound)
-    checkPermission { checkChangePermission(null, user, changePermission.permission) }
+    withPermission { checkChangePermission(null, user, changePermission.permission) }
     users.changePermission(changePermission.id, changePermission.permission)
     get<Operations>().addOperation(loginUser.id, changePermission)
     if (loginUser.id != changePermission.id) get<Notices>().createNotice(

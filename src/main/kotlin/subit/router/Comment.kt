@@ -122,7 +122,7 @@ private suspend fun Context.commentPost()
     val posts = get<Posts>()
 
     val parent = posts.getPostInfo(postId) ?: return call.respond(HttpStatus.NotFound)
-    checkPermission { checkCanComment(parent) }
+    withPermission { checkCanComment(parent) }
     val commentId = posts.createPost(parent = postId, author = loginUser.id, block = parent.block, anonymous = newComment.anonymous) ?: return call.respond(HttpStatus.NotFound)
     if (newComment.wordMarking != null)
     {
@@ -156,7 +156,7 @@ private suspend fun Context.getPostComments()
     val (begin, count) = call.getPage()
     val posts = get<Posts>()
     val post = posts.getPostInfo(postId) ?: return call.respond(HttpStatus.NotFound)
-    checkPermission { checkCanRead(post) }
+    withPermission { checkCanRead(post) }
     val comments = posts.getChildPosts(postId, type, begin, count)
     if (getLoginUser().hasGlobalAdmin())
         call.respond(HttpStatus.OK, comments)
@@ -173,7 +173,7 @@ private suspend fun Context.getCommentComments()
     val (begin, count) = call.getPage()
     val posts = get<Posts>()
     val comment = posts.getPostInfo(commentId) ?: return call.respond(HttpStatus.NotFound)
-    checkPermission { checkCanRead(comment) }
+    withPermission { checkCanRead(comment) }
     val comments = posts.getDescendants(commentId, type, begin, count)
     if (getLoginUser().hasGlobalAdmin())
         call.respond(HttpStatus.OK, comments)
@@ -186,6 +186,6 @@ private suspend fun Context.getComment()
     val commentId = call.parameters["commentId"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val posts = get<Posts>()
     val comment = posts.getPostFull(commentId) ?: return call.respond(HttpStatus.NotFound)
-    checkPermission { checkCanRead(comment.toPostInfo()) }
+    withPermission { checkCanRead(comment.toPostInfo()) }
     call.respond(HttpStatus.OK, if (comment.anonymous) comment.copy(author = UserId(0)) else comment)
 }

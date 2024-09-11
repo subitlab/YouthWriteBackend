@@ -286,7 +286,7 @@ private suspend fun Context.changePermission()
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     val changePermission = receiveAndCheckBody<ChangePermission>()
     val user = SSO.getDbUser(changePermission.id) ?: return call.respond(HttpStatus.NotFound)
-    checkPermission { checkChangePermission(null, user, changePermission.filePermission) }
+    withPermission { checkChangePermission(null, user, changePermission.filePermission) }
     get<Users>().changeFilePermission(changePermission.id, changePermission.filePermission)
     get<Operations>().addOperation(loginUser.id, changePermission)
     call.respond(HttpStatus.OK)

@@ -19,12 +19,12 @@ interface Permissions
     suspend fun getPermission(block: BlockId, user: UserId): PermissionLevel
 }
 
-inline fun <reified T> Context.checkPermission(
+inline fun <reified T> Context.withPermission(
     user: DatabaseUser? = getLoginUser()?.toDatabaseUser(),
     body: CheckPermissionInContextScope.()->T
 ): T = CheckPermissionInContextScope(this, user).body()
 
-inline fun <reified T> checkPermission(
+inline fun <reified T> withPermission(
     user: DatabaseUser?,
     body: CheckPermissionScope.()->T
 ): T = CheckPermissionScope(user).body()
@@ -143,7 +143,7 @@ open class CheckPermissionScope @PublishedApi internal constructor(val user: Dat
         }
         val selfPermission = getPermission(block.id)
         if (selfPermission < PermissionLevel.ADMIN) return false
-        val otherPermission = checkPermission(other) { getPermission(block.id) }
+        val otherPermission = withPermission(other) { getPermission(block.id) }
         return selfPermission > otherPermission && selfPermission > permission
     }
 }
@@ -271,7 +271,7 @@ class CheckPermissionInContextScope @PublishedApi internal constructor(val conte
                 message = "修改他人在板块${block.name}的权限要求拥有该板块管理员权限"
             )
         )
-        val otherPermission = checkPermission(other) { getPermission(block.id) }
+        val otherPermission = withPermission(other) { getPermission(block.id) }
         if (selfPermission > otherPermission && selfPermission > permission)
             return
         else return finish(

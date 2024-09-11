@@ -150,7 +150,7 @@ private suspend fun Context.changeIntroduction()
     }
     else
     {
-        checkPermission { checkHasGlobalAdmin() }
+        withPermission { checkHasGlobalAdmin() }
         if (get<Users>().changeIntroduction(id, changeIntroduction.introduction))
         {
             get<Operations>().addOperation(loginUser.id, changeIntroduction)

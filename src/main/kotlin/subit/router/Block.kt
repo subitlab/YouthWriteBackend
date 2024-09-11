@@ -167,10 +167,10 @@ private suspend fun Context.newBlock()
     val blocks = get<Blocks>()
     if (newBlock.parent != null)
     {
-        checkPermission { checkHasAdminIn(newBlock.parent) }
+        withPermission { checkHasAdminIn(newBlock.parent) }
         blocks.getBlock(newBlock.parent) ?: return call.respond(HttpStatus.BadRequest)
     }
-    else checkPermission { checkHasGlobalAdmin() }
+    else withPermission { checkHasGlobalAdmin() }
     val id = blocks.createBlock(
         name = newBlock.name,
         description = newBlock.description,
@@ -201,7 +201,7 @@ private suspend fun Context.editBlockInfo()
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     val id = call.parameters["id"]?.toBlockIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val editBlockInfo = receiveAndCheckBody<EditBlockInfo>()
-    checkPermission { checkHasAdminIn(id) }
+    withPermission { checkHasAdminIn(id) }
     get<Blocks>().setPermission(
         block = id,
         posting = editBlockInfo.postingPermission,
@@ -217,7 +217,7 @@ private suspend fun Context.getBlockInfo()
 {
     val id = call.parameters["id"]?.toBlockIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val block = get<Blocks>().getBlock(id) ?: return call.respond(HttpStatus.NotFound)
-    checkPermission { checkCanRead(block) }
+    withPermission { checkCanRead(block) }
     call.respond(HttpStatus.OK, block)
 }
 
@@ -225,7 +225,7 @@ private suspend fun Context.deleteBlock()
 {
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     val id = call.parameters["id"]?.toBlockIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
-    checkPermission { checkHasAdminIn(id) }
+    withPermission { checkHasAdminIn(id) }
     val blocks = get<Blocks>()
     val block = blocks.getBlock(id) ?: return call.respond(HttpStatus.NotFound)
     blocks.setState(id, State.DELETED)
@@ -252,7 +252,7 @@ private suspend fun Context.changePermission()
     val changePermission = receiveAndCheckBody<ChangePermission>()
     val block = get<Blocks>().getBlock(changePermission.block) ?: return call.respond(HttpStatus.NotFound)
     val user = SSO.getDbUser(changePermission.user) ?: return call.respond(HttpStatus.NotFound)
-    checkPermission { checkChangePermission(block, user, changePermission.permission) }
+    withPermission { checkChangePermission(block, user, changePermission.permission) }
     get<Permissions>().setPermission(
         bid = changePermission.block,
         uid = changePermission.user,
@@ -275,11 +275,11 @@ private suspend fun Context.getPermission()
     val uid = call.parameters["user"]?.toUserIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val blocks = get<Blocks>()
     val user = SSO.getDbUser(uid) ?: return call.respond(HttpStatus.NotFound)
-    checkPermission {
+    withPermission {
         checkCanRead(blocks.getBlock(bid) ?: return call.respond(HttpStatus.NotFound))
         checkHasAdminIn(bid)
     }
-    call.respond(HttpStatus.OK, checkPermission(user) { getPermission(bid) })
+    call.respond(HttpStatus.OK, withPermission(user) { getPermission(bid) })
 }
 
 private suspend fun Context.getChildren()
@@ -289,7 +289,7 @@ private suspend fun Context.getChildren()
     val (begin, count) = call.getPage()
     val blocks = get<Blocks>()
 
-    checkPermission()
+    withPermission()
     {
         val block = id?.let { blocks.getBlock(it) }
         if (block != null) checkCanRead(block)

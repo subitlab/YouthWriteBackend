@@ -256,7 +256,7 @@ private suspend fun Context.getPost()
     val id = call.parameters["id"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val postFull = get<Posts>().getPostFull(id) ?: return call.respond(HttpStatus.NotFound)
     val loginUser = getLoginUser()
-    checkPermission { checkCanRead(postFull.toPostInfo()) }
+    withPermission { checkCanRead(postFull.toPostInfo()) }
     if (!postFull.anonymous) call.respond(HttpStatus.OK, postFull) // 若不是匿名帖则直接返回
     else if (loginUser == null || loginUser.permission < PermissionLevel.ADMIN) call.respond(
         HttpStatus.OK,
@@ -397,7 +397,7 @@ private suspend fun Context.deletePost()
     val id = call.parameters["id"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val post = get<Posts>().getPostInfo(id) ?: return call.respond(HttpStatus.NotFound)
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
-    checkPermission { checkCanDelete(post) }
+    withPermission { checkCanDelete(post) }
     get<Posts>().setPostState(id, State.DELETED)
     if (post.author != loginUser.id) get<Notices>().createNotice(
         Notice.makeSystemNotice(
@@ -426,7 +426,7 @@ private suspend fun Context.likePost()
     val post = get<Posts>().getPostInfo(id) ?: return call.respond(HttpStatus.NotFound)
     val type = receiveAndCheckBody<LikePost>().type
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
-    checkPermission { checkCanRead(post) }
+    withPermission { checkCanRead(post) }
     when (type)
     {
         LikeType.LIKE    -> get<Likes>().like(loginUser.id, id)
@@ -460,10 +460,10 @@ private suspend fun Context.newPost()
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
 
     val block = get<Blocks>().getBlock(newPost.block) ?: return call.respond(HttpStatus.NotFound)
-    checkPermission { checkCanPost(block) }
+    withPermission { checkCanPost(block) }
 
-    if (newPost.anonymous) checkPermission { checkCanAnonymous(block) }
-    if (newPost.top) checkPermission { checkHasAdminIn(block.id) }
+    if (newPost.anonymous) withPermission { checkCanAnonymous(block) }
+    if (newPost.top) withPermission { checkHasAdminIn(block.id) }
     val id = get<Posts>().createPost(
         author = loginUser.id,
         anonymous = newPost.anonymous,
@@ -495,7 +495,7 @@ private suspend fun Context.getBlockPosts()
 {
     val block = call.parameters["block"]?.toBlockIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val blockFull = get<Blocks>().getBlock(block) ?: return call.respond(HttpStatus.NotFound)
-    checkPermission { checkCanRead(blockFull) }
+    withPermission { checkCanRead(blockFull) }
     val type = call.parameters["sort"]
                    ?.runCatching { Posts.PostListSort.valueOf(this) }
                    ?.getOrNull() ?: return call.respond(HttpStatus.BadRequest)
@@ -508,7 +508,7 @@ private suspend fun Context.getBlockTopPosts()
 {
     val block = call.parameters["block"]?.toBlockIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val blockFull = get<Blocks>().getBlock(block) ?: return call.respond(HttpStatus.NotFound)
-    checkPermission { checkCanRead(blockFull) }
+    withPermission { checkCanRead(blockFull) }
     val (begin, count) = call.getPage()
     val posts = get<Posts>().getBlockTopPosts(block, begin, count)
     call.respond(HttpStatus.OK, posts)
@@ -519,7 +519,7 @@ private suspend fun Context.setBlockTopPosts()
     val pid = call.parameters["id"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val top = call.parameters["top"]?.toBooleanStrictOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val postInfo = get<Posts>().getPostInfo(pid) ?: return call.respond(HttpStatus.NotFound)
-    checkPermission {
+    withPermission {
         checkCanRead(postInfo)
         checkHasAdminIn(postInfo.block)
     }

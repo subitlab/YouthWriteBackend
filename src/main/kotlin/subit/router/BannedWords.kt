@@ -7,7 +7,7 @@ import io.ktor.server.application.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
 import subit.database.BannedWords
-import subit.database.checkPermission
+import subit.database.withPermission
 import subit.database.receiveAndCheckBody
 import subit.router.*
 import subit.utils.HttpStatus
@@ -89,7 +89,7 @@ private suspend fun Context.getBannedWords()
 {
     val (begin, count) = call.getPage()
     val bannedWords = get<BannedWords>()
-    checkPermission { checkHasGlobalAdmin() }
+    withPermission { checkHasGlobalAdmin() }
     call.respond(HttpStatus.OK, bannedWords.getBannedWords(begin, count))
 }
 
@@ -100,7 +100,7 @@ private suspend fun Context.newBannedWord()
 {
     val newBannedWord = receiveAndCheckBody<NewBannedWord>()
     val bannedWords = get<BannedWords>()
-    checkPermission { checkHasGlobalAdmin() }
+    withPermission { checkHasGlobalAdmin() }
     bannedWords.addBannedWord(newBannedWord.word)
     call.respond(HttpStatus.OK)
 }
@@ -109,7 +109,7 @@ private suspend fun Context.deleteBannedWord()
 {
     val word = call.parameters["word"] ?: return call.respond(HttpStatus.BadRequest)
     val bannedWords = get<BannedWords>()
-    checkPermission { checkHasGlobalAdmin() }
+    withPermission { checkHasGlobalAdmin() }
     bannedWords.removeBannedWord(word)
     call.respond(HttpStatus.OK)
 }
@@ -119,7 +119,7 @@ private suspend fun Context.editBannedWord()
     val word = call.parameters["word"] ?: return call.respond(HttpStatus.BadRequest)
     val newBannedWord = receiveAndCheckBody<NewBannedWord>()
     val bannedWords = get<BannedWords>()
-    checkPermission { checkHasGlobalAdmin() }
+    withPermission { checkHasGlobalAdmin() }
     bannedWords.updateBannedWord(word, newBannedWord.word)
     call.respond(HttpStatus.OK)
 }
