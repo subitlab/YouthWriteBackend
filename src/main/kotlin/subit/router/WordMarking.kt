@@ -22,7 +22,7 @@ import subit.utils.HttpStatus
 import subit.utils.respond
 import subit.utils.statuses
 
-fun Route.wordMarkings() = route("/wordMarkings",{
+fun Route.wordMarking() = route("/wordMarking",{
     tags = listOf("划词评论")
     description = "划词评论接口"
 })

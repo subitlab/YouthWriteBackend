@@ -22,7 +22,7 @@ import subit.router.posts.posts
 import subit.router.privateChat.privateChat
 import subit.router.report.report
 import subit.router.user.user
-import subit.router.wordMarkings.wordMarkings
+import subit.router.wordMarkings.wordMarking
 import subit.utils.HttpStatus
 import subit.utils.respond
 
@@ -83,6 +83,6 @@ fun Application.router() = routing()
         privateChat()
         report()
         user()
-        wordMarkings()
+        wordMarking()
     }
 }
