@@ -84,6 +84,17 @@ fun Route.home() = route("/home", {
             }) { searchPost() }
         }
     }
+
+    get("/monthly", {
+        description = "最近一个月内的点赞数量排行榜"
+        request {
+            authenticated(false)
+            paged()
+        }
+        response {
+            statuses<Slice<PostFullBasicInfo>>(HttpStatus.OK, example = sliceOf(PostFullBasicInfo.example))
+        }
+    }) { getMonthly() }
 }
 
 private suspend fun Context.searchBlock()
@@ -113,5 +124,12 @@ private suspend fun Context.searchPost()
         if(openAdvancedSearch) receiveAndCheckBody<AdvancedSearchData>()
         else AdvancedSearchData()
     val posts = get<Posts>().searchPosts(getLoginUser()?.toDatabaseUser(), key, advancedSearchData, begin, count)
+    call.respond(HttpStatus.OK, posts)
+}
+
+private suspend fun Context.getMonthly()
+{
+    val (begin, count) = call.getPage()
+    val posts = get<Posts>().monthly(getLoginUser()?.toDatabaseUser(), begin, count)
     call.respond(HttpStatus.OK, posts)
 }

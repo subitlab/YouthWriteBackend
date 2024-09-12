@@ -3,6 +3,7 @@
 package subit.database.memoryImpl
 
 import kotlinx.coroutines.runBlocking
+import kotlinx.datetime.Clock
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import subit.dataClasses.*
@@ -12,11 +13,11 @@ import subit.database.*
 import subit.router.home.AdvancedSearchData
 import java.util.*
 import kotlin.math.pow
+import kotlin.time.Duration.Companion.days
 
 class PostsImpl: Posts, KoinComponent
 {
     private val map = Collections.synchronizedMap(hashMapOf<PostId, Pair<PostInfo, Boolean>>())
-    private val blocks: Blocks by inject()
     private val likes: Likes by inject()
     private val stars: Stars by inject()
     private val postVersions: PostVersions by inject()
@@ -158,10 +159,7 @@ class PostsImpl: Posts, KoinComponent
                 && (block == null || it.first.block == block)
                 && (top == null || it.second == top)
             }
-            .filter {
-                val blockFull = blocks.getBlock(it.first.block) ?: return@filter false
-                getPermission(it.first.block) >= blockFull.reading && (it.first.state == State.NORMAL || loginUser.hasGlobalAdmin())
-            }
+            .filter { canRead(it.first) }
             .map { getPostFull(it.first.id)!! }
             .sortedBy(sortBy(sortBy))
             .asSequence()
@@ -181,10 +179,7 @@ class PostsImpl: Posts, KoinComponent
             .map { it.first }
             .map { getPostFull(it.id)!! }
             .filter { it.title.contains(key) || it.content.contains(key) }
-            .filter {
-                val blockFull = blocks.getBlock(it.block) ?: return@filter false
-                getPermission(it.block) >= blockFull.reading
-            }
+            .filter { canRead(it.toPostInfo()) }
             .filter {
                 val post = it
                 val blockConstraint =
@@ -226,5 +221,18 @@ class PostsImpl: Posts, KoinComponent
         val createTime = (postVersions as PostVersionsImpl).getCreate(pid).toEpochMilliseconds()
         val time = (System.currentTimeMillis() - createTime).toDouble() /1000/*s*/ /60/*m*/ /60/*h*/
         return (post.view + likesCount * 3 + starsCount * 5 + commentsCount * 2) / time.pow(1.8)
+    }
+
+    override suspend fun monthly(loginUser: DatabaseUser?, begin: Long, count: Int): Slice<PostFullBasicInfo> = withPermission(loginUser)
+    {
+        val likes = likes as LikesImpl
+        val after = Clock.System.now() - 30.days
+        map.values
+            .filter { canRead(it.first) }
+            .map { getPostFull(it.first.id)!! }
+            .sortedBy { -likes.getLikesAfter(it.id, after) }
+            .asSequence()
+            .asSlice(begin, count)
+            .map { it.toPostFullBasicInfo() }
     }
 }

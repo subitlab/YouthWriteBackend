@@ -2,6 +2,7 @@
 
 package subit.database.sqlImpl
 
+import kotlinx.datetime.Clock
 import org.intellij.lang.annotations.Language
 import org.jetbrains.exposed.dao.id.IdTable
 import org.jetbrains.exposed.sql.*
@@ -29,6 +30,7 @@ import subit.utils.toTimestamp
 import java.sql.ResultSet
 import java.time.OffsetDateTime
 import kotlin.reflect.typeOf
+import kotlin.time.Duration.Companion.days
 
 /**
  * 帖子数据库交互类
@@ -457,7 +459,6 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
             .join(blockTable, JoinType.INNER, table.block, blockTable.id)
             .join(permissionTable, JoinType.LEFT, table.block, permissionTable.block) { permissionTable.user eq loginUser?.id }
             .select(postFullBasicInfoColumns)
-            .andWhere { PostsTable.author eq author }
             .andWhere { parent.isNull() }
             .checkState()
             .checkBlock()
@@ -546,5 +547,33 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
     override suspend fun addView(pid: PostId): Unit = query()
     {
         PostsTable.update({ id eq pid }) { it[view] = view + 1 }
+    }
+
+    override suspend fun monthly(loginUser: DatabaseUser?, begin: Long, count: Int): Slice<PostFullBasicInfo> = query()
+    {
+        val permissionTable = (permissions as PermissionsImpl).table
+        val blockTable = (blocks as BlocksImpl).table
+        val likeTable = (likes as LikesImpl).table
+
+        val checkState: Query.() -> Query = {
+            if (loginUser.hasGlobalAdmin()) this
+            else this.andWhere { state eq State.NORMAL }
+        }
+
+        PostsTable
+            .joinPostFull()
+            .join(blockTable, JoinType.INNER, table.block, blockTable.id)
+            .join(permissionTable, JoinType.LEFT, table.block, permissionTable.block) { permissionTable.user eq loginUser?.id }
+            .select(postFullBasicInfoColumns)
+            .andWhere { parent.isNull() }
+            .andWhere { likeTable.time greaterEq (Clock.System.now() - 30.days) }
+            .checkState()
+            .groupBy(id, create, blockTable.id, blockTable.reading)
+            .groupPostFull()
+            .orHaving { permissionTable.permission.max() greaterEq blockTable.reading }
+            .orHaving { blockTable.reading lessEq PermissionLevel.NORMAL }
+            .orderBy(Posts.PostListSort.MORE_LIKE.order)
+            .asSlice(begin, count)
+            .map { deserializePost<PostFullBasicInfo>(it) }
     }
 }

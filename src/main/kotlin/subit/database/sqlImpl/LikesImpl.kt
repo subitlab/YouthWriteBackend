@@ -2,6 +2,8 @@ package subit.database.sqlImpl
 
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.kotlin.datetime.CurrentTimestamp
+import org.jetbrains.exposed.sql.kotlin.datetime.timestamp
 import org.koin.core.component.KoinComponent
 import subit.dataClasses.PostId
 import subit.dataClasses.UserId
@@ -14,6 +16,7 @@ class LikesImpl: DaoSqlImpl<LikesImpl.LikesTable>(LikesTable), Likes, KoinCompon
     {
         val user = reference("user", UsersImpl.UsersTable).index()
         val post = reference("post", PostsImpl.PostsTable).index()
+        val time = timestamp("time").index().defaultExpression(CurrentTimestamp)
     }
 
     private val locks = Locks<Pair<UserId, PostId>>()

@@ -108,4 +108,9 @@ interface Posts
     ): Slice<PostFullBasicInfo>
 
     suspend fun addView(pid: PostId)
+
+    /**
+     * 获得***最近一个月***点赞数最多的帖子
+     */
+    suspend fun monthly(loginUser: DatabaseUser?, begin: Long, count: Int): Slice<PostFullBasicInfo>
 }
