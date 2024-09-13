@@ -76,11 +76,10 @@ object SSO: KoinComponent
         return users.getOrCreateUser(ssoUser.id)
     }
 
-    suspend fun getBasicUserInfo(userId: UserId): UserInfo?
+    suspend fun getUserAndDbUser(userId: UserId): Pair<SsoUser, DatabaseUser>?
     {
         val ssoUser = getUser(userId) ?: return null
-        val dbUser = users.getOrCreateUser(ssoUser.id)
-        return if (ssoUser is SsoUserFull) UserFull.from(ssoUser, dbUser)
-        else BasicUserInfo.from(ssoUser, dbUser)
+        val dbUser = users.getOrCreateUser(userId)
+        return ssoUser to dbUser
     }
 }

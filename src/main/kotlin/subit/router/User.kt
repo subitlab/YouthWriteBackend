@@ -40,8 +40,22 @@ fun Route.user() = route("/user", {
         response {
             statuses<UserFull>(
                 HttpStatus.OK.copy(message = "获取完整用户信息成功"),
-                bodyDescription = "当id为0, 即获取当前用户信息或user权限不低于ADMIN时返回",
+                bodyDescription = "当id为0时",
                 example = UserFull.example
+            )
+            statuses<UserProfile>(
+                HttpStatus.OK.copy(message = "获取用户信息成功"),
+                bodyDescription = "当id不为0即获取其他用户的信息且user权限低于ADMIN时返回",
+                example = UserProfile(
+                    UserId(1),
+                    "username",
+                    System.currentTimeMillis(),
+                    listOf("email"),
+                    "introduction",
+                    true,
+                    PermissionLevel.NORMAL,
+                    PermissionLevel.NORMAL
+                )
             )
             statuses<BasicUserInfo>(
                 HttpStatus.OK.copy(message = "获取基础用户的信息成功"),
@@ -115,6 +129,21 @@ fun Route.user() = route("/user", {
     }) { switchStars() }
 }
 
+@Serializable
+/**
+ * 全局管理员能获取到信息是[UserFull]的子集, [BasicUserInfo]的超集
+ */
+private data class UserProfile(
+    val id: UserId,
+    val username: String,
+    val registrationTime: Long,
+    val email: List<String>,
+    val introduction: String?,
+    val showStars: Boolean,
+    val permission: PermissionLevel,
+    val filePermission: PermissionLevel
+)
+
 private suspend fun Context.getUserInfo()
 {
     val id = call.parameters["id"]?.toUserIdOrNull() ?: return call.respond(HttpStatus.NotFound)
@@ -127,10 +156,24 @@ private suspend fun Context.getUserInfo()
     }
     else
     {
-        val user = SSO.getBasicUserInfo(id) ?: return call.respond(HttpStatus.NotFound)
-        // 这里需要判断类型并转换再返回, 因为respond的返回体类型是编译时确定的
-        if (user is UserFull) return call.respond<UserFull>(HttpStatus.OK, user)
-        return call.respond(HttpStatus.OK, user as BasicUserInfo)
+        val user = SSO.getUserAndDbUser(id) ?: return call.respond(HttpStatus.NotFound)
+        if (loginUser.hasGlobalAdmin())
+        {
+            call.respond(
+                HttpStatus.OK,
+                UserProfile(
+                    user.first.id,
+                    user.first.username,
+                    user.first.registrationTime,
+                    user.first.email,
+                    user.second.introduction,
+                    user.second.showStars,
+                    user.second.permission,
+                    user.second.filePermission
+                )
+            )
+        }
+        call.respond(HttpStatus.OK, BasicUserInfo.from(user.first, user.second))
     }
 }
 
