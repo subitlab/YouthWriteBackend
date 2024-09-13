@@ -8,6 +8,7 @@ sealed interface SsoUser
     val id: UserId
     val username: String
     val registrationTime: Long
+    val email: List<String>
 }
 
 @Serializable
@@ -16,15 +17,24 @@ data class SsoUserFull(
     override val username: String,
     override val registrationTime: Long,
     val phone: String,
-    val email: List<String>,
-    val studentId: Map<String, String>,
+    override val email: List<String>,
+    val seiue: List<Seiue>,
 ): SsoUser
+{
+    @Serializable
+    data class Seiue(
+        val studentId: String,
+        val realName: String,
+        val archived: Boolean,
+    )
+}
 
 @Serializable
 data class SsoUserInfo(
     override val id: UserId,
     override val username: String,
     override val registrationTime: Long,
+    override val email: List<String>,
 ): SsoUser
 
 /**
@@ -63,6 +73,7 @@ sealed interface UserInfo
     val id: UserId
     val username: String
     val registrationTime: Long
+    val email: List<String>
     val introduction: String?
     val showStars: Boolean
 }
@@ -73,16 +84,16 @@ data class UserFull(
     override val username: String,
     override val registrationTime: Long,
     val phone: String,
-    val email: List<String>,
-    val studentId: Map<String, String>,
+    override val email: List<String>,
+    val seiue: List<SsoUserFull.Seiue>,
     override val introduction: String?,
     override val showStars: Boolean,
     val permission: PermissionLevel,
     val filePermission: PermissionLevel
 ): Principal, UserInfo
 {
-    fun toBasicUserInfo() = BasicUserInfo(id, username, registrationTime, introduction, showStars)
-    fun toSsoUser() = SsoUserFull(id, username, registrationTime, phone, email, studentId)
+    fun toBasicUserInfo() = BasicUserInfo(id, username, registrationTime, email, introduction, showStars)
+    fun toSsoUser() = SsoUserFull(id, username, registrationTime, phone, email, seiue)
     fun toDatabaseUser() = DatabaseUser(id, introduction, showStars, permission, filePermission)
     companion object
     {
@@ -92,7 +103,7 @@ data class UserFull(
             ssoUser.registrationTime,
             ssoUser.phone,
             ssoUser.email,
-            ssoUser.studentId,
+            ssoUser.seiue,
             dbUser.introduction,
             dbUser.showStars,
             dbUser.permission,
@@ -104,7 +115,7 @@ data class UserFull(
             System.currentTimeMillis(),
             "phone",
             listOf("email"),
-            mapOf("studentId" to "studentName"),
+            listOf(SsoUserFull.Seiue("studentId", "realName", false)),
             "introduction",
             true,
             PermissionLevel.NORMAL,
@@ -121,6 +132,7 @@ data class BasicUserInfo(
     override val id: UserId,
     override val username: String,
     override val registrationTime: Long,
+    override val email: List<String>,
     override val introduction: String?,
     override val showStars: Boolean
 ): UserInfo
@@ -131,6 +143,7 @@ data class BasicUserInfo(
             ssoUser.id,
             ssoUser.username,
             ssoUser.registrationTime,
+            ssoUser.email,
             dbUser.introduction,
             dbUser.showStars
         )
