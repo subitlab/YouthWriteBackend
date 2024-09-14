@@ -28,7 +28,6 @@ fun Route.comment() = route("/comment", {
         post("/{postId}", {
             description = "评论一个帖子/回复一个评论"
             request {
-                authenticated(true)
                 pathParameter<PostId>("postId")
                 {
                     required = true
@@ -50,7 +49,6 @@ fun Route.comment() = route("/comment", {
     get("/post/{postId}", {
         description = "获取一个帖子的评论列表(仅包含一级评论, 不包括回复即2~n级评论)"
         request {
-            authenticated(false)
             paged()
             pathParameter<PostId>("postId")
             {
@@ -73,7 +71,6 @@ fun Route.comment() = route("/comment", {
     get("/comment/{commentId}", {
         description = "获取一个评论的回复列表, 即该评论下的所有回复, 包括2~n级评论"
         request {
-            authenticated(false)
             paged()
             pathParameter<PostId>("commentId")
             {
@@ -96,7 +93,6 @@ fun Route.comment() = route("/comment", {
     get("/{commentId}", {
         description = "获取一个评论的信息"
         request {
-            authenticated(false)
             pathParameter<PostId>("commentId")
             {
                 required = true
@@ -125,7 +121,13 @@ private suspend fun Context.commentPost()
 
     val parent = posts.getPostInfo(postId) ?: return call.respond(HttpStatus.NotFound)
     withPermission { checkCanComment(parent) }
-    val commentId = posts.createPost(parent = postId, author = loginUser.id, block = parent.block, anonymous = newComment.anonymous) ?: return call.respond(HttpStatus.NotFound)
+    val commentId = posts.createPost(
+        parent = postId,
+        author = loginUser.id,
+        block = parent.block,
+        anonymous = newComment.anonymous,
+        state = State.NORMAL,
+    ) ?: return call.respond(HttpStatus.NotFound)
     if (newComment.wordMarking != null)
     {
         val markingPost = posts.getPostFullBasicInfo(newComment.wordMarking.postId) ?: return call.respond(HttpStatus.NotFound)

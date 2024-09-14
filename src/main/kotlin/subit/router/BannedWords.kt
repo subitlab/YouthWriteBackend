@@ -21,7 +21,6 @@ fun Route.bannedWords() = route("/bannedWord", {
     get("/list", {
         description = "获取违禁词汇列表, 需要全局管理员"
         request {
-            authenticated(true)
             paged()
         }
         response {
@@ -33,7 +32,6 @@ fun Route.bannedWords() = route("/bannedWord", {
     post("/new", {
         description = "添加违禁词汇, 需要全局管理员"
         request {
-            authenticated(true)
             body<NewBannedWord>
             {
                 required = true
@@ -49,7 +47,6 @@ fun Route.bannedWords() = route("/bannedWord", {
     delete("/{word}", {
         description = "删除违禁词汇, 需要全局管理员"
         request {
-            authenticated(true)
             pathParameter<String>("word")
             {
                 required = true
@@ -65,7 +62,6 @@ fun Route.bannedWords() = route("/bannedWord", {
     put("/{word}", {
         description = "修改违禁词汇, 需要全局管理员"
         request {
-            authenticated(true)
             pathParameter<String>("word")
             {
                 required = true

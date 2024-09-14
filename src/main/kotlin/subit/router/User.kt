@@ -30,7 +30,6 @@ fun Route.user() = route("/user", {
                 获取当前登陆用户的信息或当前登陆的用户的user权限不低于ADMIN时可以获取完整用户信息, 否则只能获取基础信息
                 """.trimIndent()
         request {
-            authenticated(false)
             pathParameter<UserId>("id")
             {
                 required = true
@@ -69,7 +68,6 @@ fun Route.user() = route("/user", {
     post("/introduce/{id}", {
         description = "修改个人简介, 修改自己的需要user权限在NORMAL以上, 修改他人需要在ADMIN以上"
         request {
-            authenticated(true)
             pathParameter<UserId>("id")
             {
                 required = true
@@ -93,7 +91,6 @@ fun Route.user() = route("/user", {
     get("/stars/{id}", {
         description = "获取用户收藏的帖子"
         request {
-            authenticated(false)
             pathParameter<UserId>("id")
             {
                 required = true
@@ -114,7 +111,6 @@ fun Route.user() = route("/user", {
     post("/switchStars", {
         description = "切换是否公开收藏"
         request {
-            authenticated(true)
             body<SwitchStars>
             {
                 required = true

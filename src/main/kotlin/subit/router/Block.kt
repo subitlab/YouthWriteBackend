@@ -23,7 +23,6 @@ fun Route.block() = route("/block", {
     post("/new", {
         description = "创建板块"
         request {
-            authenticated(true)
             body<NewBlock>
             {
                 required = true
@@ -50,7 +49,6 @@ fun Route.block() = route("/block", {
     put("/{id}", {
         description = "修改板块信息"
         request {
-            authenticated(true)
             pathParameter<BlockId>("id")
             {
                 required = true
@@ -71,7 +69,6 @@ fun Route.block() = route("/block", {
     post("/changePermission", {
         description = "修改用户在板块的权限"
         request {
-            authenticated(true)
             body<ChangePermission>
             {
                 required = true
@@ -96,9 +93,6 @@ fun Route.block() = route("/block", {
     {
         get("", {
             description = "获取板块信息"
-            request {
-                authenticated(false)
-            }
             response {
                 statuses<Block>(HttpStatus.OK)
                 statuses(HttpStatus.Forbidden, HttpStatus.Unauthorized)
@@ -107,9 +101,6 @@ fun Route.block() = route("/block", {
 
         delete("", {
             description = "删除板块"
-            request {
-                authenticated(true)
-            }
             response {
                 statuses(HttpStatus.OK, HttpStatus.Forbidden, HttpStatus.Unauthorized)
             }
@@ -118,7 +109,6 @@ fun Route.block() = route("/block", {
         get("/children", {
             description = "获取板块的子板块, 若id为0则表示获取没有父板块的板块"
             request {
-                authenticated(false)
                 paged()
             }
             response {
@@ -130,7 +120,6 @@ fun Route.block() = route("/block", {
         get("/permission/{user}", {
             description = "获取用户在板块的权限"
             request {
-                authenticated(true)
                 pathParameter<UserId>("user")
                 {
                     required = true

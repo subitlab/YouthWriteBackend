@@ -5,6 +5,7 @@ package subit.router
 import io.github.smiley4.ktorswaggerui.data.ValueExampleDescriptor
 import io.github.smiley4.ktorswaggerui.dsl.routes.OpenApiRequest
 import io.github.smiley4.ktorswaggerui.dsl.routes.OpenApiRequestParameter
+import io.github.smiley4.ktorswaggerui.dsl.routes.OpenApiRoute
 import io.github.smiley4.ktorswaggerui.dsl.routes.OpenApiSimpleBody
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
@@ -20,16 +21,6 @@ inline fun <reified T: Any> Context.get(
     qualifier: Qualifier? = null,
     noinline parameters: ParametersDefinition? = null
 ) = application.get<T>(qualifier, parameters)
-
-/**
- * 辅助方法, 标记此接口需要验证token(需要登陆)
- * @param required 是否必须登陆
- */
-inline fun OpenApiRequest.authenticated(required: Boolean) = headerParameter<String>("Authorization")
-{
-    this.description = "Bearer token"
-    this.required = required
-}
 
 /**
  * 辅助方法, 标记此方法返回需要传入begin和count, 用于分页

@@ -18,9 +18,6 @@ import subit.utils.statuses
 
 fun Route.privateChat() = route("/privateChat", {
     tags = listOf("私信")
-    request {
-        authenticated(true)
-    }
 })
 {
     post("/send", {
@@ -113,7 +110,6 @@ fun Route.privateChat() = route("/privateChat", {
     get("/isBlock/{userId}", {
         description = "获取是否被某人拉黑"
         request {
-            authenticated(true)
             pathParameter<UserId>("userId")
             {
                 required = true

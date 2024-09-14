@@ -36,7 +36,6 @@ fun Route.files() = route("files", {
 {
     route("/{id}", {
         request {
-            authenticated(false)
             pathParameter<String>("id")
             {
                 required = true
@@ -73,7 +72,6 @@ fun Route.files() = route("files", {
     delete("/{id}", {
         description = "删除文件, 除管理员外只能删除自己上传的文件"
         request {
-            authenticated(true)
             pathParameter<String>("id")
             {
                 required = true
@@ -91,7 +89,6 @@ fun Route.files() = route("files", {
     post("/new", {
         description = "上传文件"
         request {
-            authenticated(true)
             multipartBody()
             {
                 required = true
@@ -116,7 +113,6 @@ fun Route.files() = route("files", {
     get("/list/{id}", {
         description = "获取用户上传的文件的列表, 若不是管理员只能获取目标用户公开的文件"
         request {
-            authenticated(false)
             pathParameter<UserId>("id")
             {
                 required = true
@@ -135,7 +131,6 @@ fun Route.files() = route("files", {
     post("changePublic", {
         description = "修改文件的公开状态, 只能修改自己上传的文件"
         request {
-            authenticated(true)
             body<ChangePublic>
             {
                 required = true
@@ -153,7 +148,6 @@ fun Route.files() = route("files", {
     post("changePermission", {
         description = "修改其他用户的文件权限"
         request {
-            authenticated(true)
             body<ChangePermission>
             {
                 required = true

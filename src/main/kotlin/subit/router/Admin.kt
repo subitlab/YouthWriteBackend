@@ -18,9 +18,6 @@ import subit.utils.statuses
 
 fun Route.admin() = route("/admin", {
     tags = listOf("用户管理")
-    request {
-        authenticated(true)
-    }
     response {
         statuses(HttpStatus.Unauthorized, HttpStatus.Forbidden)
     }

@@ -27,7 +27,6 @@ fun Route.posts() = route("/post", {
         post("/new", {
             description = "新建帖子"
             request {
-                authenticated(true)
                 body<NewPost>
                 {
                     required = true
@@ -45,7 +44,6 @@ fun Route.posts() = route("/post", {
     get("/list",{
         description = "获取帖子列表, 不登录也可以获取, 但是登录/有相应权限的人可能会看到更多内容"
         request {
-            authenticated(false)
             paged()
             queryParameter<Posts.PostListSort>("sort")
             {
@@ -98,16 +96,13 @@ private fun Route.id() = route("/{id}",{
 {
     get("", {
         description = "获取帖子信息"
-        request {
-            authenticated(false)
-        }
         response {
             statuses<PostFull>(HttpStatus.OK, example = PostFull.example)
         }
     }) { getPost() }
 
-    delete("", {
-        description = "删除帖子"
+    put("/state", {
+        description = "修改帖子状态"
         request {
             queryParameter<State>("state")
             {
@@ -126,7 +121,6 @@ private fun Route.id() = route("/{id}",{
         put("", {
             description = "编辑帖子(block及以上管理员可修改)"
             request {
-                authenticated(true)
                 body<EditPost>
                 {
                     required = true
@@ -144,7 +138,6 @@ private fun Route.id() = route("/{id}",{
     post("/like", {
         description = "点赞/点踩/取消点赞/收藏/取消收藏 帖子"
         request {
-            authenticated(true)
             body<LikePost>
             {
                 required = true
@@ -161,9 +154,6 @@ private fun Route.id() = route("/{id}",{
     {
         post("/view", {
             description = "增加帖子浏览量, 应在用户打开帖子时调用. 若未登陆将不会增加浏览量"
-            request {
-                authenticated(true)
-            }
             response {
                 statuses(HttpStatus.OK, HttpStatus.TooManyRequests, HttpStatus.Unauthorized)
             }
@@ -173,7 +163,6 @@ private fun Route.id() = route("/{id}",{
     post("/setTop/{top}", {
         description = "设置帖子是否置顶"
         request {
-            authenticated(true)
             pathParameter<Boolean>("top")
             {
                 required = true
@@ -195,7 +184,6 @@ private fun Route.version() = route("/version", {
 {
     get("/list/{postId}", {
         request {
-            authenticated(false)
             paged()
             pathParameter<PostId>("postId")
             {
@@ -210,7 +198,6 @@ private fun Route.version() = route("/version", {
 
     get("/{versionId}", {
         request {
-            authenticated(false)
             pathParameter<PostVersionId>("versionId")
             {
                 required = true

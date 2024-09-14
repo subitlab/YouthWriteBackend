@@ -17,9 +17,6 @@ import subit.utils.statuses
 
 fun Route.notice() = route("/notice", {
     tags = listOf("通知")
-    request {
-        authenticated(true)
-    }
 })
 {
     get("/list", {

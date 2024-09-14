@@ -26,7 +26,6 @@ fun Route.home() = route("/home", {
     {
         route("/search", {
             request {
-                authenticated(false)
                 queryParameter<String>("key")
                 {
                     required = true
@@ -88,7 +87,6 @@ fun Route.home() = route("/home", {
     get("/monthly", {
         description = "最近一个月内的点赞数量排行榜"
         request {
-            authenticated(false)
             paged()
         }
         response {

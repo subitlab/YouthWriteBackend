@@ -18,9 +18,6 @@ import subit.utils.statuses
 
 fun Route.report() = route("/report", {
     tags = listOf("举报")
-    request {
-        authenticated(true)
-    }
 })
 {
     post("/{type}/{id}", {

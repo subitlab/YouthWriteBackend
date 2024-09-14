@@ -1,6 +1,9 @@
 package subit.plugin
 
 import io.github.smiley4.ktorswaggerui.SwaggerUI
+import io.github.smiley4.ktorswaggerui.data.AuthKeyLocation
+import io.github.smiley4.ktorswaggerui.data.AuthScheme
+import io.github.smiley4.ktorswaggerui.data.AuthType
 import io.github.smiley4.ktorswaggerui.data.KTypeDescriptor
 import io.github.smiley4.schemakenerator.reflection.processReflection
 import io.github.smiley4.schemakenerator.swagger.compileInlining
@@ -63,5 +66,18 @@ fun Application.installApiDoc() = install(SwaggerUI)
                 else -> example
             }
         }
+    }
+
+    security {
+        securityScheme("JWT")
+        {
+            name = "Authorization"
+            scheme = AuthScheme.BEARER
+            location = AuthKeyLocation.HEADER
+            description = "JWT Token"
+            bearerFormat = "Bearer <token>"
+            type = AuthType.HTTP
+        }
+        defaultSecuritySchemeNames("JWT")
     }
 }
