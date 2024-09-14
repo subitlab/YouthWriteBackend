@@ -26,8 +26,9 @@ class PostsImpl: Posts, KoinComponent
         anonymous: Boolean,
         block: BlockId,
         parent: PostId?,
+        state: State,
         top: Boolean
-    ): PostId
+    ): PostId?
     {
         val id = (map.size + 1).toPostId()
         map[id] = PostInfo(
@@ -35,7 +36,7 @@ class PostsImpl: Posts, KoinComponent
             author = author,
             anonymous = anonymous,
             block = block,
-            state = State.NORMAL,
+            state = state,
             view = 0,
             parent = parent,
             root = parent?.let { getPostInfo(it)?.root ?: it } ?: id
@@ -148,6 +149,7 @@ class PostsImpl: Posts, KoinComponent
         author: UserId?,
         block: BlockId?,
         top: Boolean?,
+        state: State?,
         sortBy: Posts.PostListSort,
         begin: Long,
         limit: Int
@@ -155,9 +157,12 @@ class PostsImpl: Posts, KoinComponent
     {
         map.values
             .filter {
-                (author == null || it.first.author == author)
+                @Suppress("SimplifyBooleanWithConstants")
+                true
+                && (author == null || it.first.author == author)
                 && (block == null || it.first.block == block)
                 && (top == null || it.second == top)
+                && (state == null || it.first.state == state)
             }
             .filter { canRead(it.first) }
             .map { getPostFull(it.first.id)!! }

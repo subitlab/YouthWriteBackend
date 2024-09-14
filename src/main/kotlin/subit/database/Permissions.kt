@@ -6,8 +6,7 @@ import io.ktor.server.application.*
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.get
 import subit.dataClasses.*
-import subit.dataClasses.State.DELETED
-import subit.dataClasses.State.NORMAL
+import subit.dataClasses.State.*
 import subit.router.Context
 import subit.router.getLoginUser
 import subit.utils.HttpStatus
@@ -39,7 +38,8 @@ open class CheckPermissionScope @PublishedApi internal constructor(val user: Dat
      * 获取用户在某一个板块的权限等级
      */
     suspend fun getPermission(bid: BlockId): PermissionLevel =
-        user?.let { permissions.getPermission(bid, it.id) } ?: PermissionLevel.NORMAL
+        if (hasGlobalAdmin()) PermissionLevel.ROOT
+        else user?.let { permissions.getPermission(bid, it.id) } ?: PermissionLevel.NORMAL
 
     fun getGlobalPermission(): PermissionLevel =
         user?.permission ?: PermissionLevel.NORMAL
@@ -53,8 +53,8 @@ open class CheckPermissionScope @PublishedApi internal constructor(val user: Dat
 
     suspend fun canRead(block: Block): Boolean = when (block.state)
     {
-        NORMAL  -> getPermission(block.id) >= block.reading
-        DELETED -> (getPermission(block.id) >= block.reading) && user.hasGlobalAdmin()
+        NORMAL  -> getPermission(block.id) >= block.reading || user.hasGlobalAdmin()
+        else -> user.hasGlobalAdmin()
     }
 
     suspend fun canRead(post: PostInfo): Boolean
@@ -66,38 +66,59 @@ open class CheckPermissionScope @PublishedApi internal constructor(val user: Dat
         return when (post.state)
         {
             NORMAL  -> true
-            DELETED -> hasGlobalAdmin()
+            PRIVATE -> post.author == user?.id || hasGlobalAdmin()
+            else -> hasGlobalAdmin()
         }
     }
 
     /// 可以删除 ///
 
-    suspend fun canDelete(post: PostInfo): Boolean = when (post.state)
+    suspend fun canChangeState(post: PostInfo, newState: State): Boolean = canRead(post) && when (post.state)
     {
-        NORMAL  -> canRead(post) && (post.author == user?.id || hasAdminIn(post.block))
-        DELETED -> false
+        NORMAL ->
+            when (newState)
+            {
+                DELETED -> post.author == user?.id || hasAdminIn(post.block)
+                PRIVATE -> post.author == user?.id
+                NORMAL -> true
+            }
+        PRIVATE ->
+            when (newState)
+            {
+                NORMAL -> post.author == user?.id
+                DELETED -> post.author == user?.id || hasGlobalAdmin()
+                PRIVATE -> true
+            }
+        DELETED -> if (newState != DELETED) hasGlobalAdmin() else true
     }
 
-    suspend fun canDelete(block: Block): Boolean = when (block.state)
+    suspend fun canChangeState(block: Block, newState: State): Boolean
     {
-        NORMAL  -> hasAdminIn(block.id)
-        DELETED -> false
+        // 板块不能有私密状态
+        if (newState == PRIVATE) return false
+        if (!canRead(block)) return false
+        if (block.state == newState) return true
+        return when (block.state)
+        {
+            NORMAL -> hasAdminIn(block.id)
+            else -> hasGlobalAdmin()
+        }
     }
 
     /// 可以评论 ///
 
-    suspend fun canComment(post: PostInfo): Boolean = when (post.state)
+    suspend fun canComment(post: PostInfo): Boolean = canRead(post) && when (post.state)
     {
-        NORMAL  -> blocks.getBlock(post.block)?.let { getPermission(post.block) >= it.commenting } ?: false
-        DELETED -> false
+        NORMAL,PRIVATE  -> blocks.getBlock(post.block)?.let { getPermission(post.block) >= it.commenting } ?: false
+        else -> false
     }
 
     /// 可以发贴 ///
 
     suspend fun canPost(block: Block): Boolean = when (block.state)
     {
-        NORMAL  -> getPermission(block.id) >= block.posting
-        DELETED -> false
+        NORMAL  -> getPermission(block.id) >= block.posting && getPermission(block.id) >= block.reading
+        else -> false
     }
 
     /// 可以匿名 ///
@@ -105,7 +126,7 @@ open class CheckPermissionScope @PublishedApi internal constructor(val user: Dat
     suspend fun canAnonymous(block: Block): Boolean = when (block.state)
     {
         NORMAL  -> getPermission(block.id) >= block.anonymous
-        DELETED -> false
+        else -> false
     }
 
     /// 修改他人权限 ///
@@ -180,9 +201,9 @@ class CheckPermissionInContextScope @PublishedApi internal constructor(val conte
 
     /// 可以删除 ///
 
-    suspend fun checkCanDelete(post: PostInfo)
+    suspend fun checkCanChangeState(post: PostInfo, newState: State)
     {
-        if (!canDelete(post))
+        if (!canChangeState(post, newState))
             finish(HttpStatus.Forbidden)
     }
 

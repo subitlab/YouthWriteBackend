@@ -243,6 +243,7 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
         anonymous: Boolean,
         block: BlockId,
         parent: PostId?,
+        state: State,
         top: Boolean
     ): PostId? = query()
     {
@@ -261,6 +262,7 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
             it[PostsTable.block] = block
             it[PostsTable.top] = top
             it[PostsTable.parent] = parent
+            it[PostsTable.state] = state
             it[PostsTable.rootPost] = root
         }.value
     }
@@ -343,6 +345,7 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
             .join(descendantIds, JoinType.INNER, PostsTable.id, descendantIds[PostsTable.id])
             .select(postFullColumns)
             .andWhere { PostsTable.id neq pid }
+            .andWhere { PostsTable.state eq State.NORMAL }
             .groupPostFull()
             .orderBy(sortBy.order)
             .asSlice(begin, count)
@@ -425,6 +428,7 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
         author: UserId?,
         block: BlockId?,
         top: Boolean?,
+        state: State?,
         sortBy: Posts.PostListSort,
         begin: Long,
         limit: Int
@@ -435,8 +439,14 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
         val blockTable = (blocks as BlocksImpl).table
 
         val checkState: Query.() -> Query = {
+            if (state != null) andWhere { table.state eq state }
+
+            // 如果是管理员什么状态都可以看
             if (loginUser.hasGlobalAdmin()) this
-            else this.andWhere { state eq State.NORMAL }
+            // 如果是登录用户，只能看到正常状态的帖子和自己的私密帖/草稿
+            else if (loginUser != null) this.andWhere { (table.state eq State.NORMAL) or (table.author eq loginUser.id) }
+            // 如果是未登录用户，只能看到正常状态的帖子
+            else this.andWhere { (table.state eq State.NORMAL) }
         }
 
         val checkBlock: Query.() -> Query = {

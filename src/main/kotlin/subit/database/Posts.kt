@@ -57,7 +57,8 @@ interface Posts
         anonymous: Boolean,
         block: BlockId,
         parent: PostId?,
-        top: Boolean = false
+        state: State,
+        top: Boolean = false,
     ): PostId?
 
     /**
@@ -94,6 +95,7 @@ interface Posts
         author: UserId?,
         block: BlockId?,
         top: Boolean?,
+        state: State?,
         sortBy: PostListSort,
         begin: Long,
         limit: Int

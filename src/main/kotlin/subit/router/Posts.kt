@@ -31,8 +31,8 @@ fun Route.posts() = route("/post", {
                 body<NewPost>
                 {
                     required = true
-                    description = "发帖, 成功返回帖子ID."
-                    example("example", NewPost("标题", "内容", false, BlockId(0), false))
+                    description = "发帖, 成功返回帖子ID. state为帖子状态, 不允许为DELETE, PRIVATE为预留"
+                    example("example", NewPost("标题", "内容", false, BlockId(0), false, State.NORMAL))
                 }
             }
             response {
@@ -67,6 +67,11 @@ fun Route.posts() = route("/post", {
             {
                 required = false
                 description = "是否置顶, 不填则为所有"
+            }
+            queryParameter<State>("state")
+            {
+                required = false
+                description = "帖子状态, 不填则为所有"
             }
         }
         response {
@@ -104,12 +109,17 @@ private fun Route.id() = route("/{id}",{
     delete("", {
         description = "删除帖子"
         request {
-            authenticated(true)
+            queryParameter<State>("state")
+            {
+                required = true
+                description = "帖子状态"
+                example(State.DELETED)
+            }
         }
         response {
             statuses(HttpStatus.OK)
         }
-    }) { deletePost() }
+    }) { changeState() }
 
     rateLimit(RateLimit.Post.rateLimitName)
     {
@@ -352,17 +362,21 @@ private suspend fun Context.editPost()
     call.respond(HttpStatus.OK)
 }
 
-private suspend fun Context.deletePost()
+private suspend fun Context.changeState()
 {
     val id = call.parameters["id"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
+    val state = call.parameters["state"]?.toEnumOrNull<State>() ?: return call.respond(HttpStatus.BadRequest)
     val post = get<Posts>().getPostInfo(id) ?: return call.respond(HttpStatus.NotFound)
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
-    withPermission { checkCanDelete(post) }
-    get<Posts>().setPostState(id, State.DELETED)
+    withPermission { checkCanChangeState(post, state) }
+
+    if (post.state == state) return call.respond(HttpStatus.OK)
+
+    get<Posts>().setPostState(id, state)
     if (post.author != loginUser.id) get<Notices>().createNotice(
         Notice.makeSystemNotice(
             user = post.author,
-            content = "您的帖子 ${post.id} 已被删除"
+            content = "您的帖子 ${post.id} 已被管理员修改状态为 $state"
         )
     )
     call.respond(HttpStatus.OK)
@@ -411,12 +425,14 @@ private data class NewPost(
     val content: String,
     val anonymous: Boolean,
     val block: BlockId,
-    val top: Boolean
+    val top: Boolean,
+    val state: State,
 )
 
 private suspend fun Context.newPost()
 {
     val newPost = receiveAndCheckBody<NewPost>()
+    if (newPost.state == State.DELETED) return call.respond(HttpStatus.BadRequest)
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
 
     val block = get<Blocks>().getBlock(newPost.block) ?: return call.respond(HttpStatus.NotFound)
@@ -435,6 +451,7 @@ private suspend fun Context.newPost()
         anonymous = newPost.anonymous,
         block = newPost.block,
         top = newPost.top,
+        state = newPost.state,
         parent = null
     )!! // 父帖子为null, 不可能出现找不到父帖子的情况
     get<PostVersions>().createPostVersion(
@@ -451,9 +468,10 @@ private suspend fun Context.getPosts()
     val author = call.parameters["author"]?.toUserIdOrNull()
     val block = call.parameters["block"]?.toBlockIdOrNull()
     val top = call.parameters["top"]?.lowercase()?.toBooleanStrictOrNull()
+    val state = call.parameters["state"]?.toEnumOrNull<State>()
     val type = call.parameters["sort"].toEnumOrNull<Posts.PostListSort>() ?: return call.respond(HttpStatus.BadRequest)
     val (begin, count) = call.getPage()
-    val posts = get<Posts>().getPosts(loginUser?.toDatabaseUser(), author, block, top, type, begin, count)
+    val posts = get<Posts>().getPosts(loginUser?.toDatabaseUser(), author, block, top, state, type, begin, count)
     call.respond(HttpStatus.OK, posts)
 }
 
