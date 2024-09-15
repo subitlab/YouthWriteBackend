@@ -1,6 +1,7 @@
 package subit.database
 
 import subit.dataClasses.*
+import kotlin.time.Duration
 
 /**
  * @author nullaqua
@@ -17,4 +18,6 @@ interface Likes
         begin: Long = 1,
         limit: Int = Int.MAX_VALUE,
     ): Slice<Like>
+
+    suspend fun totalLikesCount(duration: Duration?): Long
 }

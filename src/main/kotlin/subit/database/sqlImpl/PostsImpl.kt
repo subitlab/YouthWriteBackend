@@ -26,12 +26,14 @@ import subit.database.Posts.PostListSort.*
 import subit.database.sqlImpl.PostVersionsImpl.PostVersionsTable
 import subit.database.sqlImpl.PostsImpl.PostsTable.view
 import subit.database.sqlImpl.utils.asSlice
+import subit.database.sqlImpl.utils.single
 import subit.database.sqlImpl.utils.singleOrNull
 import subit.router.home.AdvancedSearchData
 import subit.utils.toInstant
 import subit.utils.toTimestamp
 import java.sql.ResultSet
 import kotlin.reflect.typeOf
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
 
 /**
@@ -619,5 +621,23 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
             .orderBy(Posts.PostListSort.MORE_LIKE.order)
             .asSlice(begin, count)
             .map { deserializePost<PostFullBasicInfo>(it) }
+    }
+
+    override suspend fun totalPostCount(comment: Boolean, duration: Duration?): Map<State, Long> = query()
+    {
+        val time = duration?.let { Clock.System.now() - it } ?: 0L.toInstant()
+        val res = table
+            .joinPostFull(true)
+            .select(state, id.count())
+            .andWhere { if (comment) parent.isNotNull() else parent.isNull() }
+            .andWhere { lastModified.aliasOnlyExpression() greaterEq timestampParam(time) }
+            .groupBy(state)
+            .associate { it[state] to it[id.count()] }
+        State.entries.associateWith { (res[it] ?: 0) }
+    }
+
+    override suspend fun totalReadCount(): Long = query()
+    {
+        table.select(view.sum()).single()[view.sum()] ?: 0
     }
 }

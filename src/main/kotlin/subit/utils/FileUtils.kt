@@ -10,7 +10,6 @@ import subit.dataClasses.PermissionLevel
 import subit.dataClasses.UserFull
 import subit.dataClasses.UserId
 import subit.dataDir
-import subit.workDir
 import java.awt.image.BufferedImage
 import java.io.File
 import java.io.FileInputStream

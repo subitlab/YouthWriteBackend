@@ -1,5 +1,6 @@
 package subit.database.sqlImpl
 
+import kotlinx.datetime.Clock
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.kotlin.datetime.CurrentTimestamp
@@ -11,6 +12,8 @@ import subit.dataClasses.Slice
 import subit.dataClasses.UserId
 import subit.database.Likes
 import subit.database.sqlImpl.utils.asSlice
+import subit.utils.toInstant
+import kotlin.time.Duration
 
 class LikesImpl: DaoSqlImpl<LikesImpl.LikesTable>(LikesTable), Likes, KoinComponent
 {
@@ -59,5 +62,11 @@ class LikesImpl: DaoSqlImpl<LikesImpl.LikesTable>(LikesTable), Likes, KoinCompon
         user?.let { query.andWhere { LikesTable.user eq it } }
         post?.let { query.andWhere { LikesTable.post eq it } }
         query.asSlice(begin, limit).map { deserialize(it) }
+    }
+
+    override suspend fun totalLikesCount(duration: Duration?): Long = query()
+    {
+        val time = duration?.let { Clock.System.now() - it } ?: 0L.toInstant()
+        table.selectAll().where { table.time greaterEq time }.count()
     }
 }

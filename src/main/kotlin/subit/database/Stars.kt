@@ -4,6 +4,7 @@ import subit.dataClasses.PostId
 import subit.dataClasses.Slice
 import subit.dataClasses.Star
 import subit.dataClasses.UserId
+import kotlin.time.Duration
 
 interface Stars
 {
@@ -17,4 +18,6 @@ interface Stars
         begin: Long = 1,
         limit: Int = Int.MAX_VALUE,
     ): Slice<Star>
+
+    suspend fun totalStarsCount(duration: Duration?): Long
 }

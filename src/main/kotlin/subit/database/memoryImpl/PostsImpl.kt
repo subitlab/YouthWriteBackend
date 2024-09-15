@@ -11,8 +11,10 @@ import subit.dataClasses.PostId.Companion.toPostId
 import subit.dataClasses.Slice.Companion.asSlice
 import subit.database.*
 import subit.router.home.AdvancedSearchData
+import subit.utils.toInstant
 import java.util.*
 import kotlin.math.pow
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
 
 class PostsImpl: Posts, KoinComponent
@@ -246,4 +248,18 @@ class PostsImpl: Posts, KoinComponent
             .asSlice(begin, count)
             .map { it.toPostFullBasicInfo() }
     }
+
+    override suspend fun totalPostCount(comment: Boolean, duration: Duration?): Map<State, Long>
+    {
+        val time = duration?.let { Clock.System.now() - it } ?: 0L.toInstant()
+        val res = map.values
+            .filter { (it.first.parent != null) == comment }
+            .map { getPostFull(it.first.id)!! }
+            .filter { it.create != null && it.create >= time.toEpochMilliseconds() }
+            .groupBy { it.state }
+            .mapValues { it.value.size.toLong() }
+        return State.entries.associateWith { res[it] ?: 0 }
+    }
+
+    override suspend fun totalReadCount(): Long = map.values.sumOf { it.first.view }
 }

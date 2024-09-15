@@ -1,5 +1,6 @@
 package subit.database.sqlImpl
 
+import kotlinx.datetime.Clock
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.kotlin.datetime.CurrentTimestamp
@@ -10,6 +11,8 @@ import subit.dataClasses.Star
 import subit.dataClasses.UserId
 import subit.database.Stars
 import subit.database.sqlImpl.utils.asSlice
+import subit.utils.toInstant
+import kotlin.time.Duration
 
 /**
  * 收藏数据库交互类
@@ -67,5 +70,11 @@ class StarsImpl: DaoSqlImpl<StarsImpl.StarsTable>(StarsTable), Stars
         if (post != null) q = q.andWhere { StarsTable.post eq post }
 
         q.asSlice(begin, limit).map(::deserialize)
+    }
+
+    override suspend fun totalStarsCount(duration: Duration?): Long = query()
+    {
+        val time = duration?.let { Clock.System.now() - it } ?: 0L.toInstant()
+        table.selectAll().where { table.time greaterEq time }.count()
     }
 }

@@ -3,6 +3,7 @@ package subit.database
 import kotlinx.serialization.Serializable
 import subit.dataClasses.*
 import subit.router.home.AdvancedSearchData
+import kotlin.time.Duration
 
 interface Posts
 {
@@ -117,4 +118,7 @@ interface Posts
      * 获得***最近一个月***点赞数最多的帖子
      */
     suspend fun monthly(loginUser: DatabaseUser?, begin: Long, count: Int): Slice<PostFullBasicInfo>
+
+    suspend fun totalPostCount(comment: Boolean, duration: Duration?): Map<State, Long>
+    suspend fun totalReadCount(): Long
 }

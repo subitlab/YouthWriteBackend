@@ -1,12 +1,15 @@
 package subit.database.memoryImpl
 
+import kotlinx.datetime.Clock
 import subit.dataClasses.PostId
 import subit.dataClasses.Slice
 import subit.dataClasses.Slice.Companion.asSlice
 import subit.dataClasses.Star
 import subit.dataClasses.UserId
 import subit.database.Stars
+import subit.utils.toInstant
 import java.util.*
+import kotlin.time.Duration
 
 class StarsImpl: Stars
 {
@@ -30,4 +33,10 @@ class StarsImpl: Stars
     override suspend fun getStars(user: UserId?, post: PostId?, begin: Long, limit: Int): Slice<Star> =
         set.filter { (user == null || it.user == user) && (post == null || it.post == post) }
             .sortedByDescending(Star::time).asSequence().asSlice(begin, limit)
+
+    override suspend fun totalStarsCount(duration: Duration?): Long
+    {
+        val time = duration?.let { Clock.System.now() - it } ?: 0L.toInstant()
+        return set.count { it.time > time.toEpochMilliseconds() }.toLong()
+    }
 }

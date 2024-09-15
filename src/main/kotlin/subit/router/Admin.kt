@@ -15,9 +15,10 @@ import subit.utils.HttpStatus
 import subit.utils.SSO
 import subit.utils.respond
 import subit.utils.statuses
+import kotlin.time.Duration.Companion.days
 
 fun Route.admin() = route("/admin", {
-    tags = listOf("用户管理")
+    tags = listOf("管理")
     response {
         statuses(HttpStatus.Unauthorized, HttpStatus.Forbidden)
     }
@@ -65,6 +66,13 @@ fun Route.admin() = route("/admin", {
             statuses(HttpStatus.OK)
         }
     }) { changePermission() }
+
+    get("/globalInfo", {
+        description = "获取全局信息, 需要当前用户的user权限大于ADMIN"
+        response {
+            statuses<GlobalInfo>(HttpStatus.OK, example = GlobalInfo.example)
+        }
+    }) { globalInfo() }
 }
 
 @Serializable
@@ -118,4 +126,75 @@ private suspend fun Context.changePermission()
         )
     )
     call.respond(HttpStatus.OK)
+}
+
+@Serializable
+private data class Data(
+    val day: Long,
+    val month: Long,
+    val year: Long,
+    val total: Long
+)
+{
+    companion object
+    {
+        val example = Data(1, 1, 1, 1)
+    }
+}
+
+@Serializable
+private data class GlobalInfo(
+    val post: Map<State, Data>,
+    val comment: Data,
+    val like: Data,
+    val star: Data,
+    val read: Long,
+)
+{
+    companion object
+    {
+        val example = GlobalInfo(
+            State.entries.associateWith { Data.example },
+            Data.example,
+            Data.example,
+            Data.example,
+            1
+        )
+    }
+}
+
+private suspend fun Context.globalInfo()
+{
+    withPermission { checkHasGlobalAdmin() }
+    val posts = get<Posts>()
+    val dayPost = posts.totalPostCount(false, 1.days)
+    val monthPost = posts.totalPostCount(false, 30.days)
+    val yearPost = posts.totalPostCount(false, 365.days)
+    val totalPost = posts.totalPostCount(false, null)
+    val post = State.entries.associateWith { Data(dayPost[it]!!, monthPost[it]!!, yearPost[it]!!, totalPost[it]!!) }
+
+    val dayComment = posts.totalPostCount(true, 1.days).values.sum()
+    val monthComment = posts.totalPostCount(true, 30.days).values.sum()
+    val yearComment = posts.totalPostCount(true, 365.days).values.sum()
+    val totalComment = posts.totalPostCount(true, null).values.sum()
+    val comment = Data(dayComment, monthComment, yearComment, totalComment)
+
+    val read = posts.totalReadCount()
+
+    val likes = get<Likes>()
+    val dayLike = likes.totalLikesCount(1.days)
+    val monthLike = likes.totalLikesCount(30.days)
+    val yearLike = likes.totalLikesCount(365.days)
+    val totalLike = likes.totalLikesCount(null)
+    val like = Data(dayLike, monthLike, yearLike, totalLike)
+
+    val stars = get<Stars>()
+    val dayStar = stars.totalStarsCount(1.days)
+    val monthStar = stars.totalStarsCount(30.days)
+    val yearStar = stars.totalStarsCount(365.days)
+    val totalStar = stars.totalStarsCount(null)
+    val star = Data(dayStar, monthStar, yearStar, totalStar)
+
+    val globalInfo = GlobalInfo(post, comment, like, star, read)
+    call.respond(HttpStatus.OK, globalInfo)
 }
