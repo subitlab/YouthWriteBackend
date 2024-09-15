@@ -228,9 +228,11 @@ private suspend fun Context.uploadFile()
             else   -> Unit
         }
     }
-    if (fileInfo == null || input == null) return call.respond(HttpStatus.BadRequest)
-    if (size == null || user.toDatabaseUser().getSpaceInfo().canUpload(size!!))
+    if (fileInfo == null || input == null || size == null) return call.respond(HttpStatus.BadRequest)
+    if (!user.toDatabaseUser().getSpaceInfo().canUpload(size!!))
         return call.respond(HttpStatus.NotEnoughSpace)
+    if (user.filePermission < PermissionLevel.NORMAL)
+        return call.respond(HttpStatus.Forbidden.subStatus("您没有上传文件的权限"))
     FileUtils.saveFile(
         input = input!!,
         fileName = fileInfo!!.fileName,
@@ -285,7 +287,7 @@ private suspend fun Context.changePermission()
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     val changePermission = receiveAndCheckBody<ChangePermission>()
     val user = SSO.getDbUser(changePermission.id) ?: return call.respond(HttpStatus.NotFound)
-    withPermission { checkChangePermission(null, user, changePermission.filePermission) }
+    withPermission { checkChangeFilePermission(user, changePermission.filePermission) }
     get<Users>().changeFilePermission(changePermission.id, changePermission.filePermission)
     get<Operations>().addOperation(loginUser.id, changePermission)
     call.respond(HttpStatus.OK)

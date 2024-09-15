@@ -44,10 +44,14 @@ open class CheckPermissionScope @PublishedApi internal constructor(val user: Dat
     fun getGlobalPermission(): PermissionLevel =
         user?.permission ?: PermissionLevel.NORMAL
 
+    fun getFilePermission(): PermissionLevel =
+        user?.filePermission ?: PermissionLevel.BANNED
+
     suspend fun hasAdminIn(block: BlockId): Boolean =
         user != null && (getPermission(block) >= PermissionLevel.ADMIN)
 
     fun hasGlobalAdmin(): Boolean = user.hasGlobalAdmin()
+    fun hasFileAdmin(): Boolean = getFilePermission() >= PermissionLevel.ADMIN
 
     /// 可以看 ///
 
@@ -167,6 +171,13 @@ open class CheckPermissionScope @PublishedApi internal constructor(val user: Dat
         val otherPermission = withPermission(other) { getPermission(block.id) }
         return selfPermission > otherPermission && selfPermission > permission
     }
+
+    fun canChangeFilePermission(other: DatabaseUser, permission: PermissionLevel): Boolean
+    {
+        if (other.id == user?.id)
+            return user.filePermission >= permission
+        return getFilePermission() > permission && hasFileAdmin()
+    }
 }
 
 class CheckPermissionInContextScope @PublishedApi internal constructor(val context: Context, user: DatabaseUser?):
@@ -230,6 +241,8 @@ class CheckPermissionInContextScope @PublishedApi internal constructor(val conte
         if (!canAnonymous(block))
             finish(HttpStatus.Forbidden)
     }
+
+
 
     suspend fun checkChangePermission(block: Block?, other: DatabaseUser, permission: PermissionLevel)
     {
@@ -300,5 +313,11 @@ class CheckPermissionInContextScope @PublishedApi internal constructor(val conte
                 message = "修改他人在板块${block.name}的权限要求拥有该板块管理员权限, 且目标用户修改前后的权限都低于自己的权限"
             )
         )
+    }
+
+    suspend fun checkChangeFilePermission(other: DatabaseUser, permission: PermissionLevel)
+    {
+        if (!canChangeFilePermission(other, permission))
+            finish(HttpStatus.Forbidden)
     }
 }
