@@ -8,11 +8,10 @@ import org.jetbrains.exposed.sql.kotlin.datetime.CurrentTimestamp
 import org.jetbrains.exposed.sql.kotlin.datetime.timestamp
 import subit.dataClasses.PrivateChat
 import subit.dataClasses.Slice
-import subit.dataClasses.Slice.Companion.asSlice
-import subit.database.sqlImpl.utils.singleOrNull
 import subit.dataClasses.UserId
 import subit.database.PrivateChats
 import subit.database.sqlImpl.utils.asSlice
+import subit.database.sqlImpl.utils.singleOrNull
 
 class PrivateChatsImpl: DaoSqlImpl<PrivateChatsImpl.PrivateChatsTable>(PrivateChatsTable), PrivateChats
 {

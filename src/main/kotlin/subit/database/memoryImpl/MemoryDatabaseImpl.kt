@@ -52,6 +52,7 @@ object MemoryDatabaseImpl: IDatabase, KoinComponent
             singleOf(::ProhibitsImpl).bind<Prohibits>()
             singleOf(::ReportsImpl).bind<Reports>()
             singleOf(::StarsImpl).bind<Stars>()
+            singleOf(::TagsImpl).bind<Tags>()
             singleOf(::UsersImpl).bind<Users>()
             singleOf(::WordMarkingsImpl).bind<WordMarkings>()
         }

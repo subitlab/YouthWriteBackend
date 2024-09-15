@@ -6,7 +6,6 @@ import org.jetbrains.exposed.sql.kotlin.datetime.CurrentTimestamp
 import org.jetbrains.exposed.sql.kotlin.datetime.timestamp
 import subit.dataClasses.PostId
 import subit.dataClasses.Slice
-import subit.dataClasses.Slice.Companion.asSlice
 import subit.dataClasses.Star
 import subit.dataClasses.UserId
 import subit.database.Stars

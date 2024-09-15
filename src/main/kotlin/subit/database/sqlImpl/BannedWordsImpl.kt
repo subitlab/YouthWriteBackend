@@ -7,7 +7,6 @@ import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.update
 import subit.dataClasses.Slice
-import subit.dataClasses.Slice.Companion.asSlice
 import subit.database.BannedWords
 import subit.database.sqlImpl.utils.asSlice
 

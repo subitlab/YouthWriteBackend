@@ -7,10 +7,9 @@ import org.jetbrains.exposed.sql.kotlin.datetime.timestamp
 import org.koin.core.component.KoinComponent
 import subit.dataClasses.*
 import subit.dataClasses.Slice
-import subit.dataClasses.Slice.Companion.asSlice
-import subit.database.sqlImpl.utils.singleOrNull
 import subit.database.PostVersions
 import subit.database.sqlImpl.utils.asSlice
+import subit.database.sqlImpl.utils.singleOrNull
 
 class PostVersionsImpl: DaoSqlImpl<PostVersionsImpl.PostVersionsTable>(PostVersionsTable), PostVersions, KoinComponent
 {

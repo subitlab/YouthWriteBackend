@@ -35,6 +35,7 @@ object TestDatabase: Command, KoinComponent
             "Prohibits" to dao<Prohibits>(),
             "Reports" to dao<Reports>(),
             "Stars" to dao<Stars>(),
+            "Tags" to dao<Tags>(),
             "Users" to dao<Users>(),
             "WordMarkings" to dao<WordMarkings>(),
         )

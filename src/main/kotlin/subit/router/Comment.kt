@@ -121,7 +121,11 @@ private suspend fun Context.commentPost()
     val posts = get<Posts>()
 
     val parent = posts.getPostInfo(postId) ?: return call.respond(HttpStatus.NotFound.subStatus("目标帖子不存在"))
-    withPermission { checkCanComment(parent) }
+    val block = get<Blocks>().getBlock(parent.block) ?: return call.respond(HttpStatus.NotFound.subStatus("目标板块不存在"))
+    withPermission {
+        checkCanComment(parent)
+        if (newComment.anonymous) checkCanAnonymous(block)
+    }
 
     val commentId = posts.createPost(
         parent = postId,

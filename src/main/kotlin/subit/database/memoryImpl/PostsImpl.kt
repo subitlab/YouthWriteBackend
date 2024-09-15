@@ -29,7 +29,7 @@ class PostsImpl: Posts, KoinComponent
         parent: PostId?,
         state: State,
         top: Boolean
-    ): PostId?
+    ): PostId
     {
         val id = (map.size + 1).toPostId()
         map[id] = PostInfo(

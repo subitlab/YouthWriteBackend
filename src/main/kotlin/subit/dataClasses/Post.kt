@@ -3,7 +3,6 @@ package subit.dataClasses
 import kotlinx.serialization.Serializable
 import org.koin.core.component.KoinComponent
 import subit.dataClasses.PostFullBasicInfo.Companion.SUB_CONTENT_LENGTH
-import subit.database.Tags
 
 @Serializable
 data class PostVersionInfo(

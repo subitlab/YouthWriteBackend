@@ -7,7 +7,6 @@ import kotlinx.datetime.Instant
 import org.intellij.lang.annotations.Language
 import org.jetbrains.exposed.dao.id.IdTable
 import org.jetbrains.exposed.sql.*
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.coalesce
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.div
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.minus
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.plus
@@ -22,18 +21,16 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import subit.dataClasses.*
 import subit.dataClasses.Slice
-import subit.dataClasses.Slice.Companion.asSlice
-import subit.database.sqlImpl.utils.singleOrNull
 import subit.database.*
 import subit.database.Posts.PostListSort.*
 import subit.database.sqlImpl.PostVersionsImpl.PostVersionsTable
 import subit.database.sqlImpl.PostsImpl.PostsTable.view
 import subit.database.sqlImpl.utils.asSlice
+import subit.database.sqlImpl.utils.singleOrNull
 import subit.router.home.AdvancedSearchData
 import subit.utils.toInstant
 import subit.utils.toTimestamp
 import java.sql.ResultSet
-import java.time.OffsetDateTime
 import kotlin.reflect.typeOf
 import kotlin.time.Duration.Companion.days
 

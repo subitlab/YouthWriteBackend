@@ -12,7 +12,6 @@ import org.jetbrains.exposed.sql.kotlin.datetime.timestamp
 import org.jetbrains.exposed.sql.selectAll
 import subit.dataClasses.Prohibit
 import subit.dataClasses.Slice
-import subit.dataClasses.Slice.Companion.asSlice
 import subit.dataClasses.UserId
 import subit.database.Prohibits
 import subit.database.sqlImpl.utils.asSlice
