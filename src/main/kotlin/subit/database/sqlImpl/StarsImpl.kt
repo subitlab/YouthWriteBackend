@@ -10,6 +10,7 @@ import subit.dataClasses.Slice.Companion.asSlice
 import subit.dataClasses.Star
 import subit.dataClasses.UserId
 import subit.database.Stars
+import subit.database.sqlImpl.utils.asSlice
 
 /**
  * 收藏数据库交互类

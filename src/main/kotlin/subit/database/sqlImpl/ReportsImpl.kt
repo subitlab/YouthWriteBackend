@@ -6,9 +6,9 @@ import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.update
 import subit.dataClasses.*
-import subit.dataClasses.Slice.Companion.asSlice
-import subit.dataClasses.Slice.Companion.singleOrNull
 import subit.database.Reports
+import subit.database.sqlImpl.utils.asSlice
+import subit.database.sqlImpl.utils.singleOrNull
 
 class ReportsImpl: DaoSqlImpl<ReportsImpl.ReportsTable>(ReportsTable), Reports
 {

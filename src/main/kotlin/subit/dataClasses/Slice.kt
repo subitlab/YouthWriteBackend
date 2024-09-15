@@ -1,13 +1,7 @@
 package subit.dataClasses
 
 import kotlinx.serialization.Serializable
-import org.jetbrains.exposed.sql.Query
-import org.jetbrains.exposed.sql.QueryBuilder
-import org.jetbrains.exposed.sql.ResultRow
 import subit.dataClasses.Slice.Companion.asSlice
-import subit.dataClasses.Slice.Companion.fromSequence
-import subit.database.sqlImpl.utils.WindowFunctionQuery
-import subit.debug
 import subit.logger.ForumLogger
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.contract
@@ -24,14 +18,17 @@ import kotlin.contracts.contract
 data class Slice<T>(
     val totalSize: Long,
     val begin: Long,
+    val count: Int,
     val list: List<T>
 )
 {
+    constructor(totalSize: Long, begin: Long, list: List<T>): this(totalSize, begin, list.size, list)
+
     @OptIn(ExperimentalContracts::class)
     @Suppress("unused")
     companion object
     {
-        private val logger = ForumLogger.getLogger()
+        val logger = ForumLogger.getLogger()
         /**
          * 生成一个空切片
          */
@@ -42,39 +39,6 @@ data class Slice<T>(
                 callsInPlace(filter, kotlin.contracts.InvocationKind.UNKNOWN)
             }
             return fromSequence(this, begin, limit, filter)
-        }
-
-        /**
-         * 对于[Query], 且无需过滤的情况, 可以使用此方法, 可以避免[fromSequence]方法遍历所有数据的情况
-         */
-        fun Query.asSlice(begin: Long, limit: Int): Slice<ResultRow>
-        {
-            val query = WindowFunctionQuery(this, begin, limit)
-            if (debug)
-            {
-                logger.config(QueryBuilder(false).apply { query.prepareSQL(this) }.toString())
-            }
-            val list = query.toList()
-            val totalSize = list.firstOrNull()?.get(WindowFunctionQuery.totalCount) ?: this.count()
-            return Slice(totalSize, begin, list)
-        }
-
-        @Deprecated(
-            message = "该方法效率极低, 为实现过虑将通过分块查询遍历全部数据, " +
-                      "虽不会造成很大的内存消耗, 但会阻塞进行查询造成卡顿",
-            level = DeprecationLevel.WARNING
-        )
-        inline fun Query.asSlice(begin: Long, limit: Int, filter: (ResultRow)->Boolean): Slice<ResultRow>
-        {
-            contract {
-                callsInPlace(filter, kotlin.contracts.InvocationKind.UNKNOWN)
-            }
-            // 尝试进行分块查询, 若不支持就只能直接查询了
-            val res: Sequence<ResultRow> = runCatching()
-            {
-                this.fetchBatchedResults().flattenAsIterable()
-            }.getOrDefault(this).asSequence()
-            return fromSequence(res, begin, limit, filter)
         }
 
         /**
@@ -105,21 +69,9 @@ data class Slice<T>(
             }
             return Slice(i, begin, list)
         }
-
-        fun Query.single() = asSlice(0, 1).list[0]
-        fun Query.singleOrNull() = asSlice(0, 1).run { if (list.isEmpty()) null else list[0] }
     }
 
     fun <R> map(transform: (T)->R) = Slice(totalSize, begin, list.map(transform))
 }
 
 fun <T> sliceOf(vararg items: T) = items.toList().asSequence().asSlice(begin = 0, limit = items.size)
-
-/**
- * [Query.fetchBatchedResults]等方法会返回一个 Iterable<Iterable<T>> 类型的数据, 此方法将其扁平化为 Iterable<T>
- *
- * 注意: 不使用[Iterable.flatten]的原因是, [Iterable.flatten]转为list
- */
-fun <T> Iterable<Iterable<T>>.flattenAsIterable(): Iterable<T> = iterator {
-    for (i in this@flattenAsIterable) for (j in i) yield(j)
-}.asSequence().asIterable()

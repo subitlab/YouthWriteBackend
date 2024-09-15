@@ -34,7 +34,7 @@ sealed interface RateLimit
         override val duration = 15.seconds
         override suspend fun customResponse(call: ApplicationCall, duration: Duration)
         {
-            call.respond(HttpStatus.TooManyRequests.copy(message = "搜索操作过于频繁, 请${duration}后再试"))
+            call.respond(HttpStatus.TooManyRequests.subStatus(message = "搜索操作过于频繁, 请${duration}后再试"))
         }
 
         override suspend fun getKey(call: ApplicationCall): Any
@@ -52,7 +52,7 @@ sealed interface RateLimit
         override val duration = 10.seconds
         override suspend fun customResponse(call: ApplicationCall, duration: Duration)
         {
-            call.respond(HttpStatus.TooManyRequests.copy(message = "发布操作过于频繁, 请${duration}后再试"))
+            call.respond(HttpStatus.TooManyRequests.subStatus(message = "发布操作过于频繁, 请${duration}后再试"))
         }
 
         /**
@@ -70,7 +70,7 @@ sealed interface RateLimit
         override val duration = 5.minutes
         override suspend fun customResponse(call: ApplicationCall, duration: Duration)
         {
-            call.respond(HttpStatus.TooManyRequests.copy(message = "添加浏览量过于频繁, 请${duration}后再试"))
+            call.respond(HttpStatus.TooManyRequests.subStatus(message = "添加浏览量过于频繁, 请${duration}后再试"))
         }
 
         override suspend fun getKey(call: ApplicationCall): Any

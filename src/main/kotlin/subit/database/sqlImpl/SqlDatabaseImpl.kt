@@ -138,8 +138,9 @@ object SqlDatabaseImpl: IDatabase, KoinComponent
             DaoImpl(::ProhibitsImpl, Prohibits::class),
             DaoImpl(::ReportsImpl, Reports::class),
             DaoImpl(::StarsImpl, Stars::class),
+            DaoImpl(::TagsImpl, Tags::class),
             DaoImpl(::UsersImpl, Users::class),
-            DaoImpl(::WordMarkingsImpl, WordMarkings::class)
+            DaoImpl(::WordMarkingsImpl, WordMarkings::class),
         )
 
         val module = module(!lazyInit)

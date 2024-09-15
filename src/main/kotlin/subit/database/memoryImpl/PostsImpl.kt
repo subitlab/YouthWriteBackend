@@ -21,6 +21,7 @@ class PostsImpl: Posts, KoinComponent
     private val likes: Likes by inject()
     private val stars: Stars by inject()
     private val postVersions: PostVersions by inject()
+    private val tags: Tags by inject()
     override suspend fun createPost(
         author: UserId,
         anonymous: Boolean,
@@ -59,8 +60,8 @@ class PostsImpl: Posts, KoinComponent
     private fun sortBy(sortBy: Posts.PostListSort): (PostFull)->Long = {
         when (sortBy)
         {
-            Posts.PostListSort.NEW          -> -it.create
-            Posts.PostListSort.OLD          -> it.create
+            Posts.PostListSort.NEW          -> -(it.create ?: 0)
+            Posts.PostListSort.OLD          -> it.create ?: 0
             Posts.PostListSort.MORE_VIEW    -> -it.view
             Posts.PostListSort.MORE_LIKE    -> runBlocking { -stars.getStarsCount(it.id) }
             Posts.PostListSort.MORE_STAR    -> runBlocking { -likes.getLikes(it.id) }
@@ -127,7 +128,7 @@ class PostsImpl: Posts, KoinComponent
     override suspend fun getPostFull(pid: PostId): PostFull?
     {
         val post = map[pid]?.first ?: return null
-        val lastVersionId = postVersions.getPostVersions(pid, 0, 1).list.firstOrNull()?.id ?: return null
+        val lastVersionId = postVersions.getPostVersions(pid, false, 0, 1).list.firstOrNull()?.id ?: return null
         val lastVersion = postVersions.getPostVersion(lastVersionId) ?: return null
 
         return post.toPostFull(
@@ -150,6 +151,7 @@ class PostsImpl: Posts, KoinComponent
         block: BlockId?,
         top: Boolean?,
         state: State?,
+        tag: String?,
         sortBy: Posts.PostListSort,
         begin: Long,
         limit: Int
@@ -163,6 +165,7 @@ class PostsImpl: Posts, KoinComponent
                 && (block == null || it.first.block == block)
                 && (top == null || it.second == top)
                 && (state == null || it.first.state == state)
+                && (tag == null || tags.getPostTags(it.first.id).contains(tag))
             }
             .filter { canRead(it.first) }
             .map { getPostFull(it.first.id)!! }
@@ -183,7 +186,8 @@ class PostsImpl: Posts, KoinComponent
         map.values
             .map { it.first }
             .map { getPostFull(it.id)!! }
-            .filter { it.title.contains(key) || it.content.contains(key) }
+            .filter { it.lastVersionId != null }
+            .filter { it.title!!.contains(key) || it.content!!.contains(key) }
             .filter { canRead(it.toPostInfo()) }
             .filter {
                 val post = it
@@ -194,15 +198,15 @@ class PostsImpl: Posts, KoinComponent
                     if (advancedSearchData.authorIdList != null) (post.author in advancedSearchData.authorIdList)
                     else true
                 val contentConstraint =
-                    if (advancedSearchData.isOnlyTitle == true) (post.title.contains(key))
-                    else ((post.title.contains(key)) || (post.content.contains(key)))
+                    if (advancedSearchData.isOnlyTitle == true) (post.title!!.contains(key))
+                    else ((post.title!!.contains(key)) || (post.content!!.contains(key)))
                 val lastModifiedConstraint =
                     if (advancedSearchData.lastModifiedAfter != null)
-                        (post.lastModified >= advancedSearchData.lastModifiedAfter)
+                        (post.lastModified!! >= advancedSearchData.lastModifiedAfter)
                     else true
                 val createTimeConstraint =
                     if (advancedSearchData.createTime != null)
-                        (post.create >= advancedSearchData.createTime.first && post.create <= advancedSearchData.createTime.second)
+                        (post.create!! >= advancedSearchData.createTime.first && post.create <= advancedSearchData.createTime.second)
                     else true
                 blockConstraint && userConstraint && contentConstraint && lastModifiedConstraint && createTimeConstraint
             }

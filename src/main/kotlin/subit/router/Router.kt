@@ -21,6 +21,8 @@ import subit.router.notice.notice
 import subit.router.posts.posts
 import subit.router.privateChat.privateChat
 import subit.router.report.report
+import subit.router.tags.tag
+import subit.router.teapot.teapot
 import subit.router.user.user
 import subit.router.wordMarkings.wordMarking
 import subit.utils.HttpStatus
@@ -82,7 +84,9 @@ fun Application.router() = routing()
         posts()
         privateChat()
         report()
+        tag()
         user()
         wordMarking()
+        teapot()
     }
 }

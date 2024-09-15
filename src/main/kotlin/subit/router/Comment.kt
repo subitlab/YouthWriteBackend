@@ -14,6 +14,7 @@ import subit.dataClasses.PostId.Companion.toPostIdOrNull
 import subit.database.*
 import subit.plugin.RateLimit
 import subit.router.*
+import subit.router.posts.editPostLock
 import subit.utils.HttpStatus
 import subit.utils.respond
 import subit.utils.statuses
@@ -119,20 +120,27 @@ private suspend fun Context.commentPost()
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     val posts = get<Posts>()
 
-    val parent = posts.getPostInfo(postId) ?: return call.respond(HttpStatus.NotFound)
+    val parent = posts.getPostInfo(postId) ?: return call.respond(HttpStatus.NotFound.subStatus("目标帖子不存在"))
     withPermission { checkCanComment(parent) }
+
     val commentId = posts.createPost(
         parent = postId,
         author = loginUser.id,
         block = parent.block,
         anonymous = newComment.anonymous,
         state = State.NORMAL,
-    ) ?: return call.respond(HttpStatus.NotFound)
-    if (newComment.wordMarking != null)
+    ) ?: return call.respond(HttpStatus.NotFound.subStatus("目标帖子不存在"))
+
+    if (newComment.wordMarking != null) editPostLock.withLock(newComment.wordMarking.postId)
     {
-        val markingPost = posts.getPostFullBasicInfo(newComment.wordMarking.postId) ?: return call.respond(HttpStatus.NotFound)
+        val markingPostVersion =
+            posts
+                .getPostFullBasicInfo(newComment.wordMarking.postId)
+                ?.lastVersionId
+            ?: return call.respond(HttpStatus.NotFound.subStatus("标记的帖子不存在"))
+
         get<WordMarkings>().addWordMarking(
-            postVersion = markingPost.lastVersionId,
+            postVersion = markingPostVersion,
             comment = commentId,
             start = newComment.wordMarking.start,
             end = newComment.wordMarking.end,
@@ -160,10 +168,7 @@ private suspend fun Context.getPostComments()
     val post = posts.getPostInfo(postId) ?: return call.respond(HttpStatus.NotFound)
     withPermission { checkCanRead(post) }
     val comments = posts.getChildPosts(postId, type, begin, count)
-    if (getLoginUser().hasGlobalAdmin())
-        call.respond(HttpStatus.OK, comments)
-    else
-        call.respond(HttpStatus.OK, comments.map { if (it.anonymous) it.copy(author = UserId(0)) else it })
+    call.respond(HttpStatus.OK, checkAnonymous(comments))
 }
 
 private suspend fun Context.getCommentComments()
@@ -175,10 +180,7 @@ private suspend fun Context.getCommentComments()
     val comment = posts.getPostInfo(commentId) ?: return call.respond(HttpStatus.NotFound)
     withPermission { checkCanRead(comment) }
     val comments = posts.getDescendants(commentId, type, begin, count)
-    if (getLoginUser().hasGlobalAdmin())
-        call.respond(HttpStatus.OK, comments)
-    else
-        call.respond(HttpStatus.OK, comments.map { if (it.anonymous) it.copy(author = UserId(0)) else it })
+    call.respond(HttpStatus.OK, checkAnonymous(comments))
 }
 
 private suspend fun Context.getComment()
@@ -187,5 +189,5 @@ private suspend fun Context.getComment()
     val posts = get<Posts>()
     val comment = posts.getPostFull(commentId) ?: return call.respond(HttpStatus.NotFound)
     withPermission { checkCanRead(comment.toPostInfo()) }
-    call.respond(HttpStatus.OK, if (comment.anonymous) comment.copy(author = UserId(0)) else comment)
+    call.respond(HttpStatus.OK, checkAnonymous(comment))
 }

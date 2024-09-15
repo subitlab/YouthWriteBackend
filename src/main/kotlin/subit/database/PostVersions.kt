@@ -14,7 +14,8 @@ interface PostVersions
     suspend fun createPostVersion(
         post: PostId,
         title: String,
-        content: String
+        content: String,
+        draft: Boolean,
     ): PostVersionId
 
     /**
@@ -29,10 +30,10 @@ interface PostVersions
      * @param post 帖子ID
      * @return 帖子版本ID列表
      */
-    suspend fun getPostVersions(post: PostId, begin: Long, count: Int): Slice<PostVersionBasicInfo>
+    suspend fun getPostVersions(post: PostId, containsDraft: Boolean, begin: Long, count: Int): Slice<PostVersionBasicInfo>
 
     /**
      * 获取最新的帖子版本
      */
-    suspend fun getLatestPostVersion(post: PostId): PostVersionId?
+    suspend fun getLatestPostVersion(post: PostId, containsDraft: Boolean): PostVersionId?
 }

@@ -31,7 +31,7 @@ fun Route.posts() = route("/post", {
                 {
                     required = true
                     description = "发帖, 成功返回帖子ID. state为帖子状态, 不允许为DELETE, PRIVATE为预留"
-                    example("example", NewPost("标题", "内容", false, BlockId(0), false, State.NORMAL))
+                    example("example", NewPost("标题", "内容", false, BlockId(0), false, State.NORMAL, false))
                 }
             }
             response {
@@ -54,7 +54,7 @@ fun Route.posts() = route("/post", {
             queryParameter<UserId>("author")
             {
                 required = false
-                description = "作者ID, 不填则为所有用户"
+                description = "作者ID, 不填则为所有用户, 允许填0表示登录用户自己"
             }
             queryParameter<BlockId>("block")
             {
@@ -70,6 +70,11 @@ fun Route.posts() = route("/post", {
             {
                 required = false
                 description = "帖子状态, 不填则为所有"
+            }
+            queryParameter<String>("tag")
+            {
+                required = false
+                description = "标签, 不填则为所有"
             }
         }
         response {
@@ -119,13 +124,18 @@ private fun Route.id() = route("/{id}",{
     rateLimit(RateLimit.Post.rateLimitName)
     {
         put("", {
-            description = "编辑帖子(block及以上管理员可修改)"
+            description = """
+                编辑帖子
+                
+                注意: 应当通过GET /post/{id}/version/list 获取最新版本ID, 并在最新版本的基础上进行编辑. 
+                GET /post/{id} 返回的最新版本ID是最新的非草稿版本ID, 但最新版本可能是草稿版本.
+                """.trimIndent()
             request {
                 body<EditPost>
                 {
                     required = true
                     description = "编辑帖子"
-                    example("example", EditPost(mapOf(0 to "a"), listOf(Interval(1, 2)), "new title"))
+                    example("example", EditPost(mapOf(0 to "a"), listOf(Interval(1, 2)), "new title", false, PostVersionId(0)))
                 }
             }
             response {
@@ -183,6 +193,7 @@ private fun Route.version() = route("/version", {
 })
 {
     get("/list/{postId}", {
+        description = "获取帖子的版本列表, 如果当前登录用户是作者或者全局管理员的话可以获得包含草稿版本在内的所有版本, 否则只能获得非草稿版本"
         request {
             paged()
             pathParameter<PostId>("postId")
@@ -197,6 +208,7 @@ private fun Route.version() = route("/version", {
     }) { listVersions() }
 
     get("/{versionId}", {
+        description = "获取帖子版本信息, 需要当前登录的用户可以看到该版本所属的帖子, 并且草稿版本只能由作者或全局管理员查看"
         request {
             pathParameter<PostVersionId>("versionId")
             {
@@ -214,18 +226,8 @@ private suspend fun Context.getPost()
 {
     val id = call.parameters["id"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val postFull = get<Posts>().getPostFull(id) ?: return call.respond(HttpStatus.NotFound)
-    val loginUser = getLoginUser()
     withPermission { checkCanRead(postFull.toPostInfo()) }
-    if (!postFull.anonymous) call.respond(HttpStatus.OK, postFull) // 若不是匿名帖则直接返回
-    else if (loginUser == null || loginUser.permission < PermissionLevel.ADMIN) call.respond(
-        HttpStatus.OK,
-        postFull.copy(
-            author = UserId(
-                0
-            )
-        )
-    )
-    else call.respond(HttpStatus.OK, postFull) // 若是匿名帖且用户权限足够则返回
+    call.respond(HttpStatus.OK, checkAnonymous(postFull))
 }
 
 @Serializable data class Interval(val start: Int, val end: Int)
@@ -234,26 +236,27 @@ private suspend fun Context.getPost()
 data class EditPost(
     val insert: Map<Int, String> = mapOf(),
     val del: List<Interval> = listOf(),
-    val newTitle: String? = null
+    val newTitle: String? = null,
+    val draft: Boolean,
+    val oldVersionId: PostVersionId,
 )
 
-// 因为编辑帖子计算开销较大, 所以使用锁保证同一时间只有一个编辑操作.
-// 这里是保证同一用户只能同时编辑一个帖子
-private val editPostLock = Locks<UserId>()
+val editPostLock = Locks<PostId>()
 private suspend fun Context.editPost()
 {
     val operators = receiveAndCheckBody<EditPost>()
     val id = call.parameters["id"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     val postInfo = get<Posts>().getPostInfo(id) ?: return call.respond(HttpStatus.NotFound)
-    if (postInfo.author != loginUser.id) call.respond(HttpStatus.Forbidden.copy(message = "文章仅允许作者编辑"))
-    if ((operators.newTitle?.length ?: 0) >= 256) return call.respond(HttpStatus.BadRequest.copy(message = "标题过长"))
+    if (postInfo.author != loginUser.id) call.respond(HttpStatus.Forbidden.subStatus(message = "文章仅允许作者编辑"))
+    if ((operators.newTitle?.length ?: 0) >= 256) return call.respond(HttpStatus.BadRequest.subStatus(message = "标题过长"))
 
-    editPostLock.tryWithLock(loginUser.id, { call.respond(HttpStatus.TooManyRequests) })
+    editPostLock.tryWithLock(id, { call.respond(HttpStatus.TooManyRequests) })
     {
         val postVersions = get<PostVersions>()
         val wordMarkings = get<WordMarkings>()
-        val oldVersion = postVersions.getLatestPostVersion(id) ?: return@tryWithLock call.respond(HttpStatus.NotFound)
+        val oldVersion = postVersions.getLatestPostVersion(id, true) ?: return@tryWithLock call.respond(HttpStatus.NotFound)
+        if (operators.oldVersionId != oldVersion) return@tryWithLock call.respond(HttpStatus.NotLatestVersion)
         val oldVersionInfo = postVersions.getPostVersion(oldVersion) ?: return@tryWithLock call.respond(HttpStatus.NotFound)
 
         var markings = wordMarkings.getWordMarkings(oldVersion)
@@ -285,7 +288,9 @@ private suspend fun Context.editPost()
         val newVersion = postVersions.createPostVersion(
             post = id,
             title = operators.newTitle ?: oldVersionInfo.title,
-            content = newContent.toString()
+            content = newContent.toString(),
+            draft = operators.draft
+
         )
 
         markings.map { it.copy(postVersion = newVersion) }
@@ -414,6 +419,7 @@ private data class NewPost(
     val block: BlockId,
     val top: Boolean,
     val state: State,
+    val draft: Boolean,
 )
 
 private suspend fun Context.newPost()
@@ -431,7 +437,7 @@ private suspend fun Context.newPost()
         if (newPost.top) checkHasAdminIn(block.id)
     }
 
-    if (newPost.title.length >= 256) return call.respond(HttpStatus.BadRequest.copy(message = "标题过长"))
+    if (newPost.title.length >= 256) return call.respond(HttpStatus.BadRequest.subStatus(message = "标题过长"))
 
     val id = get<Posts>().createPost(
         author = loginUser.id,
@@ -445,6 +451,7 @@ private suspend fun Context.newPost()
         post = id,
         title = newPost.title,
         content = newPost.content,
+        draft = newPost.draft
     )
     call.respond(HttpStatus.OK, id)
 }
@@ -457,9 +464,20 @@ private suspend fun Context.getPosts()
     val top = call.parameters["top"]?.lowercase()?.toBooleanStrictOrNull()
     val state = call.parameters["state"]?.toEnumOrNull<State>()
     val type = call.parameters["sort"].toEnumOrNull<Posts.PostListSort>() ?: return call.respond(HttpStatus.BadRequest)
+    val tag = call.parameters["tag"]
     val (begin, count) = call.getPage()
-    val posts = get<Posts>().getPosts(loginUser?.toDatabaseUser(), author, block, top, state, type, begin, count)
-    call.respond(HttpStatus.OK, posts)
+    val posts = get<Posts>().getPosts(
+        loginUser?.toDatabaseUser(),
+        if (author == UserId(0)) (loginUser?.id ?: return call.respond(HttpStatus.Unauthorized)) else author,
+        block,
+        top,
+        state,
+        tag,
+        type,
+        begin,
+        count
+    )
+    call.respond(HttpStatus.OK, checkAnonymous(posts))
 }
 
 private suspend fun Context.setBlockTopPosts()
@@ -487,7 +505,13 @@ private suspend fun Context.listVersions()
 {
     val postId = call.parameters["postId"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val (begin, count) = call.getPage()
-    val versions = get<PostVersions>().getPostVersions(postId, begin, count)
+    val loginUser = getLoginUser()
+    val post = get<Posts>().getPostInfo(postId) ?: return call.respond(HttpStatus.NotFound)
+    val versions =
+        if (loginUser.hasGlobalAdmin() || loginUser?.id == post.author)
+            get<PostVersions>().getPostVersions(postId, true, begin, count)
+        else
+            get<PostVersions>().getPostVersions(postId, false, begin, count)
     call.respond(HttpStatus.OK, versions)
 }
 
@@ -495,5 +519,10 @@ private suspend fun Context.getVersion()
 {
     val versionId = call.parameters["versionId"]?.toPostVersionIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val version = get<PostVersions>().getPostVersion(versionId) ?: return call.respond(HttpStatus.NotFound)
+    val post = get<Posts>().getPostInfo(version.post) ?: return call.respond(HttpStatus.NotFound)
+    withPermission {
+        checkCanRead(post)
+        if (version.draft && post.author != user?.id && !hasGlobalAdmin()) return call.respond(HttpStatus.Forbidden)
+    }
     call.respond(HttpStatus.OK, version)
 }

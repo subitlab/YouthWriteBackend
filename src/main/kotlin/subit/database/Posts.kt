@@ -96,6 +96,7 @@ interface Posts
         block: BlockId?,
         top: Boolean?,
         state: State?,
+        tag: String?,
         sortBy: PostListSort,
         begin: Long,
         limit: Int

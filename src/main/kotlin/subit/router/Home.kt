@@ -118,7 +118,7 @@ private suspend fun Context.searchPost()
     val key = call.parameters["key"] ?: return call.respond(HttpStatus.BadRequest)
     val (begin, count) = call.getPage()
     val posts = get<Posts>().searchPosts(getLoginUser()?.toDatabaseUser(), key, AdvancedSearchData(), begin, count)
-    call.respond(HttpStatus.OK, posts)
+    call.respond(HttpStatus.OK, checkAnonymous(posts))
 }
 
 @Serializable
@@ -137,12 +137,12 @@ private suspend fun Context.advancedSearchPost()
     val data = receiveAndCheckBody<AdvancedSearchData>()
     val (begin, count) = call.getPage()
     val posts = get<Posts>().searchPosts(getLoginUser()?.toDatabaseUser(), key, data, begin, count)
-    call.respond(HttpStatus.OK, posts)
+    call.respond(HttpStatus.OK, checkAnonymous(posts))
 }
 
 private suspend fun Context.getMonthly()
 {
     val (begin, count) = call.getPage()
     val posts = get<Posts>().monthly(getLoginUser()?.toDatabaseUser(), begin, count)
-    call.respond(HttpStatus.OK, posts)
+    call.respond(HttpStatus.OK, checkAnonymous(posts))
 }

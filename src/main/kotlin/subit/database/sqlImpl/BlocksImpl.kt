@@ -6,10 +6,10 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import subit.dataClasses.*
 import subit.dataClasses.Slice
-import subit.dataClasses.Slice.Companion.asSlice
-import subit.dataClasses.Slice.Companion.singleOrNull
 import subit.database.Blocks
 import subit.database.Permissions
+import subit.database.sqlImpl.utils.asSlice
+import subit.database.sqlImpl.utils.singleOrNull
 
 /**
  * 板块数据库交互类

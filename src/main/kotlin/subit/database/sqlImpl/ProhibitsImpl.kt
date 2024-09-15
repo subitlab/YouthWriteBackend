@@ -15,6 +15,7 @@ import subit.dataClasses.Slice
 import subit.dataClasses.Slice.Companion.asSlice
 import subit.dataClasses.UserId
 import subit.database.Prohibits
+import subit.database.sqlImpl.utils.asSlice
 
 class ProhibitsImpl: DaoSqlImpl<ProhibitsImpl.ProhibitsTable>(ProhibitsTable), Prohibits
 {

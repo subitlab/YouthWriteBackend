@@ -1,10 +1,15 @@
 package subit.database.sqlImpl
 
 import org.jetbrains.exposed.dao.id.IdTable
-import org.jetbrains.exposed.sql.*
-import subit.dataClasses.*
-import subit.dataClasses.Slice.Companion.single
+import org.jetbrains.exposed.sql.ResultRow
+import org.jetbrains.exposed.sql.insertIgnore
+import org.jetbrains.exposed.sql.selectAll
+import org.jetbrains.exposed.sql.update
+import subit.dataClasses.DatabaseUser
+import subit.dataClasses.PermissionLevel
+import subit.dataClasses.UserId
 import subit.database.Users
+import subit.database.sqlImpl.utils.single
 
 class UsersImpl: DaoSqlImpl<UsersImpl.UsersTable>(UsersTable), Users
 {

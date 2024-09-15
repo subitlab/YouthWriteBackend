@@ -38,12 +38,12 @@ fun Route.user() = route("/user", {
         }
         response {
             statuses<UserFull>(
-                HttpStatus.OK.copy(message = "获取完整用户信息成功"),
+                HttpStatus.OK.subStatus(message = "获取完整用户信息成功"),
                 bodyDescription = "当id为0时",
                 example = UserFull.example
             )
             statuses<UserProfile>(
-                HttpStatus.OK.copy(message = "获取用户信息成功"),
+                HttpStatus.OK.subStatus(message = "获取用户信息成功"),
                 bodyDescription = "当id不为0即获取其他用户的信息且user权限低于ADMIN时返回",
                 example = UserProfile(
                     UserId(1),
@@ -57,7 +57,7 @@ fun Route.user() = route("/user", {
                 )
             )
             statuses<BasicUserInfo>(
-                HttpStatus.OK.copy(message = "获取基础用户的信息成功"),
+                HttpStatus.OK.subStatus(message = "获取基础用户的信息成功"),
                 bodyDescription = "当id不为0即获取其他用户的信息且user权限低于ADMIN时返回",
                 example = BasicUserInfo.example
             )

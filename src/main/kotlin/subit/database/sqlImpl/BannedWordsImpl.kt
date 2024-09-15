@@ -9,6 +9,7 @@ import org.jetbrains.exposed.sql.update
 import subit.dataClasses.Slice
 import subit.dataClasses.Slice.Companion.asSlice
 import subit.database.BannedWords
+import subit.database.sqlImpl.utils.asSlice
 
 class BannedWordsImpl: BannedWords, DaoSqlImpl<BannedWordsImpl.BannedWordsTable>(BannedWordsTable)
 {

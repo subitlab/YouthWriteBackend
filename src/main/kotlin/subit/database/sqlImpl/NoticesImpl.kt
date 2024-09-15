@@ -8,9 +8,9 @@ import subit.dataClasses.*
 import subit.dataClasses.Notice.*
 import subit.dataClasses.Notice.Type.SYSTEM
 import subit.dataClasses.Slice
-import subit.dataClasses.Slice.Companion.asSlice
-import subit.dataClasses.Slice.Companion.singleOrNull
 import subit.database.Notices
+import subit.database.sqlImpl.utils.asSlice
+import subit.database.sqlImpl.utils.singleOrNull
 
 class NoticesImpl: DaoSqlImpl<NoticesImpl.NoticesTable>(NoticesTable), Notices, KoinComponent
 {

@@ -38,7 +38,7 @@ fun Application.installStatusPages() = install(StatusPages)
         if (time == null)
             return@status call.respond(HttpStatus.TooManyRequests)
         if (type == null)
-            return@status call.respond(HttpStatus.TooManyRequests.copy(message = "请求过于频繁, 请${time}后再试"))
+            return@status call.respond(HttpStatus.TooManyRequests.subStatus(message = "请${time}后再试"))
         type.customResponse(call, time)
     }
 }

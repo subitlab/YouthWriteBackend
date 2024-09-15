@@ -15,6 +15,9 @@ data class HttpStatus(val code: HttpStatusCode, val message: String)
 {
     companion object
     {
+        val HttpStatusCode.Companion.ImATeapot: HttpStatusCode
+            get() = HttpStatusCode(418, "I'm a teapot")
+        val ImATeapot = HttpStatus(HttpStatusCode.ImATeapot, "抱歉，我是一只茶壶，无法为您泡咖啡！")
         // 邮箱格式错误 400
         val EmailFormatError = HttpStatus(HttpStatusCode.BadRequest, "邮箱格式错误")
         // 密码格式错误 400
@@ -61,7 +64,11 @@ data class HttpStatus(val code: HttpStatusCode, val message: String)
         val SendEmailCodeTooFrequent = HttpStatus(HttpStatusCode.TooManyRequests, "发送验证码过于频繁")
         // 请求过于频繁
         val TooManyRequests = HttpStatus(HttpStatusCode.TooManyRequests, "请求过于频繁")
+        // 编辑的并非最新版本
+        val NotLatestVersion = HttpStatus(HttpStatusCode.NotAcceptable, "保存编辑失败, 您编辑的并非最新版本")
     }
+
+    fun subStatus(message: String) = HttpStatus(code, "${this.message}: $message")
 }
 
 @Serializable

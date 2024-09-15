@@ -5,7 +5,7 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.koin.core.component.KoinComponent
 import subit.dataClasses.BlockId
 import subit.dataClasses.PermissionLevel
-import subit.dataClasses.Slice.Companion.singleOrNull
+import subit.database.sqlImpl.utils.singleOrNull
 import subit.dataClasses.UserId
 import subit.database.Permissions
 

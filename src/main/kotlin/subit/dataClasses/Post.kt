@@ -2,6 +2,8 @@ package subit.dataClasses
 
 import kotlinx.serialization.Serializable
 import org.koin.core.component.KoinComponent
+import subit.dataClasses.PostFullBasicInfo.Companion.SUB_CONTENT_LENGTH
+import subit.database.Tags
 
 @Serializable
 data class PostVersionInfo(
@@ -10,6 +12,7 @@ data class PostVersionInfo(
     val title: String,
     val content: String,
     val time: Long,
+    val draft: Boolean,
 )
 {
     companion object
@@ -19,12 +22,13 @@ data class PostVersionInfo(
             PostId(1),
             "标题",
             "内容",
-            System.currentTimeMillis()
+            System.currentTimeMillis(),
+            false,
         )
     }
 
     fun toPostVersionBasicInfo(): PostVersionBasicInfo =
-        PostVersionBasicInfo(id, post, title, time)
+        PostVersionBasicInfo(id, post, title, time, draft)
 }
 
 @Serializable
@@ -33,16 +37,12 @@ data class PostVersionBasicInfo(
     val post: PostId,
     val title: String,
     val time: Long,
+    val draft: Boolean,
 )
 {
     companion object
     {
-        val example = PostVersionBasicInfo(
-            PostVersionId(1),
-            PostId(1),
-            "标题",
-            System.currentTimeMillis()
-        )
+        val example = PostVersionInfo.example.toPostVersionBasicInfo()
     }
 }
 
@@ -69,16 +69,7 @@ data class PostInfo(
 {
     companion object: KoinComponent
     {
-        val example = PostInfo(
-            PostId(1),
-            UserId(1),
-            false,
-            0,
-            BlockId(1),
-            State.NORMAL,
-            PostId(1),
-            PostId(1)
-        )
+        val example = PostFull.example.toPostInfo()
     }
 
     fun toPostFull(
@@ -115,13 +106,13 @@ data class PostInfo(
 @Serializable
 data class PostFull(
     val id: PostId,
-    val title: String,
-    val content: String,
+    val title: String?,
+    val content: String?,
     val author: UserId,
     val anonymous: Boolean,
-    val create: Long,
-    val lastModified: Long,
-    val lastVersionId: PostVersionId,
+    val create: Long?,
+    val lastModified: Long?,
+    val lastVersionId: PostVersionId?,
     val view: Long,
     val block: BlockId,
     val state: State,
@@ -132,12 +123,13 @@ data class PostFull(
 )
 {
     fun toPostInfo(): PostInfo =
-        PostInfo(id, author, anonymous, create, block, state, parent, root)
+        PostInfo(id, author, anonymous, view, block, state, parent, root)
 
     fun toPostFullBasicInfo(): PostFullBasicInfo =
         PostFullBasicInfo(
             id,
             title,
+            content?.let { if (it.length > SUB_CONTENT_LENGTH) "${it.substring(0, SUB_CONTENT_LENGTH)}…" else it },
             author,
             anonymous,
             create,
@@ -177,12 +169,13 @@ data class PostFull(
 @Serializable
 data class PostFullBasicInfo(
     val id: PostId,
-    val title: String,
+    val title: String?,
+    val subContent: String?,
     val author: UserId,
     val anonymous: Boolean,
-    val create: Long,
-    val lastModified: Long,
-    val lastVersionId: PostVersionId,
+    val create: Long?,
+    val lastModified: Long?,
+    val lastVersionId: PostVersionId?,
     val view: Long,
     val block: BlockId,
     val state: State,
@@ -194,21 +187,7 @@ data class PostFullBasicInfo(
 {
     companion object
     {
-        val example = PostFullBasicInfo(
-            PostId(1),
-            "帖子标题",
-            UserId(1),
-            false,
-            System.currentTimeMillis(),
-            System.currentTimeMillis(),
-            PostVersionId(0),
-            0,
-            BlockId(1),
-            State.NORMAL,
-            0,
-            0,
-            PostId(1),
-            PostId(1)
-        )
+        val example = PostFull.example.toPostFullBasicInfo()
+        const val SUB_CONTENT_LENGTH = 100
     }
 }

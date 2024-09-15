@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>418 I'm a Teapot</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #11311c;
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+        h1 {
+            color: #d4f;
+            font-size: 3em;
+        }
+        p {
+            font-size: 1.5em;
+            color: #777;
+        }
+        img {
+            width: 200px;
+            margin-top: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 1em;
+            background-color: #5bc0de;
+            border: none;
+            color: white;
+            cursor: pointer;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        button:hover {
+            background-color: #31b0d5;
+        }
+    </style>
+</head>
+<body>
+<div>
+    <h1>418 I'm a Teapot</h1>
+    <p>抱歉，我是一只茶壶，无法为您泡咖啡！</p>
+    <p><img src="${image}" alt="Teapot"></p>
+    <p><button onclick="goBack()">返回</button></p>
+</div>
+
+<script>
+    function goBack() {
+        window.history.back();
+    }
+</script>
+</body>
+</html>
