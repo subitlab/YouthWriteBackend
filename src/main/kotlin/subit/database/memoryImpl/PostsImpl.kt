@@ -64,7 +64,7 @@ class PostsImpl: Posts, KoinComponent
             Posts.PostListSort.OLD          -> it.create ?: 0
             Posts.PostListSort.MORE_VIEW    -> -it.view
             Posts.PostListSort.MORE_LIKE    -> runBlocking { -stars.getStarsCount(it.id) }
-            Posts.PostListSort.MORE_STAR    -> runBlocking { -likes.getLikes(it.id) }
+            Posts.PostListSort.MORE_STAR    -> runBlocking { -likes.getLikesCount(it.id) }
             Posts.PostListSort.MORE_COMMENT -> map.values.count { post -> post.first.root == it.id }.toLong()
             Posts.PostListSort.HOT          -> -getHotScore(it.id).toLong()
             Posts.PostListSort.RANDOM_HOT   -> -getHotScore(it.id).toLong() + Random().nextInt(100)
@@ -136,7 +136,7 @@ class PostsImpl: Posts, KoinComponent
             content = lastVersion.content,
             lastModified = (postVersions as PostVersionsImpl).getLastModified(pid).toEpochMilliseconds(),
             create = (postVersions as PostVersionsImpl).getCreate(pid).toEpochMilliseconds(),
-            like = likes.getLikes(pid),
+            like = likes.getLikesCount(pid),
             star = stars.getStarsCount(pid),
             lastVersionId = lastVersionId
         )
@@ -224,7 +224,7 @@ class PostsImpl: Posts, KoinComponent
     private fun getHotScore(pid: PostId): Double
     {
         val post = map[pid]?.first ?: return 0.0
-        val likesCount = runBlocking { likes.getLikes(pid) }
+        val likesCount = runBlocking { likes.getLikesCount(pid) }
         val starsCount = runBlocking { stars.getStarsCount(pid) }
         val commentsCount: Int = map.values.count { it.first.root == pid }
         val createTime = (postVersions as PostVersionsImpl).getCreate(pid).toEpochMilliseconds()

@@ -24,3 +24,20 @@ data class Star(
         )
     }
 }
+
+@Serializable
+data class Like(
+    val user: UserId,
+    val post: PostId,
+    val time: Long
+)
+{
+    companion object
+    {
+        val example = Like(
+            UserId(1),
+            PostId(1),
+            System.currentTimeMillis()
+        )
+    }
+}

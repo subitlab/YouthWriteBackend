@@ -160,6 +160,13 @@ private fun Route.id() = route("/{id}",{
         }
     }) { likePost() }
 
+    get("/like", {
+        description = "获取帖子的点赞/点踩/收藏状态"
+        response {
+            statuses<LikeStatus>(HttpStatus.OK, example = LikeStatus(like = true, star = false))
+        }
+    }) { getLikeStatus() }
+
     rateLimit(RateLimit.AddView.rateLimitName)
     {
         post("/view", {
@@ -395,8 +402,8 @@ private suspend fun Context.likePost()
     withPermission { checkCanRead(post) }
     when (type)
     {
-        LikeType.LIKE    -> get<Likes>().like(loginUser.id, id)
-        LikeType.UNLIKE  -> get<Likes>().unlike(loginUser.id, id)
+        LikeType.LIKE    -> get<Likes>().addLike(loginUser.id, id)
+        LikeType.UNLIKE  -> get<Likes>().removeLike(loginUser.id, id)
         LikeType.STAR    -> get<Stars>().addStar(loginUser.id, id)
         LikeType.UNSTAR  -> get<Stars>().removeStar(loginUser.id, id)
     }
@@ -409,6 +416,20 @@ private suspend fun Context.likePost()
             )
         )
     call.respond(HttpStatus.OK)
+}
+
+@Serializable
+data class LikeStatus(val like: Boolean?, val star: Boolean?)
+
+private suspend fun Context.getLikeStatus()
+{
+    val id = call.parameters["id"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
+    val post = get<Posts>().getPostInfo(id) ?: return call.respond(HttpStatus.NotFound)
+    val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
+    withPermission { checkCanRead(post) }
+    val like = get<Likes>().getLike(loginUser.id, id)
+    val star = get<Stars>().getStar(loginUser.id, id)
+    call.respond(HttpStatus.OK, LikeStatus(like, star))
 }
 
 @Serializable

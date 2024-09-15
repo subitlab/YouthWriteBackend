@@ -106,7 +106,25 @@ fun Route.user() = route("/user", {
             statuses(HttpStatus.BadRequest, HttpStatus.Unauthorized, HttpStatus.NotFound, HttpStatus.Forbidden)
             statuses<Slice<PostId>>(HttpStatus.OK, example = sliceOf(PostId(0)))
         }
-    }) { getStars() }
+    }) { getStars(true) }
+
+    get("/likes/{id}", {
+        description = "获取用户点赞的帖子"
+        request {
+            pathParameter<UserId>("id")
+            {
+                required = true
+                description = """
+                        要获取的用户ID, 0为当前登陆用户
+                    """.trimIndent()
+            }
+            paged()
+        }
+        response {
+            statuses(HttpStatus.BadRequest, HttpStatus.Unauthorized, HttpStatus.NotFound)
+            statuses<Slice<PostId>>(HttpStatus.OK, example = sliceOf(PostId(0)))
+        }
+    }) { getStars(false) }
 
     post("/switchStars", {
         description = "切换是否公开收藏"
@@ -199,7 +217,7 @@ private suspend fun Context.changeIntroduction()
     }
 }
 
-private suspend fun Context.getStars()
+private suspend fun Context.getStars(isStar: Boolean)
 {
     val id = call.parameters["id"]?.toUserIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val begin = call.parameters["begin"]?.toLongOrNull() ?: return call.respond(HttpStatus.BadRequest)
@@ -209,16 +227,32 @@ private suspend fun Context.getStars()
     if (id == UserId(0))
     {
         if (loginUser == null) return call.respond(HttpStatus.Unauthorized)
-        val stars = get<Stars>().getStars(user = loginUser.id, begin = begin, limit = count).map { it.post }
-        return call.respond(HttpStatus.OK, stars)
+        if (isStar)
+        {
+            val stars = get<Stars>().getStars(user = loginUser.id, begin = begin, limit = count).map { it.post }
+            return call.respond(HttpStatus.OK, stars)
+        }
+        else
+        {
+            val likes = get<Likes>().getLikes(user = loginUser.id, begin = begin, limit = count).map { it.post }
+            return call.respond(HttpStatus.OK, likes)
+        }
     }
     // 查询其他用户的收藏
     val user = SSO.getDbUser(id) ?: return call.respond(HttpStatus.NotFound)
     // 若对方不展示收藏, 而当前用户未登录或不是管理员, 返回Forbidden
     if (!user.showStars && (loginUser == null || loginUser.permission < PermissionLevel.ADMIN))
         return call.respond(HttpStatus.Forbidden)
-    val stars = get<Stars>().getStars(user = user.id, begin = begin, limit = count).map { it.post }
-    call.respond(HttpStatus.OK, stars)
+    if (isStar)
+    {
+        val stars = get<Stars>().getStars(user = user.id, begin = begin, limit = count).map { it.post }
+        call.respond(HttpStatus.OK, stars)
+    }
+    else
+    {
+        val likes = get<Likes>().getLikes(user = user.id, begin = begin, limit = count).map { it.post }
+        call.respond(HttpStatus.OK, likes)
+    }
 }
 
 @Serializable
