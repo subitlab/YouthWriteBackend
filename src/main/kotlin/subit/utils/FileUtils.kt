@@ -9,17 +9,24 @@ import subit.dataClasses.DatabaseUser
 import subit.dataClasses.PermissionLevel
 import subit.dataClasses.UserFull
 import subit.dataClasses.UserId
+import subit.dataDir
 import subit.workDir
+import java.awt.image.BufferedImage
 import java.io.File
 import java.io.FileInputStream
 import java.io.InputStream
 import java.security.MessageDigest
 import java.util.*
+import javax.imageio.ImageIO
 
 /**
  * 文件工具类
  * 文件存储结构
  * file/
+ *   home/
+ *     home.png         #首页图片
+ *     home.md          #首页配文
+ *     announcement.md  #公告
  *   index/ ${id}.index #文件的info
  *   raw/
  *     ${user}/
@@ -30,16 +37,16 @@ import java.util.*
  */
 object FileUtils
 {
-    val dataFolder = File(workDir, "data")
-    private val fileFolder = File(dataFolder, "files")
+    val fileFolder = File(dataDir, "files")
     private val indexFolder = File(fileFolder, "index")
     private val rawFolder = File(fileFolder, "raw")
     fun init()
     {
-        dataFolder.mkdirs()
+        dataDir.mkdirs()
         fileFolder.mkdirs()
         indexFolder.mkdirs()
         rawFolder.mkdirs()
+        HomeFilesUtils.init()
     }
 
     val fileInfoSerializer = Json()
@@ -186,4 +193,31 @@ object FileUtils
         val indexFile = File(indexFolder, "${id}.index")
         indexFile.writeText(fileInfoSerializer.encodeToString(FileInfo.serializer(), info))
     }
+}
+
+object HomeFilesUtils
+{
+    private val homeFolder = File(FileUtils.fileFolder, "home")
+    private val homeMdFile = File(homeFolder, "home.md")
+    private val announcementMdFile = File(homeFolder, "announcement.md")
+    private val homePngFile = File(homeFolder, "home.png")
+    fun init()
+    {
+        homeFolder.mkdirs()
+        homeMdFile.createNewFile()
+        announcementMdFile.createNewFile()
+        BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB).let { ImageIO.write(it, "png", homePngFile) }
+    }
+
+    var homeMd: String
+        get() = homeMdFile.readText()
+        set(value) = homeMdFile.writeText(value)
+
+    var announcementMd: String
+        get() = announcementMdFile.readText()
+        set(value) = announcementMdFile.writeText(value)
+
+    var homePng: BufferedImage
+        get() = ImageIO.read(homePngFile)
+        set(value) = ImageIO.write(value, "png", homePngFile).run {  }
 }

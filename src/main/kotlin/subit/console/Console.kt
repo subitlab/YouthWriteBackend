@@ -9,8 +9,8 @@ import org.jline.widget.AutopairWidgets
 import org.jline.widget.AutosuggestionWidgets
 import subit.console.command.CommandSet
 import subit.console.command.CommandSet.err
+import subit.dataDir
 import subit.logger.ForumLogger.nativeOut
-import subit.utils.FileUtils
 import subit.utils.Power
 import sun.misc.Signal
 import java.io.File
@@ -91,7 +91,7 @@ object Console
      * 命令历史文件
      */
     private val historyFile: File
-        get() = File(FileUtils.dataFolder, "command_history.txt")
+        get() = File(dataDir, "command_history.txt")
 
     /**
      * 在终端上打印一行, 会自动换行并下移命令提升符和已经输入的命令

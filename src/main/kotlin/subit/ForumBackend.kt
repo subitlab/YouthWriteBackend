@@ -18,6 +18,8 @@ lateinit var version: String
     private set
 lateinit var workDir: File
     private set
+lateinit var dataDir: File
+    private set
 var debug by Delegates.notNull<Boolean>()
     private set
 
@@ -40,20 +42,22 @@ private fun parseCommandLineArgs(args: Array<String>): Pair<Array<String>, File>
     workDir = File(argsMap["-workDir"] ?: ".")
     workDir.mkdirs()
 
+    // 配置文件目录
+    dataDir = argsMap["-dataDir"]?.let { File(it) } ?: File(workDir, "data")
+    dataDir.mkdirs()
+
     // 是否开启debug模式
-    debug = argsMap["-debug"].toBoolean()
+    debug = argsMap["-debug"]?.toBoolean() ?: false
     System.setProperty("io.ktor.development", "$debug")
 
     // 去除命令行中的-config参数, 因为ktor会解析此参数进而不加载打包的application.yaml
     // 其余参数还原为字符串数组
     val resArgs = argsMap.entries
-        .filterNot { it.key == "-config" || it.key == "-workDir" || it.key == "-debug" }
+        .filterNot { it.key == "-config" || it.key == "-workDir" || it.key == "-debug" || it.key == "-dataDir" }
         .map { (k, v) -> "$k=$v" }
         .toTypedArray()
     // 命令行中输入的自定义配置文件
-    // 如果输入的绝对路径, 则直接使用, 否则在工作目录下寻找
-    val configFileName = argsMap["-config"] ?: "config.yaml"
-    val configFile = if (configFileName.startsWith("/")) File(configFileName) else File(workDir, configFileName)
+    val configFile = argsMap["-config"]?.let { File(it) } ?: File(workDir, "config.yaml")
 
     return resArgs to configFile
 }
