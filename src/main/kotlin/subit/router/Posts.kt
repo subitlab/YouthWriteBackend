@@ -76,6 +76,11 @@ fun Route.posts() = route("/post", {
                 required = false
                 description = "标签, 不填则为所有"
             }
+            queryParameter<Boolean>("comment")
+            {
+                required = false
+                description = "若为true则只返回评论, 若为false则只返回帖子, 不填视为false"
+            }
         }
         response {
             statuses<Slice<PostFullBasicInfo>>(HttpStatus.OK, example = sliceOf(PostFullBasicInfo.example))
@@ -484,8 +489,11 @@ private suspend fun Context.getPosts()
     val block = call.parameters["block"]?.toBlockIdOrNull()
     val top = call.parameters["top"]?.lowercase()?.toBooleanStrictOrNull()
     val state = call.parameters["state"]?.toEnumOrNull<State>()
-    val type = call.parameters["sort"].toEnumOrNull<Posts.PostListSort>() ?: return call.respond(HttpStatus.BadRequest)
+    val type = call.parameters["sort"].toEnumOrNull<Posts.PostListSort>()
+               ?: return call.respond(HttpStatus.BadRequest.subStatus("sort参数错误"))
     val tag = call.parameters["tag"]
+    val comment = call.parameters["comment"]?.toBooleanStrictOrNull() ?: false
+
     val (begin, count) = call.getPage()
     val posts = get<Posts>().getPosts(
         loginUser?.toDatabaseUser(),
@@ -494,6 +502,7 @@ private suspend fun Context.getPosts()
         top,
         state,
         tag,
+        comment,
         type,
         begin,
         count

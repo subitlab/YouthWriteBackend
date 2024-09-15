@@ -152,6 +152,7 @@ class PostsImpl: Posts, KoinComponent
         top: Boolean?,
         state: State?,
         tag: String?,
+        comment: Boolean,
         sortBy: Posts.PostListSort,
         begin: Long,
         limit: Int
@@ -166,6 +167,7 @@ class PostsImpl: Posts, KoinComponent
                 && (top == null || it.second == top)
                 && (state == null || it.first.state == state)
                 && (tag == null || tags.getPostTags(it.first.id).contains(tag))
+                && (comment == (it.first.parent != null))
             }
             .filter { canRead(it.first) }
             .map { getPostFull(it.first.id)!! }

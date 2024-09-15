@@ -443,6 +443,7 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
         top: Boolean?,
         state: State?,
         tag: String?,
+        comment: Boolean,
         sortBy: Posts.PostListSort,
         begin: Long,
         limit: Int
@@ -490,16 +491,21 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
             else this
         }
 
+        val checkComment: Query.() -> Query = {
+            if (comment) this.andWhere { PostsTable.parent.isNull() }
+            else this
+        }
+
         PostsTable
             .joinPostFull(false)
             .join(blockTable, JoinType.INNER, table.block, blockTable.id)
             .join(permissionTable, JoinType.LEFT, table.block, permissionTable.block) { permissionTable.user eq loginUser?.id }
             .select(postFullBasicInfoColumns)
-            .andWhere { parent.isNull() }
             .checkState()
             .checkBlock()
             .checkAuthor()
             .checkTop()
+            .checkComment()
             .groupBy(id, create, blockTable.id, blockTable.reading)
             .groupPostFull()
             .orHaving { permissionTable.permission.max() greaterEq blockTable.reading }

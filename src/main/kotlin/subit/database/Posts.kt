@@ -97,6 +97,7 @@ interface Posts
         top: Boolean?,
         state: State?,
         tag: String?,
+        comment: Boolean,
         sortBy: PostListSort,
         begin: Long,
         limit: Int
