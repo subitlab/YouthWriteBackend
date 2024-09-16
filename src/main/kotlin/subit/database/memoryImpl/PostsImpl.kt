@@ -156,6 +156,7 @@ class PostsImpl: Posts, KoinComponent
         state: State?,
         tag: String?,
         comment: Boolean,
+        draft: Boolean?,
         sortBy: Posts.PostListSort,
         begin: Long,
         limit: Int
@@ -174,6 +175,7 @@ class PostsImpl: Posts, KoinComponent
             }
             .filter { canRead(it.first) }
             .map { getPostFull(it.first.id)!! }
+            .filter { draft == null || (it.lastVersionId == null) == draft }
             .sortedBy(sortBy(sortBy))
             .asSequence()
             .asSlice(begin, limit)

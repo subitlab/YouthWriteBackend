@@ -446,6 +446,7 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
         state: State?,
         tag: String?,
         comment: Boolean,
+        draft: Boolean?,
         sortBy: Posts.PostListSort,
         begin: Long,
         limit: Int
@@ -498,6 +499,12 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
             else this
         }
 
+        val checkDraft: Query.() -> Query = {
+            if (draft == null) this
+            else if (draft) this.andWhere { lastVersionId.aliasOnlyExpression().isNull() }
+            else this.andWhere { lastVersionId.aliasOnlyExpression().isNotNull() }
+        }
+
         PostsTable
             .joinPostFull(false)
             .join(blockTable, JoinType.INNER, table.block, blockTable.id)
@@ -508,6 +515,7 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
             .checkAuthor()
             .checkTop()
             .checkComment()
+            .checkDraft()
             .groupBy(id, create, blockTable.id, blockTable.reading)
             .groupPostFull()
             .orHaving { permissionTable.permission.max() greaterEq blockTable.reading }

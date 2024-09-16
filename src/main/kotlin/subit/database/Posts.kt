@@ -99,6 +99,7 @@ interface Posts
         state: State?,
         tag: String?,
         comment: Boolean,
+        draft: Boolean?,
         sortBy: PostListSort,
         begin: Long,
         limit: Int

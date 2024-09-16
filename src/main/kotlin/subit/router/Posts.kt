@@ -81,6 +81,11 @@ fun Route.posts() = route("/post", {
                 required = false
                 description = "若为true则只返回评论, 若为false则只返回帖子, 不填视为false"
             }
+            queryParameter<Boolean>("draft")
+            {
+                required = false
+                description = "若为true则只返回没有非草稿版本的帖子, 若为false则只返回有非草稿版本的帖子, 不填则返回所有"
+            }
         }
         response {
             statuses<Slice<PostFullBasicInfo>>(HttpStatus.OK, example = sliceOf(PostFullBasicInfo.example))
@@ -493,19 +498,21 @@ private suspend fun Context.getPosts()
                ?: return call.respond(HttpStatus.BadRequest.subStatus("sort参数错误"))
     val tag = call.parameters["tag"]
     val comment = call.parameters["comment"]?.toBooleanStrictOrNull() ?: false
+    val draft = call.parameters["draft"]?.toBooleanStrictOrNull()
 
     val (begin, count) = call.getPage()
     val posts = get<Posts>().getPosts(
-        loginUser?.toDatabaseUser(),
-        if (author == UserId(0)) (loginUser?.id ?: return call.respond(HttpStatus.Unauthorized)) else author,
-        block,
-        top,
-        state,
-        tag,
-        comment,
-        type,
-        begin,
-        count
+        loginUser = loginUser?.toDatabaseUser(),
+        author = if (author == UserId(0)) (loginUser?.id ?: return call.respond(HttpStatus.Unauthorized)) else author,
+        block = block,
+        top = top,
+        state = state,
+        tag = tag,
+        comment = comment,
+        draft = draft,
+        sortBy = type,
+        begin = begin,
+        limit = count
     )
     call.respond(HttpStatus.OK, checkAnonymous(posts))
 }
