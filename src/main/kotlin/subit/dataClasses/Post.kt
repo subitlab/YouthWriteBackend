@@ -9,18 +9,49 @@ data class PostVersionInfo(
     val id: PostVersionId,
     val post: PostId,
     val title: String,
-    val content: String,
+    val content: String?,
+    val operation: Operation?,
     val time: Long,
     val draft: Boolean,
 )
 {
+
+    @Serializable
+    data class Interval(val start: Int, val end: Int)
+
+    @Serializable
+    data class Operation(
+        val insert: Map<Int, String> = mapOf(),
+        val del: List<Interval> = listOf(),
+        val newTitle: String,
+        val draft: Boolean,
+        val oldVersionId: PostVersionId,
+    )
+    {
+        companion object
+        {
+            val example = Operation(mapOf(0 to "a"), listOf(Interval(1, 2)), "new title", false, PostVersionId(0))
+        }
+    }
+
     companion object
     {
-        val example = PostVersionInfo(
+        val example0 = PostVersionInfo(
             PostVersionId(1),
             PostId(1),
             "标题",
             "内容",
+            null,
+            System.currentTimeMillis(),
+            false,
+        )
+
+        val example1 = PostVersionInfo(
+            PostVersionId(1),
+            PostId(1),
+            "标题",
+            null,
+            Operation.example,
             System.currentTimeMillis(),
             false,
         )
@@ -41,7 +72,7 @@ data class PostVersionBasicInfo(
 {
     companion object
     {
-        val example = PostVersionInfo.example.toPostVersionBasicInfo()
+        val example = PostVersionInfo.example0.toPostVersionBasicInfo()
     }
 }
 

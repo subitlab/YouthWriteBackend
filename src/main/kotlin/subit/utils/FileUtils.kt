@@ -3,13 +3,13 @@ package subit.utils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 import subit.config.filesConfig
 import subit.dataClasses.DatabaseUser
 import subit.dataClasses.PermissionLevel
 import subit.dataClasses.UserFull
 import subit.dataClasses.UserId
 import subit.dataDir
+import subit.plugin.dataJson
 import java.awt.image.BufferedImage
 import java.io.File
 import java.io.FileInputStream
@@ -49,13 +49,6 @@ object FileUtils
         HomeFilesUtils.init()
     }
 
-    val fileInfoSerializer = Json()
-    {
-        prettyPrint = false
-        ignoreUnknownKeys = true
-        encodeDefaults = true
-    }
-
     @Serializable
     data class FileInfo(
         val fileName: String,
@@ -75,7 +68,7 @@ object FileUtils
         this != null && (this.id == file.user || this.filePermission >= PermissionLevel.ADMIN)
 
     private fun getFileInfo(file: File): FileInfo? = runCatching {
-        fileInfoSerializer.decodeFromString(FileInfo.serializer(), file.readText())
+        dataJson.decodeFromString<FileInfo>(file.readText())
     }.getOrNull()
 
     private fun getRandomId(): UUID
@@ -136,7 +129,7 @@ object FileUtils
 
         val md5 = getFileMd5(rawFile)
         val fileInfo = FileInfo(fileName, user, public, rawFile.length(), md5)
-        fileInfoSerializer.encodeToString(FileInfo.serializer(), fileInfo).let(indexFile::writeText)
+        dataJson.encodeToString(FileInfo.serializer(), fileInfo).let(indexFile::writeText)
         return id
     }
 
@@ -207,7 +200,7 @@ object FileUtils
     fun changeInfo(id: UUID, info: FileInfo)
     {
         val indexFile = File(indexFolder, "${id}.index")
-        indexFile.writeText(fileInfoSerializer.encodeToString(FileInfo.serializer(), info))
+        indexFile.writeText(dataJson.encodeToString(FileInfo.serializer(), info))
     }
 }
 

@@ -7,6 +7,7 @@ import org.koin.core.component.KoinComponent
 import subit.dataClasses.*
 import subit.database.PostVersions
 import subit.dataClasses.Slice.Companion.asSlice
+import subit.plugin.contentNegotiationJson
 import subit.utils.toInstant
 
 class PostVersionsImpl: PostVersions, KoinComponent
@@ -27,7 +28,8 @@ class PostVersionsImpl: PostVersions, KoinComponent
             PostVersionId(list.size + 1L),
             post,
             title,
-            content,
+            if (draft) null else content,
+            if (!draft) contentNegotiationJson.decodeFromString(content) else null,
             System.currentTimeMillis(),
             draft,
         )

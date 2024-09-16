@@ -1,6 +1,5 @@
 package subit.database.sqlImpl
 
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.serializer
 import org.jetbrains.exposed.sql.Table
 import org.jetbrains.exposed.sql.insert
@@ -9,6 +8,7 @@ import org.jetbrains.exposed.sql.kotlin.datetime.timestampWithTimeZone
 import org.koin.core.component.KoinComponent
 import subit.dataClasses.UserId
 import subit.database.Operations
+import subit.plugin.dataJson
 import kotlin.reflect.KType
 
 class OperationsImpl: DaoSqlImpl<OperationsImpl.OperationsTable>(OperationsTable), Operations, KoinComponent
@@ -21,19 +21,13 @@ class OperationsImpl: DaoSqlImpl<OperationsImpl.OperationsTable>(OperationsTable
         val time = timestampWithTimeZone("time").defaultExpression(CurrentTimestampWithTimeZone).index()
     }
 
-    private val operationSerializer = Json()
-    {
-        encodeDefaults = true
-        ignoreUnknownKeys = true
-    }
-
     override suspend fun <T> addOperation(admin: UserId, operation: T, type: KType): Unit = query()
     {
         insert {
             it[OperationsTable.admin] = admin
             it[operationType] = type.toString()
             it[OperationsTable.operation] =
-                if (type.classifier == null) "" else operationSerializer.encodeToString(serializer(type), operation)
+                if (type.classifier == null) "" else dataJson.encodeToString(serializer(type), operation)
         }
     }
 }

@@ -10,6 +10,7 @@ import subit.dataClasses.Slice
 import subit.database.PostVersions
 import subit.database.sqlImpl.utils.asSlice
 import subit.database.sqlImpl.utils.singleOrNull
+import subit.plugin.contentNegotiationJson
 
 class PostVersionsImpl: DaoSqlImpl<PostVersionsImpl.PostVersionsTable>(PostVersionsTable), PostVersions, KoinComponent
 {
@@ -28,7 +29,8 @@ class PostVersionsImpl: DaoSqlImpl<PostVersionsImpl.PostVersionsTable>(PostVersi
         id = row[PostVersionsTable.id].value,
         post = row[PostVersionsTable.post].value,
         title = row[PostVersionsTable.title],
-        content = row[PostVersionsTable.content],
+        content = if (!row[PostVersionsTable.draft]) row[PostVersionsTable.content] else null,
+        operation = if (!row[PostVersionsTable.draft]) contentNegotiationJson.decodeFromString(row[PostVersionsTable.content]) else null,
         time = row[PostVersionsTable.time].toEpochMilliseconds(),
         draft = row[PostVersionsTable.draft],
     )

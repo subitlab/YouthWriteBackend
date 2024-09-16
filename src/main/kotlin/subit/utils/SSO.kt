@@ -2,12 +2,12 @@ package subit.utils
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.Json
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import subit.config.systemConfig
 import subit.dataClasses.*
 import subit.database.Users
+import subit.plugin.dataJson
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -15,21 +15,15 @@ import java.net.URL
 object SSO: KoinComponent
 {
     val users: Users by inject()
-    private val json = Json {
-        ignoreUnknownKeys = true
-        isLenient = true
-        allowStructuredMapKeys = true
-        encodeDefaults = true
-    }
 
     private fun decodeSsoUser(response: String): SsoUser?
     {
         runCatching {
-            return json.decodeFromString<Response<SsoUserFull>>(response).data
+            return dataJson.decodeFromString<Response<SsoUserFull>>(response).data
         }
 
         runCatching {
-            return json.decodeFromString<Response<SsoUserInfo>>(response).data
+            return dataJson.decodeFromString<Response<SsoUserInfo>>(response).data
         }
 
         return null

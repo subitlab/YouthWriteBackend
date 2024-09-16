@@ -7,6 +7,7 @@ import io.ktor.server.application.*
 import io.ktor.server.plugins.ratelimit.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
 import subit.dataClasses.*
 import subit.dataClasses.BlockId.Companion.toBlockIdOrNull
 import subit.dataClasses.PostId.Companion.toPostIdOrNull
@@ -14,6 +15,7 @@ import subit.dataClasses.PostVersionId.Companion.toPostVersionIdOrNull
 import subit.dataClasses.UserId.Companion.toUserIdOrNull
 import subit.database.*
 import subit.plugin.RateLimit
+import subit.plugin.contentNegotiationJson
 import subit.router.utils.*
 import subit.utils.*
 
@@ -141,11 +143,11 @@ private fun Route.id() = route("/{id}",{
                 GET /post/{id} 返回的最新版本ID是最新的非草稿版本ID, 但最新版本可能是草稿版本.
                 """.trimIndent()
             request {
-                body<EditPost>
+                body<PostVersionInfo.Operation>
                 {
                     required = true
                     description = "编辑帖子"
-                    example("example", EditPost(mapOf(0 to "a"), listOf(Interval(1, 2)), "new title", false, PostVersionId(0)))
+                    example("example", PostVersionInfo.Operation.example)
                 }
             }
             response {
@@ -234,7 +236,8 @@ private fun Route.version() = route("/version", {
             }
         }
         response {
-            statuses<PostVersionInfo>(HttpStatus.OK, example = PostVersionInfo.example)
+            statuses<PostVersionInfo>(HttpStatus.OK, examples = listOf(PostVersionInfo.example0, PostVersionInfo.example1))
+
         }
     }) { getVersion() }
 }
@@ -247,36 +250,41 @@ private suspend fun Context.getPost()
     call.respond(HttpStatus.OK, checkAnonymous(postFull))
 }
 
-@Serializable data class Interval(val start: Int, val end: Int)
-
-@Serializable
-data class EditPost(
-    val insert: Map<Int, String> = mapOf(),
-    val del: List<Interval> = listOf(),
-    val newTitle: String? = null,
-    val draft: Boolean,
-    val oldVersionId: PostVersionId,
-)
-
 val editPostLock = Locks<PostId>()
 private suspend fun Context.editPost()
 {
-    val operators = receiveAndCheckBody<EditPost>()
+    val operators = receiveAndCheckBody<PostVersionInfo.Operation>()
     val id = call.parameters["id"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
-    val postInfo = get<Posts>().getPostInfo(id) ?: return call.respond(HttpStatus.NotFound)
-    if (postInfo.author != loginUser.id) call.respond(HttpStatus.Forbidden.subStatus(message = "文章仅允许作者编辑"))
-    if ((operators.newTitle?.length ?: 0) >= 256) return call.respond(HttpStatus.BadRequest.subStatus(message = "标题过长"))
+
+    val postVersions = get<PostVersions>()
+
+    if (operators.draft)
+    {
+        postVersions.createPostVersion(
+            post = id,
+            title = operators.newTitle,
+            content = contentNegotiationJson.encodeToString<PostVersionInfo.Operation>(operators),
+            draft = true
+        )
+
+        finishCall(HttpStatus.OK)
+    }
 
     editPostLock.tryWithLock(id, { call.respond(HttpStatus.TooManyRequests) })
     {
-        val postVersions = get<PostVersions>()
+        val postInfo = get<Posts>().getPostFullBasicInfo(id) ?: return call.respond(HttpStatus.NotFound)
         val wordMarkings = get<WordMarkings>()
-        val oldVersion = postVersions.getLatestPostVersion(id, true) ?: return@tryWithLock call.respond(HttpStatus.NotFound)
-        if (operators.oldVersionId != oldVersion) return@tryWithLock call.respond(HttpStatus.NotLatestVersion)
-        val oldVersionInfo = postVersions.getPostVersion(oldVersion) ?: return@tryWithLock call.respond(HttpStatus.NotFound)
 
-        var markings = wordMarkings.getWordMarkings(oldVersion)
+        if (postInfo.author != loginUser.id) call.respond(HttpStatus.Forbidden.subStatus(message = "文章仅允许作者编辑"))
+        if (operators.newTitle.length >= 256) return call.respond(HttpStatus.BadRequest.subStatus(message = "标题过长"))
+
+        if (operators.oldVersionId != postInfo.lastVersionId) return@tryWithLock call.respond(HttpStatus.NotLatestVersion)
+        val oldVersionInfo = postVersions.getPostVersion(postInfo.lastVersionId) ?: return@tryWithLock call.respond(HttpStatus.NotFound)
+
+        oldVersionInfo.content!! // 保证content不为空
+
+        var markings = wordMarkings.getWordMarkings(postInfo.lastVersionId)
 
         val del = IntArray(oldVersionInfo.content.length + 1)
         for (i in operators.del) // 在每个删除区间的左端点处+1, 右端点+1处-1
@@ -304,10 +312,9 @@ private suspend fun Context.editPost()
 
         val newVersion = postVersions.createPostVersion(
             post = id,
-            title = operators.newTitle ?: oldVersionInfo.title,
+            title = operators.newTitle,
             content = newContent.toString(),
-            draft = operators.draft
-
+            draft = false
         )
 
         markings.map { it.copy(postVersion = newVersion) }

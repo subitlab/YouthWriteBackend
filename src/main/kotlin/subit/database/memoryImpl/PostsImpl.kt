@@ -131,12 +131,12 @@ class PostsImpl: Posts, KoinComponent
     override suspend fun getPostFull(pid: PostId): PostFull?
     {
         val post = map[pid]?.first ?: return null
-        val lastVersionId = postVersions.getPostVersions(pid, false, 0, 1).list.firstOrNull()?.id ?: return null
+        val lastVersionId = postVersions.getLatestPostVersion(pid, false) ?: return null
         val lastVersion = postVersions.getPostVersion(lastVersionId) ?: return null
 
         return post.toPostFull(
             title = lastVersion.title,
-            content = lastVersion.content,
+            content = lastVersion.content!!,
             lastModified = (postVersions as PostVersionsImpl).getLastModified(pid).toEpochMilliseconds(),
             create = (postVersions as PostVersionsImpl).getCreate(pid).toEpochMilliseconds(),
             like = likes.getLikesCount(pid),
