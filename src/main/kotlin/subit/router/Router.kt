@@ -24,6 +24,7 @@ import subit.router.report.report
 import subit.router.tags.tag
 import subit.router.teapot.teapot
 import subit.router.user.user
+import subit.router.utils.getLoginUser
 import subit.router.wordMarkings.wordMarking
 import subit.utils.HttpStatus
 import subit.utils.respond

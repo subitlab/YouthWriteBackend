@@ -6,6 +6,7 @@ import io.ktor.server.plugins.*
 import io.ktor.server.plugins.statuspages.*
 import io.ktor.server.request.*
 import subit.logger.ForumLogger
+import subit.router.utils.CallFinish
 import subit.utils.HttpStatus
 import subit.utils.respond
 import kotlin.time.Duration.Companion.seconds
@@ -16,6 +17,8 @@ import kotlin.time.Duration.Companion.seconds
 fun Application.installStatusPages() = install(StatusPages)
 {
     val logger = ForumLogger.getLogger()
+
+    exception<CallFinish> { call, finish -> finish.block(call) }
     exception<BadRequestException> { call, _ -> call.respond(HttpStatus.BadRequest) }
     exception<Throwable>
     { call, throwable ->
@@ -23,11 +26,6 @@ fun Application.installStatusPages() = install(StatusPages)
             .warning("出现位置错误, 访问接口: ${call.request.path()}", throwable)
         call.respond(HttpStatus.InternalServerError)
     }
-    /** 包装一层, 因为正常的返回没有body, 但是这里需要返回一个body, 见[HttpStatus] */
-    status(HttpStatusCode.NotFound) { _ -> call.respond(HttpStatus.NotFound) }
-    status(HttpStatusCode.Forbidden) { _ -> call.respond(HttpStatus.Forbidden) }
-    status(HttpStatusCode.BadRequest) { _ -> call.respond(HttpStatus.BadRequest) }
-    status(HttpStatusCode.InternalServerError) { _ -> call.respond(HttpStatus.InternalServerError) }
 
     /** 针对请求过于频繁的处理, 详见[RateLimit] */
     status(HttpStatusCode.TooManyRequests) { _ ->

@@ -12,6 +12,10 @@ import io.ktor.server.application.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import io.ktor.util.*
+import io.ktor.utils.io.core.*
+import io.ktor.utils.io.jvm.javaio.*
+import io.ktor.utils.io.streams.*
 import kotlinx.serialization.Serializable
 import subit.dataClasses.PermissionLevel
 import subit.dataClasses.Slice
@@ -19,15 +23,17 @@ import subit.dataClasses.Slice.Companion.asSlice
 import subit.dataClasses.UserId
 import subit.dataClasses.UserId.Companion.toUserIdOrNull
 import subit.dataClasses.sliceOf
-import subit.database.*
-import subit.router.*
+import subit.database.Operations
+import subit.database.Users
+import subit.database.addOperation
+import subit.database.receiveAndCheckBody
+import subit.router.utils.*
 import subit.utils.*
 import subit.utils.FileUtils.canDelete
 import subit.utils.FileUtils.canGet
 import subit.utils.FileUtils.getSpaceInfo
 import subit.utils.FileUtils.getUserFiles
 import java.io.File
-import java.io.InputStream
 import java.util.*
 
 fun Route.files() = route("files", {
@@ -94,14 +100,18 @@ fun Route.files() = route("files", {
                 required = true
                 description = "第一部分是文件信息, 第二部分是文件数据"
                 mediaTypes(ContentType.MultiPart.FormData)
-                part<UploadFile>("info")
-                {
-                    mediaTypes = listOf(ContentType.Application.Json)
-                }
+
+                part<UploadFile>("info") {}
+
                 part<File>("file")
                 {
                     mediaTypes = listOf(ContentType.Application.OctetStream)
                 }
+            }
+            queryParameter<Long>("size")
+            {
+                required = true
+                description = "文件大小"
             }
         }
         response {
@@ -207,34 +217,31 @@ private suspend fun Context.uploadFile()
     val user = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     val multipart = call.receiveMultipart()
     var fileInfo: UploadFile? = null
-    var input: InputStream? = null
-    var size: Long? = null
+    @Suppress("DEPRECATION")
+    var input: Input? = null
+    val size = call.parameters["size"]?.toLongOrNull() ?: return call.respond(HttpStatus.BadRequest)
     multipart.forEachPart { part ->
+        val content = when (part)
+        {
+            is PartData.FileItem -> part.provider()
+            is PartData.FormItem -> part.value.byteInputStream().asInput()
+            is PartData.BinaryItem -> part.provider()
+            is PartData.BinaryChannelItem -> part.provider().toInputStream().asInput()
+        }
         when (part.name)
         {
-            "info" ->
-            {
-                part as PartData.FormItem
-                fileInfo = FileUtils.fileInfoSerializer.decodeFromString(part.value)
-            }
-
-            "file" ->
-            {
-                part as PartData.FileItem
-                size = part.headers["Content-Length"]?.toLongOrNull()
-                input = part.streamProvider()
-            }
-
-            else   -> Unit
+            "info" -> fileInfo = FileUtils.fileInfoSerializer.decodeFromString(content.readText())
+            "file" -> input = content
         }
     }
-    if (fileInfo == null || input == null || size == null) return call.respond(HttpStatus.BadRequest)
-    if (!user.toDatabaseUser().getSpaceInfo().canUpload(size!!))
+    if (fileInfo == null || input == null) return call.respond(HttpStatus.BadRequest.subStatus("文件信息未知"))
+    if (!user.toDatabaseUser().getSpaceInfo().canUpload(size))
         return call.respond(HttpStatus.NotEnoughSpace)
     if (user.filePermission < PermissionLevel.NORMAL)
         return call.respond(HttpStatus.Forbidden.subStatus("您没有上传文件的权限"))
     FileUtils.saveFile(
-        input = input!!,
+        input = input!!.asStream(),
+        size = size,
         fileName = fileInfo!!.fileName,
         user = user.id,
         public = fileInfo!!.public

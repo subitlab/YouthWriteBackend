@@ -7,9 +7,8 @@ import io.ktor.server.application.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
 import subit.database.BannedWords
-import subit.database.withPermission
 import subit.database.receiveAndCheckBody
-import subit.router.*
+import subit.router.utils.*
 import subit.utils.HttpStatus
 import subit.utils.respond
 import subit.utils.statuses

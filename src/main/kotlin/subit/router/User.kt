@@ -6,13 +6,14 @@ import io.github.smiley4.ktorswaggerui.dsl.routing.get
 import io.github.smiley4.ktorswaggerui.dsl.routing.post
 import io.github.smiley4.ktorswaggerui.dsl.routing.route
 import io.ktor.server.application.*
+import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
 import subit.dataClasses.*
 import subit.dataClasses.UserId.Companion.toUserIdOrNull
 import subit.database.*
 import subit.logger.ForumLogger
-import subit.router.*
+import subit.router.utils.*
 import subit.utils.HttpStatus
 import subit.utils.SSO
 import subit.utils.respond
@@ -197,23 +198,25 @@ private data class ChangeIntroduction(val introduction: String)
 private suspend fun Context.changeIntroduction()
 {
     val id = call.parameters["id"]?.toUserIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
+    withPermission { checkRealName() }
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     val changeIntroduction = receiveAndCheckBody<ChangeIntroduction>()
     if (id == UserId(0))
     {
         get<Users>().changeIntroduction(loginUser.id, changeIntroduction.introduction)
-        call.respond(HttpStatus.OK)
+        return call.respond(HttpStatus.OK)
     }
     else
     {
         withPermission { checkHasGlobalAdmin() }
+        println(call.response.responseType)
         if (get<Users>().changeIntroduction(id, changeIntroduction.introduction))
         {
             get<Operations>().addOperation(loginUser.id, changeIntroduction)
-            call.respond(HttpStatus.OK)
+            return call.respond(HttpStatus.OK)
         }
         else
-            call.respond(HttpStatus.NotFound)
+            return call.respond(HttpStatus.NotFound)
     }
 }
 

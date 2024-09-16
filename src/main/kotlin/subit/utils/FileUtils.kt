@@ -17,6 +17,7 @@ import java.io.InputStream
 import java.security.MessageDigest
 import java.util.*
 import javax.imageio.ImageIO
+import kotlin.math.min
 
 /**
  * 文件工具类
@@ -108,7 +109,7 @@ object FileUtils
      * @param public 是否公开
      * @return 文件id
      */
-    suspend fun saveFile(input: InputStream, fileName: String, user: UserId, public: Boolean): UUID
+    suspend fun saveFile(input: InputStream, size: Long, fileName: String, user: UserId, public: Boolean): UUID
     {
         val id = getRandomId()
         val userFile = File(rawFolder, user.value.toString(16))
@@ -116,7 +117,23 @@ object FileUtils
         val rawFile = File(userFile, "${id}.file")
         val indexFile = File(indexFolder, "${id}.index")
         withContext(Dispatchers.IO) { rawFile.createNewFile() }
-        rawFile.outputStream().use(input::copyTo)
+
+        // 复制前size字节到rawFile
+        withContext(Dispatchers.IO)
+        {
+            val out = rawFile.outputStream()
+            var bytesCopied: Long = 0
+            val buffer = ByteArray(8192)
+            var bytes = input.read(buffer, 0, min(buffer.size.toLong(), size).toInt())
+            while (bytes >= 0)
+            {
+                out.write(buffer, 0, bytes)
+                bytesCopied += bytes
+                if (bytesCopied >= size) break
+                bytes = input.read(buffer, 0, min(buffer.size.toLong(), size - bytesCopied).toInt())
+            }
+        }
+
         val md5 = getFileMd5(rawFile)
         val fileInfo = FileInfo(fileName, user, public, rawFile.length(), md5)
         fileInfoSerializer.encodeToString(FileInfo.serializer(), fileInfo).let(indexFile::writeText)

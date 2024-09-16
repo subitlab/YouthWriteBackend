@@ -10,7 +10,7 @@ import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
 import subit.dataClasses.*
 import subit.database.*
-import subit.router.*
+import subit.router.utils.*
 import subit.utils.HttpStatus
 import subit.utils.SSO
 import subit.utils.respond
@@ -104,7 +104,7 @@ private suspend fun Context.prohibitList()
 {
     withPermission { checkHasGlobalAdmin() }
     val (begin, count) = call.getPage()
-    call.respond(HttpStatus.OK, get<Prohibits>().getProhibitList(begin, count))
+    finishCall(HttpStatus.OK, get<Prohibits>().getProhibitList(begin, count))
 }
 
 @Serializable

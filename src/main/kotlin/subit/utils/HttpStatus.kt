@@ -5,7 +5,7 @@ import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.response.*
 import kotlinx.serialization.Serializable
-import subit.router.example
+import subit.router.utils.example
 
 /**
  * 定义了一些出现的自定义的HTTP状态码, 更多HTTP状态码请参考[io.ktor.http.HttpStatusCode]
@@ -66,6 +66,8 @@ data class HttpStatus(val code: HttpStatusCode, val message: String)
         val TooManyRequests = HttpStatus(HttpStatusCode.TooManyRequests, "请求过于频繁")
         // 编辑的并非最新版本
         val NotLatestVersion = HttpStatus(HttpStatusCode.NotAcceptable, "保存编辑失败, 您编辑的并非最新版本")
+        // 未实名
+        val NotRealName = HttpStatus(HttpStatusCode(451, "Unavailable For Legal Reasons"), "未绑定实名信息")
     }
 
     fun subStatus(message: String) = HttpStatus(code, "${this.message}: $message")

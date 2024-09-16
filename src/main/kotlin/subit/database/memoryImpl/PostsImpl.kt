@@ -11,6 +11,7 @@ import subit.dataClasses.PostId.Companion.toPostId
 import subit.dataClasses.Slice.Companion.asSlice
 import subit.database.*
 import subit.router.home.AdvancedSearchData
+import subit.router.utils.withPermission
 import subit.utils.toInstant
 import java.util.*
 import kotlin.math.pow
@@ -158,7 +159,7 @@ class PostsImpl: Posts, KoinComponent
         sortBy: Posts.PostListSort,
         begin: Long,
         limit: Int
-    ): Slice<PostFullBasicInfo> = withPermission(loginUser)
+    ): Slice<PostFullBasicInfo> = withPermission(loginUser, null)
     {
         map.values
             .filter {
@@ -185,7 +186,7 @@ class PostsImpl: Posts, KoinComponent
         advancedSearchData: AdvancedSearchData,
         begin: Long,
         count: Int
-    ): Slice<PostFullBasicInfo> = withPermission(loginUser)
+    ): Slice<PostFullBasicInfo> = withPermission(loginUser, null)
     {
         map.values
             .map { it.first }
@@ -236,7 +237,7 @@ class PostsImpl: Posts, KoinComponent
         return (post.view + likesCount * 3 + starsCount * 5 + commentsCount * 2) / time.pow(1.8)
     }
 
-    override suspend fun monthly(loginUser: DatabaseUser?, begin: Long, count: Int): Slice<PostFullBasicInfo> = withPermission(loginUser)
+    override suspend fun monthly(loginUser: DatabaseUser?, begin: Long, count: Int): Slice<PostFullBasicInfo> = withPermission(loginUser, null)
     {
         val likes = likes as LikesImpl
         val after = Clock.System.now() - 30.days

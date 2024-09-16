@@ -17,8 +17,7 @@ import subit.dataClasses.hasGlobalAdmin
 import subit.dataClasses.sliceOf
 import subit.database.Posts
 import subit.database.Tags
-import subit.database.withPermission
-import subit.router.*
+import subit.router.utils.*
 import subit.utils.HttpStatus
 import subit.utils.respond
 import subit.utils.statuses
@@ -107,7 +106,7 @@ private suspend fun Context.getPostTags()
 {
     val pid = call.parameters["id"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val post = get<Posts>().getPostInfo(pid) ?: return call.respond(HttpStatus.NotFound)
-    withPermission { checkCanRead(post) }
+    withPermission { checkRead(post) }
     val tags = get<Tags>().getPostTags(pid)
     return call.respond(HttpStatus.OK, tags)
 }

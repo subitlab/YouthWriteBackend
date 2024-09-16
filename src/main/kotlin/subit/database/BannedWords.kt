@@ -4,8 +4,8 @@ import io.ktor.server.application.*
 import io.ktor.server.request.*
 import io.ktor.util.*
 import subit.dataClasses.Slice
-import subit.router.Context
-import subit.router.get
+import subit.router.utils.Context
+import subit.router.utils.get
 import subit.utils.HttpStatus
 import subit.utils.respond
 

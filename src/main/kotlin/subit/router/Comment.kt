@@ -13,8 +13,8 @@ import subit.dataClasses.*
 import subit.dataClasses.PostId.Companion.toPostIdOrNull
 import subit.database.*
 import subit.plugin.RateLimit
-import subit.router.*
 import subit.router.posts.editPostLock
+import subit.router.utils.*
 import subit.utils.HttpStatus
 import subit.utils.respond
 import subit.utils.statuses
@@ -123,8 +123,8 @@ private suspend fun Context.commentPost()
     val parent = posts.getPostInfo(postId) ?: return call.respond(HttpStatus.NotFound.subStatus("目标帖子不存在"))
     val block = get<Blocks>().getBlock(parent.block) ?: return call.respond(HttpStatus.NotFound.subStatus("目标板块不存在"))
     withPermission {
-        checkCanComment(parent)
-        if (newComment.anonymous) checkCanAnonymous(block)
+        checkComment(parent)
+        if (newComment.anonymous) checkAnonymous(block)
     }
 
     val commentId = posts.createPost(
@@ -170,7 +170,7 @@ private suspend fun Context.getPostComments()
     val (begin, count) = call.getPage()
     val posts = get<Posts>()
     val post = posts.getPostInfo(postId) ?: return call.respond(HttpStatus.NotFound)
-    withPermission { checkCanRead(post) }
+    withPermission { checkRead(post) }
     val comments = posts.getChildPosts(postId, type, begin, count)
     call.respond(HttpStatus.OK, checkAnonymous(comments))
 }
@@ -182,7 +182,7 @@ private suspend fun Context.getCommentComments()
     val (begin, count) = call.getPage()
     val posts = get<Posts>()
     val comment = posts.getPostInfo(commentId) ?: return call.respond(HttpStatus.NotFound)
-    withPermission { checkCanRead(comment) }
+    withPermission { checkRead(comment) }
     val comments = posts.getDescendants(commentId, type, begin, count)
     call.respond(HttpStatus.OK, checkAnonymous(comments))
 }
@@ -192,6 +192,6 @@ private suspend fun Context.getComment()
     val commentId = call.parameters["commentId"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val posts = get<Posts>()
     val comment = posts.getPostFull(commentId) ?: return call.respond(HttpStatus.NotFound)
-    withPermission { checkCanRead(comment.toPostInfo()) }
+    withPermission { checkRead(comment.toPostInfo()) }
     call.respond(HttpStatus.OK, checkAnonymous(comment))
 }

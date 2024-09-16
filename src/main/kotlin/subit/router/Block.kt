@@ -10,7 +10,7 @@ import subit.dataClasses.*
 import subit.dataClasses.BlockId.Companion.toBlockIdOrNull
 import subit.dataClasses.UserId.Companion.toUserIdOrNull
 import subit.database.*
-import subit.router.*
+import subit.router.utils.*
 import subit.utils.HttpStatus
 import subit.utils.SSO
 import subit.utils.respond
@@ -205,7 +205,7 @@ private suspend fun Context.getBlockInfo()
 {
     val id = call.parameters["id"]?.toBlockIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val block = get<Blocks>().getBlock(id) ?: return call.respond(HttpStatus.NotFound)
-    withPermission { checkCanRead(block) }
+    withPermission { checkRead(block) }
     call.respond(HttpStatus.OK, block)
 }
 
@@ -213,9 +213,9 @@ private suspend fun Context.deleteBlock()
 {
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     val id = call.parameters["id"]?.toBlockIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
-    withPermission { checkHasAdminIn(id) }
     val blocks = get<Blocks>()
     val block = blocks.getBlock(id) ?: return call.respond(HttpStatus.NotFound)
+    withPermission { checkChangeState(block, State.DELETED) }
     blocks.setState(id, State.DELETED)
     get<Operations>().addOperation(loginUser.id, id)
     if (loginUser.id != block.creator) get<Notices>().createNotice(
@@ -264,7 +264,7 @@ private suspend fun Context.getPermission()
     val blocks = get<Blocks>()
     withPermission()
     {
-        checkCanRead(blocks.getBlock(bid) ?: return call.respond(HttpStatus.NotFound))
+        checkRead(blocks.getBlock(bid) ?: return call.respond(HttpStatus.NotFound))
         if (uid != UserId(0)) checkHasAdminIn(bid)
     }
     val user =
@@ -283,7 +283,7 @@ private suspend fun Context.getChildren()
     withPermission()
     {
         val block = id?.let { blocks.getBlock(it) }
-        if (block != null) checkCanRead(block)
+        if (block != null) checkRead(block)
     }
 
     blocks.getChildren(getLoginUser()?.id, id, begin, count).let { call.respond(HttpStatus.OK, it) }

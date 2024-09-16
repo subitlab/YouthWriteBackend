@@ -14,7 +14,7 @@ import subit.dataClasses.PostVersionId.Companion.toPostVersionIdOrNull
 import subit.dataClasses.UserId.Companion.toUserIdOrNull
 import subit.database.*
 import subit.plugin.RateLimit
-import subit.router.*
+import subit.router.utils.*
 import subit.utils.*
 
 fun Route.posts() = route("/post", {
@@ -238,7 +238,7 @@ private suspend fun Context.getPost()
 {
     val id = call.parameters["id"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val postFull = get<Posts>().getPostFull(id) ?: return call.respond(HttpStatus.NotFound)
-    withPermission { checkCanRead(postFull.toPostInfo()) }
+    withPermission { checkRead(postFull.toPostInfo()) }
     call.respond(HttpStatus.OK, checkAnonymous(postFull))
 }
 
@@ -372,7 +372,7 @@ private suspend fun Context.changeState()
     val state = call.parameters["state"]?.toEnumOrNull<State>() ?: return call.respond(HttpStatus.BadRequest)
     val post = get<Posts>().getPostInfo(id) ?: return call.respond(HttpStatus.NotFound)
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
-    withPermission { checkCanChangeState(post, state) }
+    withPermission { checkChangeState(post, state) }
 
     if (post.state == state) return call.respond(HttpStatus.OK)
 
@@ -404,7 +404,7 @@ private suspend fun Context.likePost()
     val post = get<Posts>().getPostInfo(id) ?: return call.respond(HttpStatus.NotFound)
     val type = receiveAndCheckBody<LikePost>().type
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
-    withPermission { checkCanRead(post) }
+    withPermission { checkRead(post) }
     when (type)
     {
         LikeType.LIKE    -> get<Likes>().addLike(loginUser.id, id)
@@ -431,7 +431,7 @@ private suspend fun Context.getLikeStatus()
     val id = call.parameters["id"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val post = get<Posts>().getPostInfo(id) ?: return call.respond(HttpStatus.NotFound)
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
-    withPermission { checkCanRead(post) }
+    withPermission { checkRead(post) }
     val like = get<Likes>().getLike(loginUser.id, id)
     val star = get<Stars>().getStar(loginUser.id, id)
     call.respond(HttpStatus.OK, LikeStatus(like, star))
@@ -458,8 +458,8 @@ private suspend fun Context.newPost()
 
     withPermission()
     {
-        checkCanPost(block)
-        if (newPost.anonymous) checkCanAnonymous(block)
+        checkPost(block)
+        if (newPost.anonymous) checkAnonymous(block)
         if (newPost.top) checkHasAdminIn(block.id)
     }
 
@@ -516,7 +516,7 @@ private suspend fun Context.setBlockTopPosts()
     val top = call.parameters["top"]?.toBooleanStrictOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val postInfo = get<Posts>().getPostInfo(pid) ?: return call.respond(HttpStatus.NotFound)
     withPermission {
-        checkCanRead(postInfo)
+        checkRead(postInfo)
         checkHasAdminIn(postInfo.block)
     }
     if (!get<Posts>().setTop(pid, top = top)) return call.respond(HttpStatus.NotFound)
@@ -551,8 +551,8 @@ private suspend fun Context.getVersion()
     val version = get<PostVersions>().getPostVersion(versionId) ?: return call.respond(HttpStatus.NotFound)
     val post = get<Posts>().getPostInfo(version.post) ?: return call.respond(HttpStatus.NotFound)
     withPermission {
-        checkCanRead(post)
-        if (version.draft && post.author != user?.id && !hasGlobalAdmin()) return call.respond(HttpStatus.Forbidden)
+        checkRead(post)
+        if (version.draft && post.author != user?.id && !hasGlobalAdmin) return call.respond(HttpStatus.Forbidden)
     }
     call.respond(HttpStatus.OK, version)
 }

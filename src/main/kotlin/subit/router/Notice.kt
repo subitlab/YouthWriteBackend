@@ -10,7 +10,7 @@ import subit.dataClasses.*
 import subit.dataClasses.Notice.*
 import subit.dataClasses.NoticeId.Companion.toNoticeIdOrNull
 import subit.database.Notices
-import subit.router.*
+import subit.router.utils.*
 import subit.utils.HttpStatus
 import subit.utils.respond
 import subit.utils.statuses

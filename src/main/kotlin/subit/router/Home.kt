@@ -19,9 +19,8 @@ import subit.dataClasses.*
 import subit.database.Blocks
 import subit.database.Posts
 import subit.database.receiveAndCheckBody
-import subit.database.withPermission
 import subit.plugin.RateLimit
-import subit.router.*
+import subit.router.utils.*
 import subit.utils.HomeFilesUtils
 import subit.utils.HttpStatus
 import subit.utils.respond
@@ -248,7 +247,11 @@ private suspend fun Context.getMessage()
 
 private suspend fun Context.putMessage()
 {
-    withPermission { checkHasGlobalAdmin() }
+    withPermission()
+    {
+        checkHasGlobalAdmin()
+        checkRealName()
+    }
     val message = receiveAndCheckBody<Message>()
     HomeFilesUtils.homeMd = message.message
     call.respond(HttpStatus.OK)
@@ -266,7 +269,11 @@ private suspend fun Context.getImage()
 
 private suspend fun Context.putImage()
 {
-    withPermission { checkHasGlobalAdmin() }
+    withPermission()
+    {
+        checkHasGlobalAdmin()
+        checkRealName()
+    }
     val image = call.receiveStream()
     HomeFilesUtils.homePng = withContext(Dispatchers.IO) { ImageIO.read(image) }
     call.respond(HttpStatus.OK)
@@ -279,7 +286,11 @@ private suspend fun Context.getAnnouncement()
 
 private suspend fun Context.putAnnouncement()
 {
-    withPermission { checkHasGlobalAdmin() }
+    withPermission()
+    {
+        checkHasGlobalAdmin()
+        checkRealName()
+    }
     val message = receiveAndCheckBody<Message>()
     HomeFilesUtils.announcementMd = message.message
     call.respond(HttpStatus.OK)

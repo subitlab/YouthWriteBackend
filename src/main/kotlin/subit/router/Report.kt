@@ -2,16 +2,17 @@
 
 package subit.router.report
 
-import io.github.smiley4.ktorswaggerui.dsl.routing.*
+import io.github.smiley4.ktorswaggerui.dsl.routing.get
+import io.github.smiley4.ktorswaggerui.dsl.routing.post
+import io.github.smiley4.ktorswaggerui.dsl.routing.route
 import io.ktor.server.application.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
 import subit.dataClasses.*
 import subit.dataClasses.ReportId.Companion.toReportIdOrNull
 import subit.database.Reports
-import subit.database.withPermission
 import subit.database.receiveAndCheckBody
-import subit.router.*
+import subit.router.utils.*
 import subit.utils.HttpStatus
 import subit.utils.respond
 import subit.utils.statuses
