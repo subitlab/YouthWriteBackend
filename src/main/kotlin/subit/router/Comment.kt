@@ -27,7 +27,7 @@ fun Route.comment() = route("/comment", {
     rateLimit(RateLimit.Post.rateLimitName)
     {
         post("/{postId}", {
-            description = "评论一个帖子/回复一个评论"
+            description = "评论一个帖子"
             request {
                 pathParameter<PostId>("postId")
                 {
@@ -47,8 +47,8 @@ fun Route.comment() = route("/comment", {
         }) { commentPost() }
     }
 
-    get("/post/{postId}", {
-        description = "获取一个帖子的评论列表(仅包含一级评论, 不包括回复即2~n级评论)"
+    get("/list/{postId}", {
+        description = "获取一个帖子的评论列表, 即获得所有parent为{postId}的帖子"
         request {
             paged()
             pathParameter<PostId>("postId")
@@ -59,7 +59,7 @@ fun Route.comment() = route("/comment", {
             queryParameter<Posts.PostListSort>("sort")
             {
                 description = "排序方式"
-                required = false
+                required = true
                 example(Posts.PostListSort.NEW)
             }
         }
@@ -67,21 +67,21 @@ fun Route.comment() = route("/comment", {
             statuses<Slice<PostFull>>(HttpStatus.OK, example = sliceOf(PostFull.example))
             statuses(HttpStatus.NotFound)
         }
-    }) { getPostComments() }
+    }) { getComments(all = false) }
 
-    get("/comment/{commentId}", {
-        description = "获取一个评论的回复列表, 即该评论下的所有回复, 包括2~n级评论"
+    get("/list/{postId}/all", {
+        description = "获取一个帖子的所有评论, 即获得所有parent为{postId}的帖子及其所有后代"
         request {
             paged()
-            pathParameter<PostId>("commentId")
+            pathParameter<PostId>("postId")
             {
                 required = true
-                description = "评论id"
+                description = "帖子id"
             }
             queryParameter<Posts.PostListSort>("sort")
             {
                 description = "排序方式"
-                required = false
+                required = true
                 example(Posts.PostListSort.NEW)
             }
         }
@@ -89,22 +89,7 @@ fun Route.comment() = route("/comment", {
             statuses<Slice<PostFull>>(HttpStatus.OK, example = sliceOf(PostFull.example))
             statuses(HttpStatus.NotFound)
         }
-    }) { getCommentComments() }
-
-    get("/{commentId}", {
-        description = "获取一个评论的信息"
-        request {
-            pathParameter<PostId>("commentId")
-            {
-                required = true
-                description = "评论id"
-            }
-        }
-        response {
-            statuses<PostFull>(HttpStatus.OK, example = PostFull.example)
-            statuses(HttpStatus.NotFound)
-        }
-    }) { getComment() }
+    }) { getComments(all = true) }
 }
 
 @Serializable
@@ -154,7 +139,7 @@ private suspend fun Context.commentPost()
 
     if (loginUser.id != parent.author) get<Notices>().createNotice(
         Notice.makeObjectMessage(
-            type = if (postId == commentId) Notice.Type.POST_COMMENT else Notice.Type.COMMENT_REPLY,
+            type = if (parent.parent == null) Notice.Type.POST_COMMENT else Notice.Type.COMMENT_REPLY,
             user = parent.author,
             obj = postId,
         )
@@ -163,7 +148,7 @@ private suspend fun Context.commentPost()
     call.respond(HttpStatus.OK)
 }
 
-private suspend fun Context.getPostComments()
+private suspend fun Context.getComments(all: Boolean)
 {
     val postId = call.parameters["postId"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val type = call.parameters["sort"]?.toEnumOrNull<Posts.PostListSort>() ?: Posts.PostListSort.NEW
@@ -171,27 +156,6 @@ private suspend fun Context.getPostComments()
     val posts = get<Posts>()
     val post = posts.getPostInfo(postId) ?: return call.respond(HttpStatus.NotFound)
     withPermission { checkRead(post) }
-    val comments = posts.getChildPosts(postId, type, begin, count)
+    val comments = if (all) posts.getDescendants(postId, type, begin, count) else posts.getChildPosts(postId, type, begin, count)
     call.respond(HttpStatus.OK, checkAnonymous(comments))
-}
-
-private suspend fun Context.getCommentComments()
-{
-    val commentId = call.parameters["commentId"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
-    val type = call.parameters["sort"].toEnumOrNull<Posts.PostListSort>() ?: return call.respond(HttpStatus.BadRequest)
-    val (begin, count) = call.getPage()
-    val posts = get<Posts>()
-    val comment = posts.getPostInfo(commentId) ?: return call.respond(HttpStatus.NotFound)
-    withPermission { checkRead(comment) }
-    val comments = posts.getDescendants(commentId, type, begin, count)
-    call.respond(HttpStatus.OK, checkAnonymous(comments))
-}
-
-private suspend fun Context.getComment()
-{
-    val commentId = call.parameters["commentId"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
-    val posts = get<Posts>()
-    val comment = posts.getPostFull(commentId) ?: return call.respond(HttpStatus.NotFound)
-    withPermission { checkRead(comment.toPostInfo()) }
-    call.respond(HttpStatus.OK, checkAnonymous(comment))
 }

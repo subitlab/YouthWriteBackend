@@ -27,7 +27,7 @@ fun Route.posts() = route("/post", {
     rateLimit(RateLimit.Post.rateLimitName)
     {
         post("/new", {
-            description = "新建帖子"
+            description = "新建帖子, 新建评论见/comment/{postId}"
             request {
                 body<NewPost>
                 {
@@ -81,12 +81,20 @@ fun Route.posts() = route("/post", {
             queryParameter<Boolean>("comment")
             {
                 required = false
-                description = "若为true则只返回评论, 若为false则只返回帖子, 不填视为false"
+                description = """
+                    - true -> 只返回评论
+                    - false -> 只返回帖子
+                    - 不填 -> 返回所有
+                """.trimIndent()
             }
             queryParameter<Boolean>("draft")
             {
                 required = false
-                description = "若为true则只返回没有非草稿版本的帖子, 若为false则只返回有非草稿版本的帖子, 不填则返回所有"
+                description = """
+                    - true -> 返回所有只有草稿版本的帖子
+                    - false -> 返回所有有发布版本的帖子
+                    - 不填 -> 返回所有帖子
+                """.trimIndent()
             }
         }
         response {
@@ -158,7 +166,7 @@ private fun Route.id() = route("/{id}",{
     }
 
     post("/like", {
-        description = "点赞/点踩/取消点赞/收藏/取消收藏 帖子"
+        description = "点赞/取消点赞/收藏/取消收藏 帖子"
         request {
             body<LikePost>
             {
@@ -190,7 +198,7 @@ private fun Route.id() = route("/{id}",{
     }
 
     post("/setTop/{top}", {
-        description = "设置帖子是否置顶"
+        description = "设置帖子是否在板块中置顶, 该接口不适用于评论"
         request {
             pathParameter<Boolean>("top")
             {
@@ -504,7 +512,7 @@ private suspend fun Context.getPosts()
     val type = call.parameters["sort"].toEnumOrNull<Posts.PostListSort>()
                ?: return call.respond(HttpStatus.BadRequest.subStatus("sort参数错误"))
     val tag = call.parameters["tag"]
-    val comment = call.parameters["comment"]?.toBooleanStrictOrNull() ?: false
+    val comment = call.parameters["comment"]?.toBooleanStrictOrNull()
     val draft = call.parameters["draft"]?.toBooleanStrictOrNull()
 
     val (begin, count) = call.getPage()
@@ -529,6 +537,7 @@ private suspend fun Context.setBlockTopPosts()
     val pid = call.parameters["id"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val top = call.parameters["top"]?.toBooleanStrictOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val postInfo = get<Posts>().getPostInfo(pid) ?: return call.respond(HttpStatus.NotFound)
+    if (postInfo.parent != null) return call.respond(HttpStatus.BadRequest.subStatus("评论不允许置顶"))
     withPermission {
         checkRead(postInfo)
         checkHasAdminIn(postInfo.block)

@@ -30,7 +30,7 @@ fun Query.asSlice(begin: Long, limit: Int): Slice<ResultRow> = runCatching()
         .toList()
 
     val resCount = list.first()[totalSize]
-    val resList = list.filter { it[isData] }
+    val resList = list.filter { it[isData] }.sortedBy { it[rowNumber] }
     return Slice(resCount, begin, resList)
 }.getOrElse { it.printStackTrace(); Slice.empty() }
 

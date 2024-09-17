@@ -53,8 +53,8 @@ class NoticesImpl: DaoSqlImpl<NoticesImpl.NoticesTable>(NoticesTable), Notices, 
             if (result == null) insert {
                 it[user] = notice.user
                 it[type] = notice.type
-                it[this.obj] = obj
-                it[this.content] = content
+                it[obj] = notice.obj.value.toLong()
+                it[content] = notice.count.toString()
             }
             else
             {

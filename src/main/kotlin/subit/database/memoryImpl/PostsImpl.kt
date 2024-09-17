@@ -63,8 +63,10 @@ class PostsImpl: Posts, KoinComponent
     private fun sortBy(sortBy: Posts.PostListSort): (PostFull)->Long = {
         when (sortBy)
         {
-            Posts.PostListSort.NEW          -> -(it.create ?: 0)
+            Posts.PostListSort.NEW          -> -(it.create ?: Long.MAX_VALUE)
             Posts.PostListSort.OLD          -> it.create ?: 0
+            Posts.PostListSort.NEW_EDIT     -> -(it.lastModified ?: Long.MAX_VALUE)
+            Posts.PostListSort.OLD_EDIT     -> it.lastModified ?: 0
             Posts.PostListSort.MORE_VIEW    -> -it.view
             Posts.PostListSort.MORE_LIKE    -> runBlocking { -stars.getStarsCount(it.id) }
             Posts.PostListSort.MORE_STAR    -> runBlocking { -likes.getLikesCount(it.id) }
@@ -155,7 +157,7 @@ class PostsImpl: Posts, KoinComponent
         top: Boolean?,
         state: State?,
         tag: String?,
-        comment: Boolean,
+        comment: Boolean?,
         draft: Boolean?,
         sortBy: Posts.PostListSort,
         begin: Long,
@@ -171,7 +173,7 @@ class PostsImpl: Posts, KoinComponent
                 && (top == null || it.second == top)
                 && (state == null || it.first.state == state)
                 && (tag == null || tags.getPostTags(it.first.id).contains(tag))
-                && (comment == (it.first.parent != null))
+                && (comment == null || (it.first.parent != null) == comment)
             }
             .filter { canRead(it.first) }
             .map { getPostFull(it.first.id)!! }

@@ -253,6 +253,21 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
 
     private fun Table.joinPostFull(containsDraft: Boolean) = Join(this).joinPostFull(containsDraft)
 
+    private val Posts.PostListSort.order: Array<Pair<Expression<*>, SortOrder>>
+        get() = when (this)
+        {
+            NEW          -> arrayOf(create.aliasOnlyExpression() to SortOrder.DESC_NULLS_FIRST, PostsTable.id to SortOrder.DESC)
+            OLD          -> arrayOf(create.aliasOnlyExpression() to SortOrder.ASC_NULLS_LAST, PostsTable.id to SortOrder.ASC)
+            NEW_EDIT     -> arrayOf(lastModified.aliasOnlyExpression() to SortOrder.DESC_NULLS_FIRST, PostsTable.id to SortOrder.DESC)
+            OLD_EDIT     -> arrayOf(lastModified.aliasOnlyExpression() to SortOrder.ASC_NULLS_LAST, PostsTable.id to SortOrder.ASC)
+            MORE_VIEW    -> arrayOf(view to SortOrder.DESC)
+            MORE_LIKE    -> arrayOf(like.delegate to SortOrder.DESC)
+            MORE_STAR    -> arrayOf(star.delegate to SortOrder.DESC)
+            MORE_COMMENT -> arrayOf(comment.delegate to SortOrder.DESC)
+            HOT          -> arrayOf(hotScore to SortOrder.DESC)
+            RANDOM_HOT   -> arrayOf(randomHotScore to SortOrder.DESC)
+        }
+
     override suspend fun createPost(
         author: UserId,
         anonymous: Boolean,
@@ -362,7 +377,7 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
             .andWhere { PostsTable.id neq pid }
             .andWhere { PostsTable.state eq State.NORMAL }
             .groupPostFull()
-            .orderBy(sortBy.order)
+            .orderBy(*sortBy.order)
             .asSlice(begin, count)
             .map { deserializePost<PostFull>(it) }
     }
@@ -380,7 +395,7 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
             .andWhere { PostsTable.parent eq pid }
             .andWhere { PostsTable.state eq State.NORMAL }
             .groupPostFull()
-            .orderBy(sortBy.order)
+            .orderBy(*sortBy.order)
             .asSlice(begin, count)
             .map { deserializePost<PostFull>(it) }
     }
@@ -422,19 +437,6 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
             ?.let { deserializePost<PostFullBasicInfo>(it) }
     }
 
-    private val Posts.PostListSort.order: Pair<Expression<*>, SortOrder>
-        get() = when (this)
-        {
-            NEW          -> create.aliasOnlyExpression() to SortOrder.DESC
-            OLD          -> create.aliasOnlyExpression() to SortOrder.ASC
-            MORE_VIEW    -> view to SortOrder.DESC
-            MORE_LIKE    -> like.delegate to SortOrder.DESC
-            MORE_STAR    -> star.delegate to SortOrder.DESC
-            MORE_COMMENT -> comment.delegate to SortOrder.DESC
-            HOT          -> hotScore to SortOrder.DESC
-            RANDOM_HOT   -> randomHotScore to SortOrder.DESC
-        }
-
     /**
      * 获取帖子列表
      */
@@ -445,7 +447,7 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
         top: Boolean?,
         state: State?,
         tag: String?,
-        comment: Boolean,
+        comment: Boolean?,
         draft: Boolean?,
         sortBy: Posts.PostListSort,
         begin: Long,
@@ -495,8 +497,9 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
         }
 
         val checkComment: Query.() -> Query = {
-            if (comment) this.andWhere { PostsTable.parent.isNull() }
-            else this
+            if (comment == null) this
+            else if (comment) this.andWhere { PostsTable.parent.isNotNull() }
+            else this.andWhere { PostsTable.parent.isNull() }
         }
 
         val checkDraft: Query.() -> Query = {
@@ -521,7 +524,7 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
             .orHaving { permissionTable.permission.max() greaterEq blockTable.reading }
             .orHaving { blockTable.reading lessEq PermissionLevel.NORMAL }
             .checkTag()
-            .orderBy(sortBy.order)
+            .orderBy(*sortBy.order)
             .asSlice(begin, limit)
             .map { deserializePost<PostFullBasicInfo>(it) }
     }
@@ -626,7 +629,7 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
             .groupPostFull()
             .orHaving { permissionTable.permission.max() greaterEq blockTable.reading }
             .orHaving { blockTable.reading lessEq PermissionLevel.NORMAL }
-            .orderBy(Posts.PostListSort.MORE_LIKE.order)
+            .orderBy(*Posts.PostListSort.MORE_LIKE.order)
             .asSlice(begin, count)
             .map { deserializePost<PostFullBasicInfo>(it) }
     }

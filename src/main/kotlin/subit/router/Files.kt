@@ -17,16 +17,11 @@ import io.ktor.utils.io.core.*
 import io.ktor.utils.io.jvm.javaio.*
 import io.ktor.utils.io.streams.*
 import kotlinx.serialization.Serializable
-import subit.dataClasses.PermissionLevel
-import subit.dataClasses.Slice
+import subit.dataClasses.*
 import subit.dataClasses.Slice.Companion.asSlice
-import subit.dataClasses.UserId
 import subit.dataClasses.UserId.Companion.toUserIdOrNull
-import subit.dataClasses.sliceOf
-import subit.database.Operations
-import subit.database.Users
-import subit.database.addOperation
-import subit.database.receiveAndCheckBody
+import subit.database.*
+import subit.plugin.contentNegotiationJson
 import subit.router.utils.*
 import subit.utils.*
 import subit.utils.FileUtils.canDelete
@@ -230,7 +225,7 @@ private suspend fun Context.uploadFile()
         }
         when (part.name)
         {
-            "info" -> fileInfo = FileUtils.fileInfoSerializer.decodeFromString(content.readText())
+            "info" -> fileInfo = contentNegotiationJson.decodeFromString(content.readText())
             "file" -> input = content
         }
     }
@@ -297,5 +292,11 @@ private suspend fun Context.changePermission()
     withPermission { checkChangeFilePermission(user, changePermission.filePermission) }
     get<Users>().changeFilePermission(changePermission.id, changePermission.filePermission)
     get<Operations>().addOperation(loginUser.id, changePermission)
+    get<Notices>().createNotice(
+        Notice.makeSystemNotice(
+            user = changePermission.id,
+            content = "您的文件权限被修改为${changePermission.filePermission}"
+        )
+    )
     call.respond(HttpStatus.OK)
 }

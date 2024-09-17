@@ -11,13 +11,21 @@ interface Posts
     enum class PostListSort
     {
         /**
-         * 按照时间从新到旧排序
+         * 按照创建时间从新到旧排序
          */
         NEW,
         /**
-         * 按照时间从旧到新排序
+         * 按照创建时间从旧到新排序
          */
         OLD,
+        /**
+         * 按最新编辑时间从新到旧排序
+         */
+        NEW_EDIT,
+        /**
+         * 按最新编辑时间从旧到新排序
+         */
+        OLD_EDIT,
         /**
          * 按照浏览量从高到低排序
          */
@@ -98,7 +106,7 @@ interface Posts
         top: Boolean?,
         state: State?,
         tag: String?,
-        comment: Boolean,
+        comment: Boolean?,
         draft: Boolean?,
         sortBy: PostListSort,
         begin: Long,
