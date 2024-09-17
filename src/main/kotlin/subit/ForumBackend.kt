@@ -93,7 +93,6 @@ fun main(args: Array<String>)
     // 创建一个临时文件, 用于存储合并后的配置文件
     val tempFile = File.createTempFile("resConfig", ".yaml")
     tempFile.writeText(Yaml.encodeToString(resConfig))
-    println(tempFile.readText())
 
     val resArgs = args1 + "-config=${tempFile.absolutePath}"
 

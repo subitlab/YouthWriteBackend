@@ -3,13 +3,17 @@ package subit.config
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
+import kotlinx.serialization.builtins.serializer
 import net.mamoe.yamlkt.Comment
 import subit.console.ColorDisplayMode
 import subit.console.Console
 import subit.logger.ForumLogger
+import subit.logger.ToFileHandler
 import java.util.logging.Level
 import java.util.logging.LogRecord
 import java.util.regex.Pattern
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.days
 
 @Serializable
 data class LoggerConfig(
@@ -25,7 +29,9 @@ data class LoggerConfig(
     @Comment("日志的颜色样式, 可选值: RGB, SIMPLE, NONE")
     val color: ColorDisplayMode,
     @Comment("是否在日志中使用样式(加粗, 斜体, 下划线等)")
-    val effect: Boolean
+    val effect: Boolean,
+    @Comment("日志文件保存时间, 超过该时间的日志会被删除, 格式为ISO8601")
+    val logFileSaveTime: Duration
 )
 {
     @Transient
@@ -39,12 +45,13 @@ data class LoggerConfig(
 
 var loggerConfig: LoggerConfig by config(
     "logger.yml",
-    LoggerConfig(listOf(), true, "INFO", false, ColorDisplayMode.RGB, true),
+    LoggerConfig(listOf(), true, "INFO", false, ColorDisplayMode.RGB, true, 7.days),
     { _, new ->
         ForumLogger.globalLogger.logger.setLevel(new.level)
         Console.ansiEffectMode =
             if (new.effect) subit.console.EffectDisplayMode.ON
             else subit.console.EffectDisplayMode.OFF
         Console.ansiColorMode = new.color
+        ToFileHandler.clearOld(new.logFileSaveTime)
     }
 )
