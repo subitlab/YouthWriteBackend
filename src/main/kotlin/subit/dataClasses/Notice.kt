@@ -50,7 +50,7 @@ sealed interface Notice
             user: UserId,
             type: Type,
             obj: Id<*, *>,
-            count: Long = 0
+            count: Long = 1
         ): ObjectNotice = when (type)
         {
             Type.POST_COMMENT  -> PostCommentNotice(id, user, obj.value.toPostId(), count)
