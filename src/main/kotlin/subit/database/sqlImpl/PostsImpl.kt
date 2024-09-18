@@ -140,14 +140,14 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
         @Suppress("UNCHECKED_CAST")
         val order = x / (PowerFunction(second, doubleParam(1.8)) as Expression<Long>)
         @Suppress("UNCHECKED_CAST")
-        order as Expression<Double>
+        (order as Expression<Double>).alias("hotScore")
     }
 
     /**
      * 随机热度(即热度乘以一个随机数)
      */
     private val randomHotScore by lazy {
-        CustomFunction("RANDOM", DoubleColumnType()) * hotScore
+        CustomFunction("RANDOM", DoubleColumnType()) * hotScore.delegate
     }
 
     /**
@@ -184,7 +184,8 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
             like = if (type != postInfoType) row[like] else 0,
             star = if (type != postInfoType) row[star] else 0,
             parent = row[PostsTable.parent]?.value,
-            root = row[PostsTable.rootPost]?.value
+            root = row[PostsTable.rootPost]?.value,
+            hotScore = if (type != postInfoType) row[hotScore] else 0.0
         )
 
         return when (type)
@@ -214,7 +215,8 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
         like,
         star,
         PostsTable.parent,
-        PostsTable.rootPost
+        PostsTable.rootPost,
+        hotScore,
     )
 
     /**
@@ -249,7 +251,7 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
             .join(tagsTable, JoinType.LEFT, PostsTable.id, tagsTable.post)
     }
 
-    private fun Query.groupPostFull() = groupBy(*(postFullColumns - star - like).toTypedArray())
+    private fun Query.groupPostFull() = groupBy(*(postFullColumns - star - like - hotScore).toTypedArray())
 
     private fun Table.joinPostFull(containsDraft: Boolean) = Join(this).joinPostFull(containsDraft)
 
@@ -264,7 +266,7 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
             MORE_LIKE    -> arrayOf(like.delegate to SortOrder.DESC)
             MORE_STAR    -> arrayOf(star.delegate to SortOrder.DESC)
             MORE_COMMENT -> arrayOf(comment.delegate to SortOrder.DESC)
-            HOT          -> arrayOf(hotScore to SortOrder.DESC)
+            HOT          -> arrayOf(hotScore.delegate to SortOrder.DESC)
             RANDOM_HOT   -> arrayOf(randomHotScore to SortOrder.DESC)
         }
 
