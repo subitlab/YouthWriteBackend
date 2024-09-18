@@ -37,7 +37,15 @@ fun Route.comment() = route("/comment", {
                 body<NewComment>
                 {
                     description = "评论内容"
-                    example("example", NewComment("评论内容", WordMarking(PostId(1), 0, 10), false))
+                    example(
+                        "example",
+                        NewComment(
+                            content = "评论内容",
+                            wordMarking = WordMarking(PostId(1), 0, 10),
+                            draft = false,
+                            anonymous = false
+                        )
+                    )
                 }
             }
             response {
@@ -93,7 +101,12 @@ fun Route.comment() = route("/comment", {
 }
 
 @Serializable
-private data class NewComment(val content: String, val wordMarking: WordMarking? = null, val anonymous: Boolean)
+private data class NewComment(
+    val content: String,
+    val wordMarking: WordMarking? = null,
+    val draft: Boolean,
+    val anonymous: Boolean
+)
 
 @Serializable
 private data class WordMarking(val postId: PostId, val start: Int, val end: Int)
@@ -119,6 +132,13 @@ private suspend fun Context.commentPost()
         anonymous = newComment.anonymous,
         state = State.NORMAL,
     ) ?: return call.respond(HttpStatus.NotFound.subStatus("目标帖子不存在"))
+
+    get<PostVersions>().createPostVersion(
+        post = commentId,
+        content = newComment.content,
+        title = "",
+        draft = false,
+    )
 
     if (newComment.wordMarking != null) editPostLock.withLock(newComment.wordMarking.postId)
     {
