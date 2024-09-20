@@ -13,9 +13,8 @@ import subit.console.AnsiStyle.Companion.ansi
 import subit.console.Console
 import subit.console.SimpleAnsiColor
 import subit.logger.ForumLogger
+import subit.utils.LinePrintStream
 import subit.utils.Power.shutdown
-import java.io.ByteArrayOutputStream
-import java.io.OutputStream
 import java.io.PrintStream
 
 /**
@@ -28,7 +27,6 @@ object CommandSet: TreeCommand(
     About,
     Clear,
     Logger,
-    Shell,
     Color,
     Maintain,
     TestDatabase,
@@ -52,43 +50,61 @@ object CommandSet: TreeCommand(
     fun Application.startCommandThread() = CoroutineScope(Dispatchers.IO).launch()
     {
         if (Console.lineReader == null) return@launch
-        var line: String? = null
-        while (true) try
+        var line: String?
+        while (true)
         {
-            line = Console.lineReader.readLine(prompt, rightPrompt, null as Char?, null)
+            try
+            {
+                line = Console.lineReader.readLine(prompt, rightPrompt, null as Char?, null)
+            }
+            catch (e: UserInterruptException)
+            {
+                Console.onUserInterrupt(ConsoleCommandSender)
+            }
+            catch (e: EndOfFileException)
+            {
+                logger.warning("Console is closed")
+                shutdown(0, "Console is closed")
+            }
+            if (line == null) continue
+            invokeCommand(ConsoleCommandSender, line)
+        }
+    }.start()
+
+    suspend fun invokeCommand(sender: CommandSender, line: String)
+    {
+        try
+        {
             val words = DefaultParser().parse(line, 0, Parser.ParseContext.ACCEPT_LINE).words()
-            if (words.isEmpty() || (words.size == 1 && words.first().isEmpty())) continue
+            if (words.isEmpty() || (words.size == 1 && words.first().isEmpty())) return
             val command = CommandSet.getCommand(words[0])
-            if (command == null || command.log) logger.info("Console is used command: $line")
+            if (command == null || command.log) logger.info("${sender.name} is used command: $line")
             success = false
             if (command == null)
             {
-                err.println("Unknown command: ${words[0]}, use \"help\" to get help")
+                sender.err.println("Unknown command: ${words[0]}, use \"help\" to get help")
             }
-            else if (!command.execute(words.subList(1, words.size)))
+            else if (!command.execute(sender, words.subList(1, words.size)))
             {
-                err.println("Command is illegal, use \"help ${words[0]}\" to get help")
+                sender.err.println("Command is illegal, use \"help ${words[0]}\" to get help")
             }
             else success = true
         }
-        catch (e: UserInterruptException)
-        {
-            Console.onUserInterrupt()
-        }
-        catch (e: EndOfFileException)
-        {
-            logger.warning("Console is closed")
-            shutdown(0, "Console is closed")
-        }
         catch (e: Throwable)
         {
-            logger.severe("An error occurred while processing the command${line ?: ""}", e)
+            logger.severe("An error occurred while processing the command: $line", e)
         }
-        finally
-        {
-            line = null
-        }
-    }.start()
+    }
+
+    suspend fun invokeTabComplete(line: String): List<String>
+    {
+        val parsedLine = DefaultParser().parse(line, line.length, Parser.ParseContext.ACCEPT_LINE)
+        val words = parsedLine.words()
+        val lastWord =
+            if (words.size > parsedLine.wordIndex()) words[parsedLine.wordIndex()]
+            else ""
+        return CommandSet.tabComplete(words).map { it.value() }.filter { it.startsWith(lastWord) }
+    }
 
     /**
      * Command completer.
@@ -108,30 +124,26 @@ object CommandSet: TreeCommand(
     /**
      * 命令输出流,格式是[COMMAND][INFO/ERROR]message
      */
-    private class CommandOutputStream(private val style: AnsiStyle, private val level: String): OutputStream()
+    private class CommandOutputStream(
+        private val style: AnsiStyle,
+        private val level: String
+    ): LinePrintStream({
+        Console.println("${SimpleAnsiColor.PURPLE.bright()}[COMMAND]$style$level$RESET $it$RESET")
+    })
+
+    interface CommandSender
     {
-        val arrayOutputStream = ByteArrayOutputStream()
-        override fun write(b: Int)
-        {
-            if (b == '\n'.code)
-            {
-                Console.println("${SimpleAnsiColor.PURPLE.bright()}[COMMAND]$style$level$RESET $arrayOutputStream$RESET")
-                arrayOutputStream.reset()
-            }
-            else
-            {
-                arrayOutputStream.write(b)
-            }
-        }
+        val name: String
+        val out: PrintStream
+        val err: PrintStream
+        fun clear()
     }
 
-    /**
-     * Command output stream.
-     */
-    val out: PrintStream = PrintStream(CommandOutputStream(SimpleAnsiColor.BLUE.bright().ansi(), "[INFO]"))
-
-    /**
-     * Command error stream.
-     */
-    val err: PrintStream = PrintStream(CommandOutputStream(SimpleAnsiColor.RED.bright().ansi(), "[ERROR]"))
+    object ConsoleCommandSender: CommandSender
+    {
+        override val name: String = "Console"
+        override val out: PrintStream = CommandOutputStream(SimpleAnsiColor.BLUE.bright().ansi(), "[INFO]")
+        override val err: PrintStream = CommandOutputStream(SimpleAnsiColor.RED.bright().ansi(), "[ERROR]")
+        override fun clear() = Console.clear()
+    }
 }

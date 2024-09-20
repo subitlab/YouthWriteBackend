@@ -158,11 +158,12 @@ private suspend fun Context.commentPost()
     }
 
     if (loginUser.id != parent.author) get<Notices>().createNotice(
-        Notice.makeObjectMessage(
+        Notice.PostNotice(
             type = if (parent.parent == null) Notice.Type.POST_COMMENT else Notice.Type.COMMENT_REPLY,
             user = parent.author,
-            obj = postId,
-        )
+            post = postId,
+        ),
+        loginUser.mergeNotice
     )
 
     call.respond(HttpStatus.OK)

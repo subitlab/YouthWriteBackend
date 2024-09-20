@@ -10,10 +10,10 @@ object Maintain: Command
     override val description: String = "Maintain the server."
     override val args: String = "[true/false]"
 
-    override suspend fun execute(args: List<String>): Boolean
+    override suspend fun execute(sender: CommandSet.CommandSender, args: List<String>): Boolean
     {
         if (args.size > 1) return false
-        if (args.isEmpty()) CommandSet.out.println("System Maintaining: ${systemConfig.systemMaintaining}")
+        if (args.isEmpty()) sender.out.println("System Maintaining: ${systemConfig.systemMaintaining}")
         else
         {
             systemConfig = args[0].toBooleanStrictOrNull()?.let { systemConfig.copy(systemMaintaining = it) } ?: return false

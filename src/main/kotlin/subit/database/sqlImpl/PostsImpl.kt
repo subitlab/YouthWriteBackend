@@ -142,10 +142,7 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
              1)
 
         val create = coalesce(create.aliasOnlyExpression().withColumnType(KotlinInstantColumnType()), timestampParam(0L.toInstant()))
-        @Suppress("UNCHECKED_CAST")
-        create as Expression<Instant>
         val second = (Second(CurrentTimestamp - create) + 1) / 60000
-
         @Suppress("UNCHECKED_CAST")
         val order = x / (PowerFunction(second, doubleParam(1.8)) as Expression<Long>)
         @Suppress("UNCHECKED_CAST")

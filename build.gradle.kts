@@ -43,6 +43,7 @@ dependencies {
     implementation("io.ktor:ktor-server-cors-jvm") // 跨域
     implementation("io.ktor:ktor-server-double-receive-jvm") // 重复接收
     implementation("io.ktor:ktor-server-rate-limit-jvm") // 限流
+    implementation("io.ktor:ktor-server-websockets:$ktor_version")
     implementation("io.github.smiley4:ktor-swagger-ui:$swagger_ui_version") // 创建api页面
     implementation("io.github.smiley4:schema-kenerator-core:$schema_kenerator_version")
     implementation("io.github.smiley4:schema-kenerator-swagger:$schema_kenerator_version")

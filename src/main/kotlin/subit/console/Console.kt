@@ -8,7 +8,6 @@ import org.jline.terminal.TerminalBuilder
 import org.jline.widget.AutopairWidgets
 import org.jline.widget.AutosuggestionWidgets
 import subit.console.command.CommandSet
-import subit.console.command.CommandSet.err
 import subit.dataDir
 import subit.logger.ForumLogger.nativeOut
 import subit.utils.Power
@@ -42,7 +41,7 @@ object Console
 
     init
     {
-        Signal.handle(Signal("INT")) { onUserInterrupt() }
+        Signal.handle(Signal("INT")) { onUserInterrupt(CommandSet.ConsoleCommandSender) }
         var terminal: Terminal? = null
         var lineReader: LineReader? = null
         try
@@ -70,20 +69,20 @@ object Console
         catch (e: Throwable)
         {
             terminal?.close()
-            err.println("Failed to initialize terminal, will use system console instead.")
+            println("Failed to initialize terminal, will use system console instead.")
         }
         this.terminal = terminal
         this.lineReader = lineReader
     }
 
-    fun onUserInterrupt()
+    fun onUserInterrupt(sender: CommandSet.CommandSender): Nothing
     {
-        err.println("You might have pressed Ctrl+C or performed another operation to stop the server.")
-        err.println(
+        sender.err.println("You might have pressed Ctrl+C or performed another operation to stop the server.")
+        sender.err.println(
             "This method is feasible but not recommended, " +
             "it should only be used when a command-line system error prevents the program from closing."
         )
-        err.println("If you want to stop the server, please use the \"stop\" command.")
+        sender.err.println("If you want to stop the server, please use the \"stop\" command.")
         Power.shutdown(0, "User interrupt")
     }
 

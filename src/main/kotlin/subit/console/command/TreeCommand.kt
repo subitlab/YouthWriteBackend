@@ -73,16 +73,16 @@ abstract class TreeCommand(): Command
     /**
      * 执行命令
      */
-    override suspend fun execute(args: List<String>): Boolean
+    override suspend fun execute(sender: CommandSet.CommandSender, args: List<String>): Boolean
     {
         if (args.isEmpty()) return false // 参数过短
         val command = map[args[0]] // 获取命令对象
         return if (command==null) // 如果命令对象不存在
         {
-            CommandSet.err.println("Unknown argument: ${args[0]}")
+            sender.err.println("Unknown argument: ${args[0]}")
             true
         }
-        else command.execute(args.drop(1)) // 删掉第一个参数并给到下一层
+        else command.execute(sender, args.drop(1)) // 删掉第一个参数并给到下一层
     }
 
     /**

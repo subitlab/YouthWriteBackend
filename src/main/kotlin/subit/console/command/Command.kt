@@ -47,7 +47,7 @@ interface Command
      * @param args Command arguments.
      * @return Whether the command is executed successfully.
      */
-    suspend fun execute(args: List<String>): Boolean = false
+    suspend fun execute(sender: CommandSet.CommandSender, args: List<String>): Boolean = false
 
     /**
      * Tab complete the command.

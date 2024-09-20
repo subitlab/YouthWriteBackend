@@ -127,8 +127,9 @@ fun Application.init()
     installCORS()
     installDoubleReceive()
     installKoin()
-    installStatusPages()
     installRateLimit()
+    installStatusPages()
+    installWebSockets()
 
     loadDatabaseImpl()
 

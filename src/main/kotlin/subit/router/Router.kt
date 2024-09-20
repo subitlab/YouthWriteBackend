@@ -1,5 +1,6 @@
 package subit.router
 
+import cn.org.subit.route.terminal.terminal
 import io.github.smiley4.ktorswaggerui.dsl.routing.get
 import io.github.smiley4.ktorswaggerui.routing.openApiSpec
 import io.github.smiley4.ktorswaggerui.routing.swaggerUI
@@ -86,8 +87,9 @@ fun Application.router() = routing()
         privateChat()
         report()
         tag()
+        teapot()
+        terminal()
         user()
         wordMarking()
-        teapot()
     }
 }

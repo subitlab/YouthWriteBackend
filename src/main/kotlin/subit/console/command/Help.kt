@@ -26,11 +26,11 @@ object Help: Command
         return command
     }
 
-    override suspend fun execute(args: List<String>): Boolean
+    override suspend fun execute(sender: CommandSet.CommandSender, args: List<String>): Boolean
     {
         if (args.isEmpty()) // 直接使用help命令的话打印所有命令列表
         {
-            CommandSet.out.println("Commands:")
+            sender.out.println("Commands:")
             for (command in CommandSet.allCommands()) // 每个命令的格式: 命令名|别名1|别名2 - 命令描述
             {
                 val sb: StringBuilder = StringBuilder()
@@ -41,7 +41,7 @@ object Help: Command
                     sb.append(command.aliases.joinToString("|"))
                 }
                 sb.append(" - ${command.description}")
-                CommandSet.out.println(sb.toString())
+                sender.out.println(sb.toString())
             }
         }
         else
@@ -49,21 +49,21 @@ object Help: Command
             val command = getCommand(args)
             if (command==null)
             {
-                CommandSet.err.println("Unknown command: ${args.dropLast(1).joinToString(" ")}")
+                sender.err.println("Unknown command: ${args.dropLast(1).joinToString(" ")}")
                 return true
             }
             val rawCmdName=args.dropLast(1).toMutableList() // 实际命令名
             rawCmdName.add(command.name)
-            CommandSet.out.println("Command: ${rawCmdName.joinToString(" ")}")
-            CommandSet.out.println("Description: ${command.description}")
-            CommandSet.out.println("Aliases: ${command.aliases.joinToString(", ")}")
+            sender.out.println("Command: ${rawCmdName.joinToString(" ")}")
+            sender.out.println("Description: ${command.description}")
+            sender.out.println("Aliases: ${command.aliases.joinToString(", ")}")
             val cmdArgs=command.args.split("\n")
             if (cmdArgs.size>1)// 如果有多个参数，就分行打印
             {
-                CommandSet.out.println("Arguments:")
-                cmdArgs.forEach { CommandSet.out.println("  $it") }
+                sender.out.println("Arguments:")
+                cmdArgs.forEach { sender.out.println("  $it") }
             }
-            else CommandSet.out.println("Arguments: ${cmdArgs[0]}") // 否则就直接打印
+            else sender.out.println("Arguments: ${cmdArgs[0]}") // 否则就直接打印
         }
         return true
     }
