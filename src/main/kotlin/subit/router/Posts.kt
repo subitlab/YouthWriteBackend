@@ -165,28 +165,6 @@ private fun Route.id() = route("/{id}",{
         }) { editPost() }
     }
 
-    post("/like", {
-        description = "点赞/取消点赞/收藏/取消收藏 帖子"
-        request {
-            body<LikePost>
-            {
-                required = true
-                description = "点赞/点踩/取消点赞/收藏/取消收藏"
-                example("example", LikePost(LikeType.LIKE))
-            }
-        }
-        response {
-            statuses(HttpStatus.OK)
-        }
-    }) { likePost() }
-
-    get("/like", {
-        description = "获取帖子的点赞/点踩/收藏状态"
-        response {
-            statuses<LikeStatus>(HttpStatus.OK, example = LikeStatus(like = true, star = false))
-        }
-    }) { getLikeStatus() }
-
     rateLimit(RateLimit.AddView.rateLimitName)
     {
         post("/view", {
@@ -211,6 +189,46 @@ private fun Route.id() = route("/{id}",{
             statuses(HttpStatus.OK)
         }
     }) { setBlockTopPosts() }
+
+    route("/like")
+    {
+        post("", {
+            description = "点赞/取消点赞/收藏/取消收藏 帖子"
+            request {
+                body<LikePost>
+                {
+                    required = true
+                    description = "点赞/取消点赞/收藏/取消收藏"
+                    example("example", LikePost(LikeType.LIKE))
+                }
+            }
+            response {
+                statuses(HttpStatus.OK)
+            }
+        }) { likePost() }
+
+        get("", {
+            description = "获取帖子的点赞/收藏状态"
+            response {
+                statuses<LikeStatus>(HttpStatus.OK, example = LikeStatus(like = true, star = false))
+            }
+        }) { getLikeStatus() }
+
+        get("/list", {
+            description = "获取帖子的点赞/收藏列表, 若用户设置了不显示自己的点赞/收藏且当前用户不是全局管理员, 则user为null"
+            request {
+                paged()
+                queryParameter<Boolean>("star")
+                {
+                    required = true
+                    description = "若为true则返回收藏列表, 若为false返回点赞列表"
+                }
+            }
+            response {
+                statuses<Slice<LikeListResponse>>(HttpStatus.OK, example = LikeListResponse.examples)
+            }
+        }) { getLikeList() }
+    }
 }
 
 private fun Route.version() = route("/version", {
@@ -398,9 +416,9 @@ private suspend fun Context.changeState()
 
     get<Posts>().setPostState(id, state)
     if (post.author != loginUser.id) get<Notices>().createNotice(
-        Notice.makeSystemNotice(
+        Notice.SystemNotice(
             user = post.author,
-            content = "您的帖子 ${post.id} 已被管理员修改状态为 $state"
+            content = "您的帖子 ${post.id} 已被管理员修改状态为 $state",
         )
     )
     call.respond(HttpStatus.OK)
@@ -434,13 +452,46 @@ private suspend fun Context.likePost()
     }
     if (loginUser.id != post.author && (type == LikeType.LIKE || type == LikeType.STAR))
         get<Notices>().createNotice(
-            Notice.makeObjectMessage(
+            Notice.PostNotice(
                 type = if (type == LikeType.LIKE) Notice.Type.LIKE else Notice.Type.STAR,
                 user = post.author,
-                obj = id
+                post = id
             )
         )
     call.respond(HttpStatus.OK)
+}
+
+@Serializable
+private data class LikeListResponse(val user: BasicUserInfo?, val time: Long)
+{
+    companion object
+    {
+        val examples = sliceOf(
+            LikeListResponse(BasicUserInfo.example, System.currentTimeMillis()),
+            LikeListResponse(null, System.currentTimeMillis())
+        )
+    }
+}
+
+private suspend fun Context.getLikeList()
+{
+    val id = call.parameters["id"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
+    val star = call.parameters["star"]?.toBooleanStrictOrNull() ?: return call.respond(HttpStatus.BadRequest)
+    val (begin, count) = call.getPage()
+    val post = get<Posts>().getPostInfo(id) ?: return call.respond(HttpStatus.NotFound)
+    withPermission { checkRead(post) }
+    val list =
+        if (star) get<Stars>().getStars(post = id, begin = begin, limit = count).map { it.user to it.time }
+        else get<Likes>().getLikes(post = id, begin = begin, limit = count).map { it.user to it.time }
+
+    val res = withPermission {
+        list.map {
+            val (sso, dbUser) = SSO.getUserAndDbUser(it.first) ?: return@map LikeListResponse(null, it.second)
+            if (!hasGlobalAdmin && !dbUser.showStars) return@map LikeListResponse(null, it.second)
+            LikeListResponse(BasicUserInfo.from(sso, dbUser), it.second)
+        }
+    }
+    call.respond(HttpStatus.OK, res)
 }
 
 @Serializable

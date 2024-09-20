@@ -143,6 +143,7 @@ class PostsImpl: Posts, KoinComponent
             create = (postVersions as PostVersionsImpl).getCreate(pid).toEpochMilliseconds(),
             like = likes.getLikesCount(pid),
             star = stars.getStarsCount(pid),
+            comment = map.values.count { it.first.root == pid }.toLong(),
             lastVersionId = lastVersionId,
             hotScore = getHotScore(pid),
         )

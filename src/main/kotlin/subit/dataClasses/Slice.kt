@@ -71,7 +71,7 @@ data class Slice<T>(
         }
     }
 
-    fun <R> map(transform: (T)->R) = Slice(totalSize, begin, list.map(transform))
+    inline fun <R> map(transform: (T)->R) = Slice(totalSize, begin, list.map(transform))
 }
 
 fun <T> sliceOf(vararg items: T) = items.toList().asSequence().asSlice(begin = 0, limit = items.size)

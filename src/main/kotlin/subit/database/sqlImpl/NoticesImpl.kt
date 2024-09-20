@@ -3,6 +3,8 @@ package subit.database.sqlImpl
 import org.jetbrains.exposed.dao.id.IdTable
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.kotlin.datetime.CurrentTimestamp
+import org.jetbrains.exposed.sql.kotlin.datetime.timestamp
 import org.koin.core.component.KoinComponent
 import subit.dataClasses.*
 import subit.dataClasses.Notice.*
@@ -18,20 +20,23 @@ class NoticesImpl: DaoSqlImpl<NoticesImpl.NoticesTable>(NoticesTable), Notices, 
     {
         override val id = noticeId("id").autoIncrement().entityId()
         val user = reference("user", UsersImpl.UsersTable).index()
+        val time = timestamp("time").defaultExpression(CurrentTimestamp)
         val type = enumerationByName<Type>("type", 20).index()
-        val obj = long("object").nullable()
+        val post = reference("post", PostsImpl.PostsTable).nullable().index()
         val content = text("content")
+        val read = bool("read").default(false)
         override val primaryKey: PrimaryKey = PrimaryKey(id)
     }
 
     private fun deserialize(row: ResultRow) = table.run()
     {
         val id = row[id].value
-        val obj = row[obj]
-        // 如果是系统通知
-        if (row[type] == SYSTEM) Notice.makeSystemNotice(id, row[user].value, row[content])
-        // 否则一定是对象消息
-        else Notice.makeObjectMessage(id, row[user].value, row[type], Id.unknown(obj!!), row[content].toLong())
+        val obj = row[post]?.value ?: PostId(0)
+        val time = row[time].toEpochMilliseconds()
+        val type = row[type]
+        val read = row[read]
+        if (type == SYSTEM) SystemNotice(id, time, row[user].value, read, row[content])
+        else PostNotice(id, time, type, row[user].value, read, obj, row[content].toLongOrNull()?: 1)
     }
 
     override suspend fun createNotice(notice: Notice): Unit = query()
@@ -40,20 +45,20 @@ class NoticesImpl: DaoSqlImpl<NoticesImpl.NoticesTable>(NoticesTable), Notices, 
         if (notice is SystemNotice) insert {
             it[user] = notice.user
             it[type] = notice.type
-            it[obj] = null
+            it[post] = null
             it[content] = notice.content
         }
         // 否则需要考虑同类型消息的合并
-        else if (notice is ObjectNotice)
+        else if (notice is PostNotice)
         {
             val result = select(id, content).where {
-                (user eq notice.user) and (type eq notice.type) and (table.obj eq notice.obj.value.toLong())
+                (user eq notice.user) and (type eq notice.type) and (table.post eq notice.post)
             }.singleOrNull()
 
             if (result == null) insert {
                 it[user] = notice.user
                 it[type] = notice.type
-                it[obj] = notice.obj.value.toLong()
+                it[post] = notice.post
                 it[content] = notice.count.toString()
             }
             else
@@ -71,12 +76,34 @@ class NoticesImpl: DaoSqlImpl<NoticesImpl.NoticesTable>(NoticesTable), Notices, 
         selectAll().where { table.id eq id }.singleOrNull()?.let(::deserialize)
     }
 
-    override suspend fun getNotices(user: UserId, type: Type?, begin: Long, count: Int): Slice<Notice> = query()
+    override suspend fun getNotices(user: UserId, type: Type?, read: Boolean?, begin: Long, count: Int): Slice<Notice> = query()
     {
-        selectAll().where {
-            if (type == null) table.user eq user
-            else (table.user eq user) and (table.type eq type)
-        }.orderBy(table.id, SortOrder.DESC).asSlice(begin, count).map(::deserialize)
+        selectAll()
+            .andWhere { table.user eq user }
+            .apply { type?.let { andWhere { table.type eq it } } }
+            .apply { read?.let { andWhere { table.read eq it } } }
+            .orderBy(table.time, SortOrder.DESC)
+            .asSlice(begin, count).map(::deserialize)
+    }
+
+    override suspend fun readNotice(id: NoticeId): Unit = query()
+    {
+        update({ table.id eq id }) { it[read] = true }
+    }
+
+    override suspend fun readNotices(user: UserId): Unit = query()
+    {
+        update({ table.user eq user }) { it[read] = true }
+    }
+
+    override suspend fun unreadNotice(id: NoticeId): Unit = query()
+    {
+        update({ table.id eq id }) { it[read] = false }
+    }
+
+    override suspend fun unreadNotices(user: UserId): Unit = query()
+    {
+        update({ table.user eq user }) { it[read] = false }
     }
 
     override suspend fun deleteNotice(id: NoticeId): Unit = query()

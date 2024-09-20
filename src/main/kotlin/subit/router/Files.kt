@@ -293,7 +293,7 @@ private suspend fun Context.changePermission()
     get<Users>().changeFilePermission(changePermission.id, changePermission.filePermission)
     get<Operations>().addOperation(loginUser.id, changePermission)
     get<Notices>().createNotice(
-        Notice.makeSystemNotice(
+        Notice.SystemNotice(
             user = changePermission.id,
             content = "您的文件权限被修改为${changePermission.filePermission}"
         )

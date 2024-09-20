@@ -40,35 +40,34 @@ sealed interface Notice
         STAR,
     }
 
-    companion object
-    {
-        fun makeSystemNotice(id: NoticeId = NoticeId(0), user: UserId, content: String): Notice =
-            SystemNotice(id, user, content)
-
-        fun makeObjectMessage(
-            id: NoticeId = NoticeId(0),
-            user: UserId,
-            type: Type,
-            obj: Id<*, *>,
-            count: Long = 1
-        ): ObjectNotice = when (type)
-        {
-            Type.POST_COMMENT  -> PostCommentNotice(id, user, obj.value.toPostId(), count)
-            Type.COMMENT_REPLY -> CommentReplyNotice(id, user, obj.value.toPostId(), count)
-            Type.LIKE          -> LikeNotice(id, user, obj.value.toPostId(), count)
-            Type.STAR          -> StarNotice(id, user, obj.value.toPostId(), count)
-            else               -> throw IllegalArgumentException("Invalid type: $type")
-        }
-    }
-
     val id: NoticeId
+    val time: Long
     val type: Type
     val user: UserId
+    val read: Boolean
 
-    interface ObjectNotice: Notice
+    @Serializable
+    data class PostNotice(
+        override val id: NoticeId = NoticeId(0),
+        override val time: Long = System.currentTimeMillis(),
+        override val type: Type,
+        override val user: UserId,
+        override val read: Boolean = false,
+        val post: PostId,
+        val count: Long = 1,
+    ): Notice
     {
-        val obj: Id<*, *>
-        val count: Long
+        init
+        {
+            require(count > 0) { "count must be positive" }
+            require(type != Type.SYSTEM) { "type must not be SYSTEM" }
+        }
+
+        companion object
+        {
+            val example =
+                PostNotice(NoticeId(1), System.currentTimeMillis(), Type.POST_COMMENT, UserId(1), false, PostId(1), 1)
+        }
     }
 
     /**
@@ -77,97 +76,31 @@ sealed interface Notice
      */
     @Serializable
     data class SystemNotice(
-        override val id: NoticeId,
+        override val id: NoticeId = NoticeId(0),
+        override val time: Long = System.currentTimeMillis(),
         override val user: UserId,
+        override val read: Boolean = false,
         val content: String,
     ): Notice
     {
         override val type: Type get() = Type.SYSTEM
+
         companion object
         {
-            val example = SystemNotice(NoticeId(1), UserId(1), "系统通知内容")
+            val example = SystemNotice(user = UserId(1), content = "系统通知内容")
         }
     }
 
-    /**
-     * 评论通知, 即有人评论了用户的帖子. 对于同一个帖子的多个评论, 累加[count]
-     * @property post 帖子
-     * @property count 这个帖子的评论数量
-     */
-    @Serializable
-    data class PostCommentNotice(
-        override val id: NoticeId,
-        override val user: UserId,
-        val post: PostId,
-        override val count: Long
-    ): ObjectNotice
+    fun copy(
+        id: NoticeId = this.id,
+        time: Long = this.time,
+        user: UserId = this.user,
+        read: Boolean = this.read,
+    ): Notice = when (this)
     {
-        override val type: Type get() = Type.POST_COMMENT
-        override val obj: Id<*, *> get() = post
-        companion object
-        {
-            val example = PostCommentNotice(NoticeId(1), UserId(1), PostId(1), 1)
-        }
-    }
-
-    /**
-     * 评论回复通知, 即有人回复了用户的评论. 对于同一个评论的多个回复, 累加[count]
-     */
-    @Serializable
-    data class CommentReplyNotice(
-        override val id: NoticeId,
-        override val user: UserId,
-        val comment: PostId,
-        override val count: Long
-    ): ObjectNotice
-    {
-        override val type: Type get() = Type.COMMENT_REPLY
-        override val obj: Id<*, *> get() = comment
-        companion object
-        {
-            val example = CommentReplyNotice(NoticeId(1), UserId(1), PostId(1), 1)
-        }
-    }
-
-    /**
-     * 点赞通知, 即有人点赞了用户的帖子. 对于同一个帖子的多个点赞, 累加[count]
-     * @property post 帖子
-     * @property count 这个帖子的点赞数量
-     */
-    @Serializable
-    data class LikeNotice(
-        override val id: NoticeId,
-        override val user: UserId,
-        val post: PostId,
-        override val count: Long
-    ): ObjectNotice
-    {
-        override val type: Type get() = Type.LIKE
-        override val obj: Id<*, *> get() = post
-        companion object
-        {
-            val example = LikeNotice(NoticeId(1), UserId(1), PostId(1), 1)
-        }
-    }
-
-    /**
-     * 收藏通知, 即有人收藏了用户的帖子. 对于同一个帖子的多个收藏, 累加[count]
-     * @property post 帖子
-     * @property count 这个帖子的收藏数量
-     */
-    @Serializable
-    data class StarNotice(
-        override val id: NoticeId,
-        override val user: UserId,
-        val post: PostId,
-        override val count: Long
-    ): ObjectNotice
-    {
-        override val type: Type get() = Type.STAR
-        override val obj: Id<*, *> get() = post
-        companion object
-        {
-            val example = StarNotice(NoticeId(1), UserId(1), PostId(1), 1)
-        }
+        // 使用判断类型使用data class的copy方法
+        // 设置content和count是为了保证调用data class的copy方法而不是该接口的copy方法
+        is SystemNotice -> this.copy(id = id, time = time, user = user, read = read, content = content)
+        is PostNotice   -> this.copy(id = id, time = time, user = user, read = read, count = count)
     }
 }

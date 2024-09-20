@@ -219,7 +219,7 @@ private suspend fun Context.deleteBlock()
     blocks.setState(id, State.DELETED)
     get<Operations>().addOperation(loginUser.id, id)
     if (loginUser.id != block.creator) get<Notices>().createNotice(
-        Notice.makeSystemNotice(
+        Notice.SystemNotice(
             user = block.creator,
             content = "您的板块 ${block.name} 已被删除"
         )
@@ -248,7 +248,7 @@ private suspend fun Context.changePermission()
     )
     get<Operations>().addOperation(loginUser.id, changePermission)
     get<Notices>().createNotice(
-        Notice.makeSystemNotice(
+        Notice.SystemNotice(
             user = changePermission.user,
             content = "您在板块 ${get<Blocks>().getBlock(changePermission.block)?.name} 的权限已被修改"
         )

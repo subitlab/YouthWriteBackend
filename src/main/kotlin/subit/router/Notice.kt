@@ -14,6 +14,7 @@ import subit.router.utils.*
 import subit.utils.HttpStatus
 import subit.utils.respond
 import subit.utils.statuses
+import subit.utils.toEnumOrNull
 
 fun Route.notice() = route("/notice", {
     tags = listOf("通知")
@@ -34,6 +35,12 @@ fun Route.notice() = route("/notice", {
                 description = "通知类型, 可选值为${Type.entries.joinToString { it.name }}, 不填则获取所有通知"
                 example(Type.SYSTEM)
             }
+            queryParameter<Boolean>("read")
+            {
+                required = false
+                description = "是否已读, 不填则获取所有通知"
+                example(true)
+            }
         }
         response {
             statuses<Slice<NoticeResponse>>(HttpStatus.OK, example = NoticeResponse.example)
@@ -47,9 +54,14 @@ fun Route.notice() = route("/notice", {
                 
                 相应中的type字段为通知类型, 可能为${Type.entries.joinToString { it.name }}
                 
-                - obj: 对象, 当类型为点赞/收藏/评论/回复时, 为帖子ID/评论ID, 其他情况下为null
-                - count: 数量, 当类型为点赞/收藏/评论/回复/待处理举报时, 为数量, 其他情况下为null
-                - content: 内容, 当类型为系统通知时, 为通知内容, 其他情况下为null
+                - id: 通知ID
+                - time: 通知时间
+                - user: 用户ID
+                - type: 通知类型
+                - read: 是否已读
+                - post: 帖子ID, 若type为SYSTEM则为null, 否则为被点赞/收藏/评论的帖子ID
+                - count: 通知数量, 若type为SYSTEM则恒为1, 否则为当前被点赞/收藏/评论的数量
+                - content: 通知内容, 若type为SYSTEM则为通知内容, 否则为null
                 """.trimIndent()
         request {
             pathParameter<NoticeId>("id")
@@ -64,8 +76,43 @@ fun Route.notice() = route("/notice", {
         }
     }) { getNotice() }
 
+    post("/{id}", {
+        description = "标记通知为已读/未读"
+        request {
+            pathParameter<NoticeId>("id")
+            {
+                required = true
+                description = "通知ID"
+            }
+            queryParameter<Boolean>("read")
+            {
+                required = true
+                description = "是否已读"
+                example(true)
+            }
+        }
+        response {
+            statuses(HttpStatus.OK, HttpStatus.Unauthorized, HttpStatus.NotFound, HttpStatus.BadRequest)
+        }
+    }) { readNotice() }
+
+    post("/all", {
+        description = "标记所有通知为已读/未读"
+        request {
+            queryParameter<Boolean>("read")
+            {
+                required = true
+                description = "是否已读"
+                example(true)
+            }
+        }
+        response {
+            statuses(HttpStatus.OK, HttpStatus.Unauthorized, HttpStatus.BadRequest)
+        }
+    }) { readAll() }
+
     delete("/{id}", {
-        description = "删除通知(设为已读)"
+        description = "删除通知"
         request {
             pathParameter<NoticeId>("id")
             {
@@ -80,7 +127,7 @@ fun Route.notice() = route("/notice", {
     }) { deleteNotice() }
 
     delete("/all", {
-        description = "删除所有通知(设为已读)"
+        description = "删除所有通知"
         response {
             statuses(HttpStatus.OK)
             statuses(HttpStatus.Unauthorized)
@@ -94,36 +141,47 @@ fun Route.notice() = route("/notice", {
 @Serializable
 private data class NoticeResponse(
     val id: NoticeId,
+    val time: Long,
     val user: UserId,
     val type: Type,
-    val obj: Long?,
-    val count: Long?,
-    val content: String?
+    val read: Boolean,
+    val post: PostId?,
+    val count: Long,
+    val content: String?,
 )
 {
     companion object
     {
         fun fromNotice(notice: Notice): NoticeResponse
         {
-            val (obj, count) = (notice as? ObjectNotice).let { it?.obj?.value to it?.count }
-            val content = (notice as? SystemNotice)?.content
-            val response = NoticeResponse(
-                id = notice.id,
-                user = notice.user,
-                type = notice.type,
-                obj = obj?.toLong(),
-                count = count,
-                content = content
-            )
-            return response
+            return when (notice)
+            {
+                is SystemNotice -> NoticeResponse(
+                    notice.id,
+                    notice.time,
+                    notice.user,
+                    notice.type,
+                    notice.read,
+                    null,
+                    1,
+                    notice.content
+                )
+                is PostNotice -> NoticeResponse(
+                    notice.id,
+                    notice.time,
+                    notice.user,
+                    notice.type,
+                    notice.read,
+                    notice.post,
+                    notice.count,
+                    null
+                )
+            }
         }
 
         val example = sliceOf(
-            fromNotice(StarNotice.example),
-            fromNotice(LikeNotice.example),
             fromNotice(SystemNotice.example),
-            fromNotice(PostCommentNotice.example),
-            fromNotice(CommentReplyNotice.example),
+            fromNotice(PostNotice.example)
         )
     }
 }
@@ -131,11 +189,12 @@ private data class NoticeResponse(
 private suspend fun Context.getList()
 {
     val (begin, count) = call.getPage()
-    val type = call.parameters["type"]?.runCatching { Type.valueOf(this) }?.getOrNull()
+    val type = call.parameters["type"].toEnumOrNull<Type>() ?: return call.respond(HttpStatus.BadRequest)
+    val read = call.parameters["read"]?.toBooleanStrictOrNull()
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     val notices = get<Notices>()
     notices
-        .getNotices(loginUser.id, type, begin, count)
+        .getNotices(loginUser.id, type, read, begin, count)
         .map { NoticeResponse.fromNotice(it) }
         .let { call.respond(HttpStatus.OK, it) }
 }
@@ -147,6 +206,27 @@ private suspend fun Context.getNotice()
     val user = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     val notice = notices.getNotice(id)?.takeIf { it.user == user.id } ?: return call.respond(HttpStatus.NotFound)
     call.respond(HttpStatus.OK, NoticeResponse.fromNotice(notice))
+}
+
+private suspend fun Context.readNotice()
+{
+    val id = call.parameters["id"]?.toNoticeIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
+    val read = call.parameters["read"]?.toBooleanStrictOrNull() ?: return call.respond(HttpStatus.BadRequest)
+    val notices = get<Notices>()
+    val user = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
+    notices.getNotice(id)
+        ?.takeIf { it.user == user.id }
+        ?.let { if (read) notices.readNotice(id) else notices.unreadNotice(id) }
+    call.respond(HttpStatus.OK)
+}
+
+private suspend fun Context.readAll()
+{
+    val read = call.parameters["read"]?.toBooleanStrictOrNull() ?: return call.respond(HttpStatus.BadRequest)
+    val user = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
+    val notices = get<Notices>()
+    if (read) notices.readNotices(user.id) else notices.unreadNotices(user.id)
+    call.respond(HttpStatus.OK)
 }
 
 private suspend fun Context.deleteNotice()

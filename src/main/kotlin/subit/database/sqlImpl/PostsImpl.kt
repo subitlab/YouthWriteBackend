@@ -183,6 +183,7 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
             state = row[PostsTable.state],
             like = if (type != postInfoType) row[like] else 0,
             star = if (type != postInfoType) row[star] else 0,
+            comment = if (type != postInfoType) row[comment] else 0,
             parent = row[PostsTable.parent]?.value,
             root = row[PostsTable.rootPost]?.value,
             hotScore = if (type != postInfoType) row[hotScore] else 0.0
@@ -214,6 +215,7 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
         PostsTable.state,
         like,
         star,
+        comment,
         PostsTable.parent,
         PostsTable.rootPost,
         hotScore,
@@ -251,7 +253,7 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
             .join(tagsTable, JoinType.LEFT, PostsTable.id, tagsTable.post)
     }
 
-    private fun Query.groupPostFull() = groupBy(*(postFullColumns - star - like - hotScore).toTypedArray())
+    private fun Query.groupPostFull() = groupBy(*(postFullColumns - setOf(star, like, comment, hotScore)).toTypedArray())
 
     private fun Table.joinPostFull(containsDraft: Boolean) = Join(this).joinPostFull(containsDraft)
 
