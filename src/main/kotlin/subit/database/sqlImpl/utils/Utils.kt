@@ -101,3 +101,22 @@ private class WithQuery(private val with: QueryAlias, val query: AbstractQuery<*
 
 private fun QueryAlias.aliasOnly() = object: Table(this.alias)
 {}
+
+class CustomExpressionWithColumnType<T>(
+    val expression: Expression<T>,
+    override val columnType: IColumnType<T & Any>,
+): ExpressionWithColumnType<T>()
+{
+    override fun equals(other: Any?): Boolean
+    {
+        if (other is CustomExpressionWithColumnType<*>) return this.expression == other.expression
+        return this.expression == other
+    }
+
+    override fun hashCode(): Int = expression.hashCode()
+    override fun toQueryBuilder(queryBuilder: QueryBuilder) = expression.toQueryBuilder(queryBuilder)
+    override fun toString(): String = expression.toString()
+}
+
+fun <T>Expression<T>.withColumnType(columnType: ColumnType<T & Any>): ExpressionWithColumnType<T> =
+    CustomExpressionWithColumnType(this, columnType)

@@ -7,15 +7,13 @@ import kotlinx.datetime.Instant
 import org.intellij.lang.annotations.Language
 import org.jetbrains.exposed.dao.id.IdTable
 import org.jetbrains.exposed.sql.*
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.coalesce
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.div
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.minus
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.plus
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.times
 import org.jetbrains.exposed.sql.functions.math.PowerFunction
-import org.jetbrains.exposed.sql.kotlin.datetime.CurrentTimestamp
-import org.jetbrains.exposed.sql.kotlin.datetime.CustomTimeStampFunction
-import org.jetbrains.exposed.sql.kotlin.datetime.Second
-import org.jetbrains.exposed.sql.kotlin.datetime.timestampParam
+import org.jetbrains.exposed.sql.kotlin.datetime.*
 import org.jetbrains.exposed.sql.statements.Statement
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -28,9 +26,8 @@ import subit.database.sqlImpl.PostsImpl.PostsTable.view
 import subit.database.sqlImpl.utils.asSlice
 import subit.database.sqlImpl.utils.single
 import subit.database.sqlImpl.utils.singleOrNull
-import subit.router.home.AdvancedSearchData
+import subit.database.sqlImpl.utils.withColumnType
 import subit.utils.toInstant
-import subit.utils.toTimestamp
 import java.sql.ResultSet
 import kotlin.reflect.typeOf
 import kotlin.time.Duration
@@ -94,7 +91,11 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
      * COUNT(likes.id) AS like
      * ```
      */
-    private val like = LikesImpl.LikesTable.user.count().alias("likeCount")
+    private val likeCount = coalesce(
+        LikesImpl.LikesTable.post.count().alias("likeCount").aliasOnlyExpression().withColumnType(LongColumnType()),
+        longParam(0)
+    ).alias("likeCount1")
+    private val rawLikeCount = LikesImpl.LikesTable.post.count().alias("likeCount")
 
     /**
      * 一篇帖子的收藏数
@@ -104,7 +105,11 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
      * COUNT(stars.id) AS star
      * ```
      */
-    private val star = StarsImpl.StarsTable.post.count().alias("starCount")
+    private val starCount = coalesce(
+        StarsImpl.StarsTable.post.count().alias("starCount").aliasOnlyExpression().withColumnType(LongColumnType()),
+        longParam(0)
+    ).alias("starCount1")
+    private val rawStarCount = StarsImpl.StarsTable.post.count().alias("starCount")
 
     /**
      * 一篇帖子的评论数
@@ -114,7 +119,11 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
      * COUNT(comments.id) AS comment
      * ```
      */
-    private val comment = PostsTable.alias("comments")[PostsTable.id].count().alias("commentCount")
+    private val commentCount = coalesce(
+        PostsTable.alias("comments")[PostsTable.rootPost].count().alias("commentCount").aliasOnlyExpression().withColumnType(LongColumnType()),
+        longParam(0)
+    ).alias("commentCount1")
+    private val rawCommentCount = PostsTable.alias("comments")[PostsTable.rootPost].count().alias("commentCount")
 
     /**
      * content的前[PostFullBasicInfo.SUB_CONTENT_LENGTH]个字符(多保留几个字符, 用于确认是否需要省略号)
@@ -127,12 +136,12 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
     private val hotScore by lazy {
         val x =
             (view +
-             TimesOp(like.delegate, longParam(3), LongColumnType()) +
-             TimesOp(star.delegate, longParam(5), LongColumnType()) +
-             TimesOp(comment.delegate, longParam(2), LongColumnType()) +
+             TimesOp(likeCount.delegate, longParam(3), LongColumnType()) +
+             TimesOp(starCount.delegate, longParam(5), LongColumnType()) +
+             TimesOp(commentCount.delegate, longParam(2), LongColumnType()) +
              1)
 
-        val create = CustomTimeStampFunction("COALESCE", create.aliasOnlyExpression(), timestampParam(0L.toInstant()))
+        val create = coalesce(create.aliasOnlyExpression().withColumnType(KotlinInstantColumnType()), timestampParam(0L.toInstant()))
         @Suppress("UNCHECKED_CAST")
         create as Expression<Instant>
         val second = (Second(CurrentTimestamp - create) + 1) / 60000
@@ -180,10 +189,11 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
             lastVersionId = if (type != postInfoType) row[lastVersionId.aliasOnlyExpression()]?.value else null,
             view = row[PostsTable.view],
             block = row[PostsTable.block].value,
+            top = row[PostsTable.top],
             state = row[PostsTable.state],
-            like = if (type != postInfoType) row[like] else 0,
-            star = if (type != postInfoType) row[star] else 0,
-            comment = if (type != postInfoType) row[comment] else 0,
+            like = if (type != postInfoType) row[likeCount] else 0,
+            star = if (type != postInfoType) row[starCount] else 0,
+            comment = if (type != postInfoType) row[commentCount] else 0,
             parent = row[PostsTable.parent]?.value,
             root = row[PostsTable.rootPost]?.value,
             hotScore = if (type != postInfoType) row[hotScore] else 0.0
@@ -212,10 +222,11 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
         lastVersionId.aliasOnlyExpression(),
         PostsTable.view,
         PostsTable.block,
+        PostsTable.top,
         PostsTable.state,
-        like,
-        star,
-        comment,
+        likeCount,
+        starCount,
+        commentCount,
         PostsTable.parent,
         PostsTable.rootPost,
         hotScore,
@@ -246,14 +257,42 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
                     q
                 }
             )
+            .joinQuery(
+                on = { (it[starsTable.post] as Expression<*>) eq PostsTable.id },
+                joinType = JoinType.LEFT,
+                joinPart = { starsTable.select(starsTable.post, rawStarCount).groupBy(starsTable.post) }
+            )
+            .joinQuery(
+                on = { (it[likesTable.post] as Expression<*>) eq PostsTable.id },
+                joinType = JoinType.LEFT,
+                joinPart = { likesTable.select(likesTable.post, rawLikeCount).groupBy(likesTable.post) }
+            )
+            .joinQuery(
+                on = { (it[commentsTable[PostsTable.rootPost]] as Expression<*>) eq PostsTable.id },
+                joinType = JoinType.LEFT,
+                joinPart = { commentsTable.select(commentsTable[PostsTable.rootPost], rawCommentCount).groupBy(commentsTable[PostsTable.rootPost]) }
+            )
             .join(postVersionsTable, JoinType.LEFT, postVersionsTable.id, lastVersionId.aliasOnlyExpression())
-            .join(likesTable, JoinType.LEFT, PostsTable.id, likesTable.post)
-            .join(starsTable, JoinType.LEFT, PostsTable.id, starsTable.post)
-            .join(commentsTable, JoinType.LEFT, PostsTable.id, commentsTable[PostsTable.rootPost])
             .join(tagsTable, JoinType.LEFT, PostsTable.id, tagsTable.post)
     }
 
-    private fun Query.groupPostFull() = groupBy(*(postFullColumns - setOf(star, like, comment, hotScore)).toTypedArray())
+    private fun Query.groupPostFull() = groupBy(
+        *(
+            postFullColumns
+            + setOf(
+                rawCommentCount.aliasOnlyExpression(),
+                rawLikeCount.aliasOnlyExpression(),
+                rawStarCount.aliasOnlyExpression(),
+                TagsImpl.TagsTable.tag,
+            )
+            - setOf(
+                hotScore,
+                likeCount,
+                starCount,
+                commentCount,
+            )
+         ).toTypedArray()
+    )
 
     private fun Table.joinPostFull(containsDraft: Boolean) = Join(this).joinPostFull(containsDraft)
 
@@ -265,9 +304,9 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
             NEW_EDIT     -> arrayOf(lastModified.aliasOnlyExpression() to SortOrder.DESC_NULLS_FIRST, PostsTable.id to SortOrder.DESC)
             OLD_EDIT     -> arrayOf(lastModified.aliasOnlyExpression() to SortOrder.ASC_NULLS_LAST, PostsTable.id to SortOrder.ASC)
             MORE_VIEW    -> arrayOf(view to SortOrder.DESC)
-            MORE_LIKE    -> arrayOf(like.delegate to SortOrder.DESC)
-            MORE_STAR    -> arrayOf(star.delegate to SortOrder.DESC)
-            MORE_COMMENT -> arrayOf(comment.delegate to SortOrder.DESC)
+            MORE_LIKE    -> arrayOf(likeCount.delegate to SortOrder.DESC)
+            MORE_STAR    -> arrayOf(starCount.delegate to SortOrder.DESC)
+            MORE_COMMENT -> arrayOf(commentCount.delegate to SortOrder.DESC)
             HOT          -> arrayOf(hotScore.delegate to SortOrder.DESC)
             RANDOM_HOT   -> arrayOf(randomHotScore to SortOrder.DESC)
         }
@@ -453,6 +492,11 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
         tag: String?,
         comment: Boolean?,
         draft: Boolean?,
+        createBefore: Instant?,
+        createAfter: Instant?,
+        lastModifiedBefore: Instant?,
+        lastModifiedAfter: Instant?,
+        containsKeyWord: String?,
         sortBy: Posts.PostListSort,
         begin: Long,
         limit: Int
@@ -462,146 +506,48 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
         val permissionTable = (permissions as PermissionsImpl).table
         val blockTable = (blocks as BlocksImpl).table
 
-        val checkState: Query.() -> Query = {
+        fun Query.andWhere(): Query
+        {
+            // 如果对时间有要求就无法限制是不是草稿
+            @Suppress("NAME_SHADOWING")
+            val draft =
+                if (createBefore != null || createAfter != null || lastModifiedBefore != null || lastModifiedAfter != null) false
+                else draft
+
+            if (author != null) andWhere { table.author eq author }
+            if (block != null) andWhere { table.block eq block }
+            if (top != null) andWhere { table.top eq top }
             if (state != null) andWhere { table.state eq state }
-
-            // 如果是管理员什么状态都可以看
-            if (loginUser.hasGlobalAdmin()) this
-            // 如果是登录用户，只能看到正常状态的帖子和自己的私密帖/草稿
-            else if (loginUser != null)
-                // 帖子状态是正常, 且有最新版本(不是未发布)的帖子, 或者是自己的帖子
-                this.andWhere { ((table.state eq State.NORMAL) and (lastVersionId.aliasOnlyExpression().isNotNull())) or (table.author eq loginUser.id) }
-            // 如果是未登录用户，只能看到正常状态的帖子
-            else
-                // 帖子状态是正常, 且有最新版本(不是未发布)的帖子
-                this.andWhere { (table.state eq State.NORMAL) and (lastVersionId.aliasOnlyExpression().isNotNull()) }
+            if (comment != null) andWhere { if (comment) table.parent.isNotNull() else table.parent.isNull() }
+            if (draft != null) andWhere { if (draft) lastVersionId.aliasOnlyExpression().isNull() else lastVersionId.aliasOnlyExpression().isNotNull() }
+            if (createBefore != null) andWhere { create.aliasOnlyExpression() lessEq timestampParam(createBefore) }
+            if (createAfter != null) andWhere { create.aliasOnlyExpression() greaterEq timestampParam(createAfter) }
+            if (lastModifiedBefore != null) andWhere { lastModified.aliasOnlyExpression() lessEq timestampParam(lastModifiedBefore) }
+            if (lastModifiedAfter != null) andWhere { lastModified.aliasOnlyExpression() greaterEq timestampParam(lastModifiedAfter) }
+            if (!containsKeyWord.isNullOrBlank()) andWhere { PostVersionsTable.content like "%$containsKeyWord%" }
+            return this
         }
 
-        val checkBlock: Query.() -> Query = {
-            if (block != null) this.andWhere { PostsTable.block eq block }
-            else this
+        fun Query.andHaving(): Query
+        {
+            if (!tag.isNullOrBlank()) andHaving { TagsImpl.TagsTable.tag eq tag }
+            return this
         }
 
-        val checkAuthor: Query.() -> Query = {
-            if (author != null && (author == loginUser?.id || loginUser.hasGlobalAdmin()))
-                this.andWhere { PostsTable.author eq author }
-            if (author != null)
-                this.andWhere { (PostsTable.author eq author) and (PostsTable.anonymous eq false) }
-            else this
-        }
-
-        val checkTop: Query.() -> Query = {
-            if (top != null) this.andWhere { PostsTable.top eq top }
-            else this
-        }
-
-        val checkTag: Query.() -> Query = {
-            if (tag != null) this.andHaving { TagsImpl.TagsTable.tag eq tag }
-            else this
-        }
-
-        val checkComment: Query.() -> Query = {
-            if (comment == null) this
-            else if (comment) this.andWhere { PostsTable.parent.isNotNull() }
-            else this.andWhere { PostsTable.parent.isNull() }
-        }
-
-        val checkDraft: Query.() -> Query = {
-            if (draft == null) this
-            else if (draft) this.andWhere { lastVersionId.aliasOnlyExpression().isNull() }
-            else this.andWhere { lastVersionId.aliasOnlyExpression().isNotNull() }
-        }
 
         PostsTable
             .joinPostFull(false)
             .join(blockTable, JoinType.INNER, table.block, blockTable.id)
             .join(permissionTable, JoinType.LEFT, table.block, permissionTable.block) { permissionTable.user eq loginUser?.id }
             .select(postFullBasicInfoColumns)
-            .checkState()
-            .checkBlock()
-            .checkAuthor()
-            .checkTop()
-            .checkComment()
-            .checkDraft()
+            .andWhere()
             .groupBy(id, create, blockTable.id, blockTable.reading)
             .groupPostFull()
             .orHaving { permissionTable.permission.max() greaterEq blockTable.reading }
             .orHaving { blockTable.reading lessEq PermissionLevel.NORMAL }
-            .checkTag()
+            .andHaving()
             .orderBy(*sortBy.order)
             .asSlice(begin, limit)
-            .map { deserializePost<PostFullBasicInfo>(it) }
-    }
-
-    override suspend fun searchPosts(
-        loginUser: DatabaseUser?,
-        key: String,
-        advancedSearchData: AdvancedSearchData,
-        begin: Long,
-        count: Int
-    ): Slice<PostFullBasicInfo> = query()
-    {
-        val permissionTable = (permissions as PermissionsImpl).table
-        val blockTable = (blocks as BlocksImpl).table
-        val postVersionsTable = (postVersions as PostVersionsImpl).table
-        val additionalConstraint: (SqlExpressionBuilder.()->Op<Boolean>)? =
-            if (loginUser != null) ({ permissionTable.user eq loginUser.id })
-            else null
-
-        @Suppress("LiftReturnOrAssignment")
-        fun Query.whereConstraint(): Query
-        {
-            var q = this
-
-            if (advancedSearchData.blockIdList != null)
-                q = q.andWhere { block inList advancedSearchData.blockIdList }
-
-            if (advancedSearchData.authorIdList != null)
-                q = q.andWhere { author inList advancedSearchData.authorIdList }
-
-            if (advancedSearchData.isOnlyTitle == true)
-                q = q.andWhere { postVersionsTable.title like "%$key%" }
-            else
-                q = q.andWhere { (postVersionsTable.title like "%$key%") or (postVersionsTable.content like "%$key%") }
-
-            if (advancedSearchData.lastModifiedAfter != null)
-                q = q.andWhere { lastModified.aliasOnlyExpression() greaterEq advancedSearchData.lastModifiedAfter.toTimestamp() }
-
-            if (advancedSearchData.createTime != null)
-            {
-                val (l, r) = advancedSearchData.createTime
-                q = q.andWhere {
-                    val createTime = create.aliasOnlyExpression()
-                    (createTime greaterEq l.toTimestamp()) and (createTime lessEq r.toTimestamp())
-                }
-            }
-
-            if (advancedSearchData.isOnlyPost == true)
-                q = q.andWhere { rootPost.isNull() }
-
-            return q
-        }
-
-        PostsTable
-            .joinPostFull(false)
-            .join(blockTable, JoinType.INNER, block, blockTable.id)
-            .join(
-                permissionTable,
-                JoinType.LEFT,
-                block,
-                permissionTable.block,
-                additionalConstraint = additionalConstraint
-            )
-            .select(postFullBasicInfoColumns)
-            .andWhere { if (loginUser.hasGlobalAdmin()) Op.TRUE else state eq State.NORMAL }
-            .andWhere { lastVersionId.aliasOnlyExpression().isNotNull() }
-            .whereConstraint()
-            .groupBy(id, create.aliasOnlyExpression(), blockTable.id, blockTable.reading)
-            .groupPostFull()
-            .orHaving { permissionTable.permission.max() greaterEq blockTable.reading }
-            .orHaving { blockTable.reading lessEq PermissionLevel.NORMAL }
-            .orderBy(hotScore, SortOrder.DESC)
-            .asSlice(begin, count)
             .map { deserializePost<PostFullBasicInfo>(it) }
     }
 

@@ -27,6 +27,11 @@ fun Application.installStatusPages() = install(StatusPages)
         call.respond(HttpStatus.InternalServerError)
     }
 
+    status(HttpStatusCode.NotFound) { _ -> call.respond(HttpStatus.NotFound) }
+    status(HttpStatusCode.Forbidden) { _ -> call.respond(HttpStatus.Forbidden) }
+    status(HttpStatusCode.BadRequest) { _ -> call.respond(HttpStatus.BadRequest) }
+    status(HttpStatusCode.InternalServerError) { _ -> call.respond(HttpStatus.InternalServerError) }
+
     /** 针对请求过于频繁的处理, 详见[RateLimit] */
     status(HttpStatusCode.TooManyRequests) { _ ->
         val time = call.response.headers[HttpHeaders.RetryAfter]?.toLongOrNull()?.seconds

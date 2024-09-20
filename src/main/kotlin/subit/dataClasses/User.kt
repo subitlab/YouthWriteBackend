@@ -50,8 +50,9 @@ data class DatabaseUser(
     val id: UserId,
     val introduction: String?,
     val showStars: Boolean,
+    val mergeNotice: Boolean,
     val permission: PermissionLevel,
-    val filePermission: PermissionLevel
+    val filePermission: PermissionLevel,
 )
 {
     companion object
@@ -59,9 +60,10 @@ data class DatabaseUser(
         val example = DatabaseUser(
             UserId(1),
             "introduction",
-            true,
-            PermissionLevel.NORMAL,
-            PermissionLevel.NORMAL
+            showStars = true,
+            mergeNotice = true,
+            permission = PermissionLevel.NORMAL,
+            filePermission = PermissionLevel.NORMAL
         )
     }
 }
@@ -88,13 +90,14 @@ data class UserFull(
     val seiue: List<SsoUserFull.Seiue>,
     override val introduction: String?,
     override val showStars: Boolean,
+    val mergeNotice: Boolean,
     val permission: PermissionLevel,
     val filePermission: PermissionLevel
 ): Principal, UserInfo
 {
     fun toBasicUserInfo() = BasicUserInfo(id, username, registrationTime, email, introduction, showStars)
     fun toSsoUser() = SsoUserFull(id, username, registrationTime, phone, email, seiue)
-    fun toDatabaseUser() = DatabaseUser(id, introduction, showStars, permission, filePermission)
+    fun toDatabaseUser() = DatabaseUser(id, introduction, showStars, mergeNotice, permission, filePermission)
     companion object
     {
         fun from(ssoUser: SsoUserFull, dbUser: DatabaseUser) = UserFull(
@@ -106,6 +109,7 @@ data class UserFull(
             ssoUser.seiue,
             dbUser.introduction,
             dbUser.showStars,
+            dbUser.mergeNotice,
             dbUser.permission,
             dbUser.filePermission
         )
@@ -117,9 +121,10 @@ data class UserFull(
             listOf("email"),
             listOf(SsoUserFull.Seiue("studentId", "realName", false)),
             "introduction",
-            true,
-            PermissionLevel.NORMAL,
-            PermissionLevel.NORMAL
+            showStars = true,
+            mergeNotice = true,
+            permission = PermissionLevel.NORMAL,
+            filePermission = PermissionLevel.NORMAL
         )
     }
 }

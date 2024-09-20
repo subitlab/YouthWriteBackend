@@ -21,6 +21,7 @@ class UsersImpl: DaoSqlImpl<UsersImpl.UsersTable>(UsersTable), Users
         override val id = userId("id").entityId()
         val introduction = text("introduction").nullable().default(null)
         val showStars = bool("show_stars").default(true)
+        val mergeNotice = bool("merge_notice").default(true)
         val permission = enumeration<PermissionLevel>("permission").default(PermissionLevel.NORMAL)
         val filePermission = enumeration<PermissionLevel>("file_permission").default(PermissionLevel.NORMAL)
         override val primaryKey = PrimaryKey(id)
@@ -30,8 +31,9 @@ class UsersImpl: DaoSqlImpl<UsersImpl.UsersTable>(UsersTable), Users
         id = row[UsersTable.id].value,
         introduction = row[UsersTable.introduction] ?: "",
         showStars = row[UsersTable.showStars],
+        mergeNotice = row[UsersTable.mergeNotice],
         permission = row[UsersTable.permission],
-        filePermission = row[UsersTable.filePermission]
+        filePermission = row[UsersTable.filePermission],
     )
 
     override suspend fun changeIntroduction(id: UserId, introduction: String): Boolean = query()
@@ -58,5 +60,10 @@ class UsersImpl: DaoSqlImpl<UsersImpl.UsersTable>(UsersTable), Users
     {
         insertIgnore { it[UsersTable.id] = id }
         selectAll().where { UsersTable.id eq id }.single().let(::deserialize)
+    }
+
+    override suspend fun changeMergeNotice(id: UserId, mergeNotice: Boolean): Boolean = query()
+    {
+        update({ UsersTable.id eq id }) { it[UsersTable.mergeNotice] = mergeNotice } > 0
     }
 }

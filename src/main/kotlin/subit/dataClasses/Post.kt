@@ -1,7 +1,6 @@
 package subit.dataClasses
 
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.builtins.serializer
 import org.koin.core.component.KoinComponent
 import subit.dataClasses.PostFullBasicInfo.Companion.SUB_CONTENT_LENGTH
 
@@ -93,6 +92,7 @@ data class PostInfo(
     val anonymous: Boolean,
     val view: Long,
     val block: BlockId,
+    val top: Boolean,
     val state: State,
     val parent: PostId?,
     val root: PostId?
@@ -125,6 +125,7 @@ data class PostInfo(
             lastVersionId,
             view,
             block,
+            top,
             state,
             like,
             star,
@@ -150,6 +151,7 @@ data class PostFull(
     val lastVersionId: PostVersionId?,
     val view: Long,
     val block: BlockId,
+    val top: Boolean,
     val state: State,
     val like: Long,
     val star: Long,
@@ -160,7 +162,7 @@ data class PostFull(
 )
 {
     fun toPostInfo(): PostInfo =
-        PostInfo(id, author, anonymous, view, block, state, parent, root)
+        PostInfo(id, author, anonymous, view, block, top, state, parent, root)
 
     fun toPostFullBasicInfo(): PostFullBasicInfo =
         PostFullBasicInfo(
@@ -174,6 +176,7 @@ data class PostFull(
             lastVersionId,
             view,
             block,
+            top,
             state,
             like,
             star,
@@ -196,6 +199,7 @@ data class PostFull(
             PostVersionId(0),
             0,
             BlockId(1),
+            false,
             State.NORMAL,
             0,
             0,
@@ -219,6 +223,7 @@ data class PostFullBasicInfo(
     val lastVersionId: PostVersionId?,
     val view: Long,
     val block: BlockId,
+    val top: Boolean,
     val state: State,
     val like: Long,
     val star: Long,

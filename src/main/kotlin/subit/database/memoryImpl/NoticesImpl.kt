@@ -13,10 +13,28 @@ class NoticesImpl: Notices
 {
     private val notices = Collections.synchronizedMap(hashMapOf<NoticeId, Notice>())
 
-    override suspend fun createNotice(notice: Notice)
+    override suspend fun createNotice(notice: Notice, merge: Boolean)
     {
         val id = (notices.size + 1).toNoticeId()
-        notices[id] = notice.copy(id = id, time = System.currentTimeMillis())
+        if (!merge || notice is Notice.SystemNotice)
+            notices[id] = notice.copy(id = id, time = System.currentTimeMillis())
+        else if (notice is Notice.PostNotice)
+        {
+            val same = notices.values.singleOrNull {
+                it is Notice.PostNotice &&
+                it.user == notice.user &&
+                it.type == notice.type &&
+                it.post == notice.post &&
+                !it.read
+            }
+            if (same == null)
+                notices[id] = notice.copy(id = id, time = System.currentTimeMillis())
+            else
+            {
+                val count = (same as Notice.PostNotice).count + notice.count
+                notices[same.id] = same.copy(count = count)
+            }
+        }
     }
 
     override suspend fun getNotice(id: NoticeId): Notice? = notices[id]

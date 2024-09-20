@@ -1,7 +1,6 @@
 package subit.dataClasses
 
 import kotlinx.serialization.Serializable
-import subit.dataClasses.PostId.Companion.toPostId
 
 /**
  * 通知

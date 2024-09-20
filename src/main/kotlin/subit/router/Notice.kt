@@ -33,13 +33,11 @@ fun Route.notice() = route("/notice", {
             {
                 required = false
                 description = "通知类型, 可选值为${Type.entries.joinToString { it.name }}, 不填则获取所有通知"
-                example(Type.SYSTEM)
             }
             queryParameter<Boolean>("read")
             {
                 required = false
                 description = "是否已读, 不填则获取所有通知"
-                example(true)
             }
         }
         response {
@@ -189,7 +187,7 @@ private data class NoticeResponse(
 private suspend fun Context.getList()
 {
     val (begin, count) = call.getPage()
-    val type = call.parameters["type"].toEnumOrNull<Type>() ?: return call.respond(HttpStatus.BadRequest)
+    val type = call.parameters["type"].toEnumOrNull<Type>()
     val read = call.parameters["read"]?.toBooleanStrictOrNull()
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     val notices = get<Notices>()

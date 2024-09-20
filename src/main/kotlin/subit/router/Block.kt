@@ -222,7 +222,8 @@ private suspend fun Context.deleteBlock()
         Notice.SystemNotice(
             user = block.creator,
             content = "您的板块 ${block.name} 已被删除"
-        )
+        ),
+        false
     )
     call.respond(HttpStatus.OK)
 }
@@ -251,7 +252,8 @@ private suspend fun Context.changePermission()
         Notice.SystemNotice(
             user = changePermission.user,
             content = "您在板块 ${get<Blocks>().getBlock(changePermission.block)?.name} 的权限已被修改"
-        )
+        ),
+        false
     )
     call.respond(HttpStatus.OK)
 }

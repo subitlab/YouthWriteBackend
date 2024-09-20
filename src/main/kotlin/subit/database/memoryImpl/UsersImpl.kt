@@ -33,13 +33,20 @@ class UsersImpl: Users
             true
         } ?: false
 
+    override suspend fun changeMergeNotice(id: UserId, mergeNotice: Boolean): Boolean =
+        map[id]?.let {
+            map[id] = it.copy(mergeNotice = mergeNotice)
+            true
+        } ?: false
+
     override suspend fun getOrCreateUser(id: UserId): DatabaseUser
     {
         if (id in map) return map[id]!!
         val user = DatabaseUser(
             id = id,
             introduction = null,
-            showStars = false,
+            showStars = true,
+            mergeNotice = true,
             permission = PermissionLevel.NORMAL,
             filePermission = PermissionLevel.NORMAL
         )

@@ -127,21 +127,40 @@ fun Route.user() = route("/user", {
         }
     }) { getStars(false) }
 
-    post("/switchStars", {
-        description = "切换是否公开收藏"
-        request {
-            body<SwitchStars>
-            {
-                required = true
-                description = "是否公开收藏"
-                example("example", SwitchStars(true))
+    route("/setting")
+    {
+        post("/showStars", {
+            description = "切换是否公开收藏"
+            request {
+                body<BooleanSetting>
+                {
+                    required = true
+                    description = "是否公开收藏"
+                    example("example", BooleanSetting(true))
+                }
             }
-        }
-        response {
-            statuses(HttpStatus.OK)
-            statuses(HttpStatus.Unauthorized)
-        }
-    }) { switchStars() }
+            response {
+                statuses(HttpStatus.OK)
+                statuses(HttpStatus.Unauthorized)
+            }
+        }) { switchStars() }
+
+        post("/mergeNotice", {
+            description = "切换通知是否合并"
+            request {
+                body<BooleanSetting>
+                {
+                    required = true
+                    description = "是否合并通知"
+                    example("example", BooleanSetting(true))
+                }
+            }
+            response {
+                statuses(HttpStatus.OK)
+                statuses(HttpStatus.NotFound, HttpStatus.Forbidden)
+            }
+        }) { mergeNotice() }
+    }
 }
 
 @Serializable
@@ -259,12 +278,20 @@ private suspend fun Context.getStars(isStar: Boolean)
 }
 
 @Serializable
-private data class SwitchStars(val showStars: Boolean)
+private data class BooleanSetting(val showStars: Boolean)
 
 private suspend fun Context.switchStars()
 {
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
-    val switchStars = receiveAndCheckBody<SwitchStars>()
+    val switchStars = receiveAndCheckBody<BooleanSetting>()
     get<Users>().changeShowStars(loginUser.id, switchStars.showStars)
+    call.respond(HttpStatus.OK)
+}
+
+private suspend fun Context.mergeNotice()
+{
+    val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
+    val mergeNotice = receiveAndCheckBody<BooleanSetting>()
+    get<Users>().changeMergeNotice(loginUser.id, mergeNotice.showStars)
     call.respond(HttpStatus.OK)
 }

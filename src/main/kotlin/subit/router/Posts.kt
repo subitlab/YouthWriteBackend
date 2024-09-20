@@ -46,13 +46,6 @@ fun Route.posts() = route("/post", {
     get("/list",{
         description = "获取帖子列表, 不登录也可以获取, 但是登录/有相应权限的人可能会看到更多内容"
         request {
-            paged()
-            queryParameter<Posts.PostListSort>("sort")
-            {
-                required = true
-                description = "排序方式"
-                example(Posts.PostListSort.NEW)
-            }
             queryParameter<UserId>("author")
             {
                 required = false
@@ -96,6 +89,37 @@ fun Route.posts() = route("/post", {
                     - 不填 -> 返回所有帖子
                 """.trimIndent()
             }
+            queryParameter<Long>("createBefore")
+            {
+                required = false
+                description = "创建时间在此时间之前, 若此项不为空, 则draft项无效且被视为false"
+            }
+            queryParameter<Long>("createAfter")
+            {
+                required = false
+                description = "创建时间在此时间之后, 若此项不为空, 则draft项无效且被视为false"
+            }
+            queryParameter<Long>("lastModifiedBefore")
+            {
+                required = false
+                description = "最后修改时间在此时间之前, 若此项不为空, 则draft项无效且被视为false"
+            }
+            queryParameter<Long>("lastModifiedAfter")
+            {
+                required = false
+                description = "最后修改时间在此时间之后, 若此项不为空, 则draft项无效且被视为false"
+            }
+            queryParameter<String>("containsKeyWord")
+            {
+                required = false
+                description = "包含关键词"
+            }
+            queryParameter<Posts.PostListSort>("sort")
+            {
+                required = true
+                description = "排序方式"
+            }
+            paged()
         }
         response {
             statuses<Slice<PostFullBasicInfo>>(HttpStatus.OK, example = sliceOf(PostFullBasicInfo.example))
@@ -419,7 +443,8 @@ private suspend fun Context.changeState()
         Notice.SystemNotice(
             user = post.author,
             content = "您的帖子 ${post.id} 已被管理员修改状态为 $state",
-        )
+        ),
+        false
     )
     call.respond(HttpStatus.OK)
 }
@@ -456,7 +481,8 @@ private suspend fun Context.likePost()
                 type = if (type == LikeType.LIKE) Notice.Type.LIKE else Notice.Type.STAR,
                 user = post.author,
                 post = id
-            )
+            ),
+            loginUser.mergeNotice
         )
     call.respond(HttpStatus.OK)
 }
@@ -560,25 +586,35 @@ private suspend fun Context.getPosts()
     val block = call.parameters["block"]?.toBlockIdOrNull()
     val top = call.parameters["top"]?.lowercase()?.toBooleanStrictOrNull()
     val state = call.parameters["state"]?.toEnumOrNull<State>()
-    val type = call.parameters["sort"].toEnumOrNull<Posts.PostListSort>()
-               ?: return call.respond(HttpStatus.BadRequest.subStatus("sort参数错误"))
     val tag = call.parameters["tag"]
     val comment = call.parameters["comment"]?.toBooleanStrictOrNull()
     val draft = call.parameters["draft"]?.toBooleanStrictOrNull()
-
+    val createBefore = call.parameters["createBefore"]?.toLongOrNull()
+    val createAfter = call.parameters["createAfter"]?.toLongOrNull()
+    val lastModifiedBefore = call.parameters["lastModifiedBefore"]?.toLongOrNull()
+    val lastModifiedAfter = call.parameters["lastModifiedAfter"]?.toLongOrNull()
+    val containsKeyWord = call.parameters["containsKeyWord"]
+    val sort = call.parameters["sort"].toEnumOrNull<Posts.PostListSort>()
+               ?: return call.respond(HttpStatus.BadRequest.subStatus("sort参数错误"))
     val (begin, count) = call.getPage()
+
     val posts = get<Posts>().getPosts(
         loginUser = loginUser?.toDatabaseUser(),
-        author = if (author == UserId(0)) (loginUser?.id ?: return call.respond(HttpStatus.Unauthorized)) else author,
+        author = author,
         block = block,
         top = top,
         state = state,
         tag = tag,
         comment = comment,
         draft = draft,
-        sortBy = type,
+        createBefore = createBefore?.toInstant(),
+        createAfter = createAfter?.toInstant(),
+        lastModifiedBefore = lastModifiedBefore?.toInstant(),
+        lastModifiedAfter = lastModifiedAfter?.toInstant(),
+        containsKeyWord = containsKeyWord,
+        sortBy = sort,
         begin = begin,
-        limit = count
+        limit = count,
     )
     call.respond(HttpStatus.OK, checkAnonymous(posts))
 }

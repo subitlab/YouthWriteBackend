@@ -296,7 +296,8 @@ private suspend fun Context.changePermission()
         Notice.SystemNotice(
             user = changePermission.id,
             content = "您的文件权限被修改为${changePermission.filePermission}"
-        )
+        ),
+        false
     )
     call.respond(HttpStatus.OK)
 }

@@ -1,8 +1,8 @@
 package subit.database
 
+import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
 import subit.dataClasses.*
-import subit.router.home.AdvancedSearchData
 import kotlin.time.Duration
 
 interface Posts
@@ -101,24 +101,21 @@ interface Posts
      */
     suspend fun getPosts(
         loginUser: DatabaseUser? = null,
-        author: UserId?,
-        block: BlockId?,
-        top: Boolean?,
-        state: State?,
-        tag: String?,
-        comment: Boolean?,
-        draft: Boolean?,
+        author: UserId? = null,
+        block: BlockId? = null,
+        top: Boolean? = null,
+        state: State? = null,
+        tag: String? = null,
+        comment: Boolean? = null,
+        draft: Boolean? = null,
+        createBefore: Instant? = null,
+        createAfter: Instant? = null,
+        lastModifiedBefore: Instant? = null,
+        lastModifiedAfter: Instant? = null,
+        containsKeyWord: String? = null,
         sortBy: PostListSort,
         begin: Long,
         limit: Int
-    ): Slice<PostFullBasicInfo>
-
-    suspend fun searchPosts(
-        loginUser: DatabaseUser?,
-        key: String,
-        advancedSearchData: AdvancedSearchData,
-        begin: Long,
-        count: Int
     ): Slice<PostFullBasicInfo>
 
     suspend fun addView(pid: PostId)

@@ -39,21 +39,35 @@ class NoticesImpl: DaoSqlImpl<NoticesImpl.NoticesTable>(NoticesTable), Notices, 
         else PostNotice(id, time, type, row[user].value, read, obj, row[content].toLongOrNull()?: 1)
     }
 
-    override suspend fun createNotice(notice: Notice): Unit = query()
+    override suspend fun createNotice(notice: Notice, merge: Boolean): Unit = query()
     {
         // 如果是系统通知，直接插入一条新消息
-        if (notice is SystemNotice) insert {
+        if (notice is SystemNotice) insert()
+        {
             it[user] = notice.user
             it[type] = notice.type
             it[post] = null
             it[content] = notice.content
         }
+        else if (notice is PostNotice && !merge)
+        {
+            insert()
+            {
+                it[user] = notice.user
+                it[type] = notice.type
+                it[post] = notice.post
+                it[content] = notice.count.toString()
+            }
+        }
         // 否则需要考虑同类型消息的合并
         else if (notice is PostNotice)
         {
-            val result = select(id, content).where {
-                (user eq notice.user) and (type eq notice.type) and (table.post eq notice.post)
-            }.singleOrNull()
+            val result = select(id, content)
+                .andWhere { user eq notice.user }
+                .andWhere { type eq notice.type }
+                .andWhere { table.post eq notice.post }
+                .andWhere { read eq false }
+                .singleOrNull()
 
             if (result == null) insert {
                 it[user] = notice.user
@@ -83,7 +97,8 @@ class NoticesImpl: DaoSqlImpl<NoticesImpl.NoticesTable>(NoticesTable), Notices, 
             .apply { type?.let { andWhere { table.type eq it } } }
             .apply { read?.let { andWhere { table.read eq it } } }
             .orderBy(table.time, SortOrder.DESC)
-            .asSlice(begin, count).map(::deserialize)
+            .asSlice(begin, count)
+            .map(::deserialize)
     }
 
     override suspend fun readNotice(id: NoticeId): Unit = query()

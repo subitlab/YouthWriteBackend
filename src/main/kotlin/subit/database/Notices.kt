@@ -11,7 +11,7 @@ interface Notices
      * 依据[notice]创建一条新的通知, 但[Notice.id]和[Notice.time]会被忽略(由数据库自动生成)
      * @param notice 通知
      */
-    suspend fun createNotice(notice: Notice)
+    suspend fun createNotice(notice: Notice, merge: Boolean)
     suspend fun getNotice(id: NoticeId): Notice?
     suspend fun getNotices(user: UserId, type: Notice.Type?, read: Boolean?, begin: Long, count: Int): Slice<Notice>
     suspend fun readNotice(id: NoticeId)

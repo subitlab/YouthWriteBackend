@@ -123,7 +123,8 @@ private suspend fun Context.changePermission()
         Notice.SystemNotice(
             user = changePermission.id,
             content = "您的全局权限已被修改"
-        )
+        ),
+        false
     )
     call.respond(HttpStatus.OK)
 }
