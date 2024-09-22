@@ -13,6 +13,7 @@ import org.koin.core.parameter.ParametersDefinition
 import org.koin.core.qualifier.Qualifier
 import org.koin.ktor.ext.get
 import subit.dataClasses.*
+import subit.utils.HttpStatus
 
 typealias Context = PipelineContext<*, ApplicationCall>
 
@@ -42,8 +43,9 @@ inline fun OpenApiRequest.paged()
 
 inline fun ApplicationCall.getPage(): Pair<Long, Int>
 {
-    val begin = request.queryParameters["begin"]?.toLongOrNull() ?: 0
-    val count = request.queryParameters["count"]?.toIntOrNull() ?: 10
+    val begin = request.queryParameters["begin"]?.toLongOrNull() ?: finishCall(HttpStatus.BadRequest.subStatus("begin is required"))
+    val count = request.queryParameters["count"]?.toIntOrNull() ?: finishCall(HttpStatus.BadRequest.subStatus("count is required"))
+    if (begin < 0 || count < 0) finishCall(HttpStatus.BadRequest.subStatus("begin and count must be non-negative"))
     return begin to count
 }
 
