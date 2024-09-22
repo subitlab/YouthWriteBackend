@@ -27,4 +27,6 @@ interface Blocks
     suspend fun setState(block: BlockId, state: State)
     suspend fun getChildren(loginUser: UserId?, parent: BlockId?, begin: Long, count: Int): Slice<BlockId>
     suspend fun searchBlock(loginUser: UserId?, key: String, begin: Long, count: Int): Slice<BlockId>
+
+    suspend fun getAllBlocks(loginUser: DatabaseUser?, begin: Long, count: Int): Slice<Block>
 }

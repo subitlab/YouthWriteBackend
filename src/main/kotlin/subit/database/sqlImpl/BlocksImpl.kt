@@ -2,6 +2,9 @@ package subit.database.sqlImpl
 
 import org.jetbrains.exposed.dao.id.IdTable
 import org.jetbrains.exposed.sql.*
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.greaterEq
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.lessEq
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import subit.dataClasses.*
@@ -133,5 +136,28 @@ class BlocksImpl: DaoSqlImpl<BlocksImpl.BlocksTable>(BlocksTable), Blocks, KoinC
             .orderBy(id, SortOrder.DESC)
             .asSlice(begin, count)
             .map { it[id].value }
+    }
+
+    override suspend fun getAllBlocks(loginUser: DatabaseUser?, begin: Long, count: Int): Slice<Block> = query()
+    {
+        val permissionsTable = (permissions as PermissionsImpl).table
+
+        fun Query.checkPermission(): Query
+        {
+            if (loginUser.hasGlobalAdmin()) return this
+            andHaving { (permissionsTable.permission.max() greaterEq table.reading).or(table.reading lessEq PermissionLevel.NORMAL) }
+            andWhere { table.state eq State.NORMAL }
+            return this
+        }
+
+        table
+            .join(permissionsTable, JoinType.LEFT, table.id, permissionsTable.block) { permissionsTable.user eq loginUser?.id }
+            .select(table.columns)
+            .checkPermission()
+            .orderBy(table.id, SortOrder.ASC)
+            .groupBy(*(table.columns + permissionsTable.block).toTypedArray())
+            .asSlice(begin, count)
+            .map(::deserializeBlock)
+
     }
 }

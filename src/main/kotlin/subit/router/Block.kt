@@ -81,6 +81,23 @@ fun Route.block() = route("/block", {
         }
     }) { changePermission() }
 
+    get("/all", {
+        description = "获得所有板块, 只包含当前用户有权限看的板块"
+        request {
+            paged()
+        }
+        response {
+            statuses<Slice<Block>>(HttpStatus.OK, example = sliceOf(Block.example))
+        }
+    }) { getAllBlocks() }
+
+    get("/all/tree", {
+        description = "以树形结构获得所有当前用户可见的板块"
+        response {
+            statuses<Set<BlockTree>>(HttpStatus.OK, example = setOf(BlockTree.leafExample, BlockTree.example))
+        }
+    }) { getBlockTree() }
+
     route("/{id}", {
         request {
             pathParameter<BlockId>("id")
@@ -289,4 +306,42 @@ private suspend fun Context.getChildren()
     }
 
     blocks.getChildren(getLoginUser()?.id, id, begin, count).let { call.respond(HttpStatus.OK, it) }
+}
+
+private suspend fun Context.getAllBlocks()
+{
+    val (begin, count) = call.getPage()
+    val res = get<Blocks>().getAllBlocks(getLoginUser()?.toDatabaseUser(), begin, count)
+    finishCall(HttpStatus.OK, res)
+}
+
+@Serializable
+data class BlockTree(val info: Block, val children: Set<BlockTree>)
+{
+    companion object
+    {
+        val leafExample = BlockTree(Block.example, setOf())
+        val example = BlockTree(Block.example, setOf(leafExample))
+    }
+}
+
+private fun MutableSet<Block>.toBlockTree(root: Block? = null): Set<BlockTree>
+{
+    return this
+        .filter { it.parent == root?.id }
+        .also { this.removeAll(it.toSet()) }
+        .map {
+            val children = this.toBlockTree(it)
+            BlockTree(it, children)
+        }
+        .toSet()
+}
+
+private suspend fun Context.getBlockTree()
+{
+    val blocks = get<Blocks>()
+    val loginUser = getLoginUser()
+    val allBlocks = blocks.getAllBlocks(loginUser?.toDatabaseUser(), 0, Int.MAX_VALUE).list.toMutableSet()
+    val res = allBlocks.toBlockTree()
+    call.respond(HttpStatus.OK, res)
 }

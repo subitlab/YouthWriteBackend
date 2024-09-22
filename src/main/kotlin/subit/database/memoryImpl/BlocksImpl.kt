@@ -4,6 +4,7 @@ import subit.dataClasses.*
 import subit.dataClasses.BlockId.Companion.toBlockId
 import subit.dataClasses.Slice.Companion.asSlice
 import subit.database.Blocks
+import subit.router.utils.withPermission
 import java.util.*
 
 class BlocksImpl: Blocks
@@ -64,4 +65,9 @@ class BlocksImpl: Blocks
         map.values.filter { it.parent == parent }.asSequence().asSlice(begin, count).map { it.id }
     override suspend fun searchBlock(loginUser: UserId?, key: String, begin: Long, count: Int): Slice<BlockId> =
         map.values.filter { it.name.contains(key) }.asSequence().asSlice(begin, count).map { it.id }
+
+    override suspend fun getAllBlocks(loginUser: DatabaseUser?, begin: Long, count: Int): Slice<Block> = withPermission(loginUser, null)
+    {
+        map.values.filter { canRead(it) }.asSequence().asSlice(begin, count)
+    }
 }
