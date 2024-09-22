@@ -63,16 +63,6 @@ class NoticesImpl: Notices
         notices.values.filter { it.user == user }.forEach { readNotice(it.id) }
     }
 
-    override suspend fun unreadNotice(id: NoticeId)
-    {
-        notices[id] = notices[id]!!.copy(read = false)
-    }
-
-    override suspend fun unreadNotices(user: UserId)
-    {
-        notices.values.filter { it.user == user }.forEach { unreadNotice(it.id) }
-    }
-
     override suspend fun deleteNotice(id: NoticeId)
     {
         notices.remove(id)

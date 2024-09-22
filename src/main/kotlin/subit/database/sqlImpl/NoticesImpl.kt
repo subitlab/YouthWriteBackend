@@ -111,16 +111,6 @@ class NoticesImpl: DaoSqlImpl<NoticesImpl.NoticesTable>(NoticesTable), Notices, 
         update({ table.user eq user }) { it[read] = true }
     }
 
-    override suspend fun unreadNotice(id: NoticeId): Unit = query()
-    {
-        update({ table.id eq id }) { it[read] = false }
-    }
-
-    override suspend fun unreadNotices(user: UserId): Unit = query()
-    {
-        update({ table.user eq user }) { it[read] = false }
-    }
-
     override suspend fun deleteNotice(id: NoticeId): Unit = query()
     {
         deleteWhere { table.id eq id }

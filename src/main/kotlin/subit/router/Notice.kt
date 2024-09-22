@@ -75,18 +75,12 @@ fun Route.notice() = route("/notice", {
     }) { getNotice() }
 
     post("/{id}", {
-        description = "标记通知为已读/未读"
+        description = "标记通知为已读"
         request {
             pathParameter<NoticeId>("id")
             {
                 required = true
                 description = "通知ID"
-            }
-            queryParameter<Boolean>("read")
-            {
-                required = true
-                description = "是否已读"
-                example(true)
             }
         }
         response {
@@ -96,14 +90,6 @@ fun Route.notice() = route("/notice", {
 
     post("/all", {
         description = "标记所有通知为已读/未读"
-        request {
-            queryParameter<Boolean>("read")
-            {
-                required = true
-                description = "是否已读"
-                example(true)
-            }
-        }
         response {
             statuses(HttpStatus.OK, HttpStatus.Unauthorized, HttpStatus.BadRequest)
         }
@@ -209,21 +195,19 @@ private suspend fun Context.getNotice()
 private suspend fun Context.readNotice()
 {
     val id = call.parameters["id"]?.toNoticeIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
-    val read = call.parameters["read"]?.toBooleanStrictOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val notices = get<Notices>()
     val user = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     notices.getNotice(id)
         ?.takeIf { it.user == user.id }
-        ?.let { if (read) notices.readNotice(id) else notices.unreadNotice(id) }
+        ?.let { notices.readNotice(id) }
     call.respond(HttpStatus.OK)
 }
 
 private suspend fun Context.readAll()
 {
-    val read = call.parameters["read"]?.toBooleanStrictOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val user = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     val notices = get<Notices>()
-    if (read) notices.readNotices(user.id) else notices.unreadNotices(user.id)
+    notices.readNotices(user.id)
     call.respond(HttpStatus.OK)
 }
 

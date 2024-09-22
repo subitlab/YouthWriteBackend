@@ -16,8 +16,6 @@ interface Notices
     suspend fun getNotices(user: UserId, type: Notice.Type?, read: Boolean?, begin: Long, count: Int): Slice<Notice>
     suspend fun readNotice(id: NoticeId)
     suspend fun readNotices(user: UserId)
-    suspend fun unreadNotice(id: NoticeId)
-    suspend fun unreadNotices(user: UserId)
     suspend fun deleteNotice(id: NoticeId)
     suspend fun deleteNotices(user: UserId)
 }
