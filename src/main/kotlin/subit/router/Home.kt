@@ -77,7 +77,7 @@ fun Route.home() = route("/home", {
         get({
             description = "获取首页配文"
             response {
-                statuses<Message>(HttpStatus.OK)
+                statuses<String>(HttpStatus.OK)
             }
         }) { getMessage() }
 
@@ -132,7 +132,7 @@ fun Route.home() = route("/home", {
         get({
             description = "获取公告"
             response {
-                statuses<Message>(HttpStatus.OK)
+                statuses<String>(HttpStatus.OK)
             }
         }) { getAnnouncement() }
 
@@ -173,7 +173,7 @@ private data class Message(val message: String)
 
 private suspend fun Context.getMessage()
 {
-    call.respond(HttpStatus.OK, Message(HomeFilesUtils.homeMd))
+    call.respond(HttpStatus.OK, HomeFilesUtils.homeMd)
 }
 
 private suspend fun Context.putMessage()
@@ -212,7 +212,7 @@ private suspend fun Context.putImage()
 
 private suspend fun Context.getAnnouncement()
 {
-    call.respond(HttpStatus.OK, Message(HomeFilesUtils.announcementMd))
+    call.respond(HttpStatus.OK, HomeFilesUtils.announcementMd)
 }
 
 private suspend fun Context.putAnnouncement()
