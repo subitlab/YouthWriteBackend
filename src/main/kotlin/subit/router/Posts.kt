@@ -600,7 +600,7 @@ private suspend fun Context.getPosts()
 
     val posts = get<Posts>().getPosts(
         loginUser = loginUser?.toDatabaseUser(),
-        author = author,
+        author = if (author == UserId(0)) loginUser?.id else author,
         block = block,
         top = top,
         state = state,

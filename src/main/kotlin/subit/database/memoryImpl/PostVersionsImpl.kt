@@ -29,7 +29,7 @@ class PostVersionsImpl: PostVersions, KoinComponent
             post,
             title,
             if (draft) null else content,
-            if (!draft) contentNegotiationJson.decodeFromString(content) else null,
+            if (draft) contentNegotiationJson.decodeFromString(content) else null,
             System.currentTimeMillis(),
             draft,
         )

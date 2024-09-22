@@ -30,7 +30,7 @@ class PostVersionsImpl: DaoSqlImpl<PostVersionsImpl.PostVersionsTable>(PostVersi
         post = row[PostVersionsTable.post].value,
         title = row[PostVersionsTable.title],
         content = if (!row[PostVersionsTable.draft]) row[PostVersionsTable.content] else null,
-        operation = if (!row[PostVersionsTable.draft]) contentNegotiationJson.decodeFromString(row[PostVersionsTable.content]) else null,
+        operation = if (row[PostVersionsTable.draft]) contentNegotiationJson.decodeFromString(row[PostVersionsTable.content]) else null,
         time = row[PostVersionsTable.time].toEpochMilliseconds(),
         draft = row[PostVersionsTable.draft],
     )
