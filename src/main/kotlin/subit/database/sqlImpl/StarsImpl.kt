@@ -34,6 +34,7 @@ class StarsImpl: DaoSqlImpl<StarsImpl.StarsTable>(StarsTable), Stars
 
     override suspend fun addStar(uid: UserId, pid: PostId): Unit = query()
     {
+        if (getStar(uid, pid)) return@query
         insert {
             it[user] = uid
             it[post] = pid
