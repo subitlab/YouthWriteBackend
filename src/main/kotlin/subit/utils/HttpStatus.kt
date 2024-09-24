@@ -68,6 +68,8 @@ data class HttpStatus(val code: HttpStatusCode, val message: String)
         val NotLatestVersion = HttpStatus(HttpStatusCode.NotAcceptable, "保存编辑失败, 您编辑的并非最新版本")
         // 未实名
         val NotRealName = HttpStatus(HttpStatusCode(451, "Unavailable For Legal Reasons"), "未绑定实名信息")
+        // 不接受的请求
+        val NotAcceptable = HttpStatus(HttpStatusCode.NotAcceptable, "不接受的请求")
     }
 
     fun subStatus(message: String) = HttpStatus(code, "${this.message}: $message")

@@ -19,7 +19,6 @@ import subit.database.Posts
 import subit.database.Tags
 import subit.router.utils.*
 import subit.utils.HttpStatus
-import subit.utils.respond
 import subit.utils.statuses
 
 fun Route.tag() = route("/tag", {
@@ -104,37 +103,38 @@ data class Tag(val tag: String)
 
 private suspend fun Context.getPostTags()
 {
-    val pid = call.parameters["id"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
-    val post = get<Posts>().getPostInfo(pid) ?: return call.respond(HttpStatus.NotFound)
+    val pid = call.parameters["id"]?.toPostIdOrNull() ?: finishCall(HttpStatus.BadRequest)
+    val post = get<Posts>().getPostInfo(pid) ?: finishCall(HttpStatus.NotFound)
     withPermission { checkRead(post) }
     val tags = get<Tags>().getPostTags(pid)
-    return call.respond(HttpStatus.OK, tags)
+    finishCall(HttpStatus.OK, tags)
 }
 
 private suspend fun Context.editPostTag(add: Boolean)
 {
-    val pid = call.parameters["id"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
-    val post = get<Posts>().getPostInfo(pid) ?: return call.respond(HttpStatus.NotFound)
+    val pid = call.parameters["id"]?.toPostIdOrNull() ?: finishCall(HttpStatus.BadRequest)
+    val post = get<Posts>().getPostInfo(pid) ?: finishCall(HttpStatus.NotFound)
     val loginUser = getLoginUser()
-    if (post.author != loginUser?.id && !loginUser.hasGlobalAdmin()) return call.respond(HttpStatus.Forbidden)
+    if (post.author != loginUser?.id && !loginUser.hasGlobalAdmin()) finishCall(HttpStatus.Forbidden)
+    if (post.parent != null) finishCall(HttpStatus.NotAcceptable.subStatus("不能为评论添加标签"))
     val tag = call.receive<Tag>().tag
-    if (tag.isBlank()) return call.respond(HttpStatus.BadRequest)
+    if (tag.isBlank()) finishCall(HttpStatus.BadRequest)
     if (add) get<Tags>().addPostTag(pid, tag)
     else get<Tags>().removePostTag(pid, tag)
-    return call.respond(HttpStatus.OK)
+    finishCall(HttpStatus.OK)
 }
 
 private suspend fun Context.searchTags()
 {
-    val key = call.parameters["key"] ?: return call.respond(HttpStatus.BadRequest)
+    val key = call.parameters["key"] ?: finishCall(HttpStatus.BadRequest)
     val (begin, count) = call.getPage()
     val tags = get<Tags>().searchTags(key, begin, count)
-    return call.respond(HttpStatus.OK, tags)
+    finishCall(HttpStatus.OK, tags)
 }
 
 private suspend fun Context.getAllTags()
 {
     val (begin, count) = call.getPage()
     val tags = get<Tags>().getAllTags(begin, count)
-    return call.respond(HttpStatus.OK, tags)
+    finishCall(HttpStatus.OK, tags)
 }

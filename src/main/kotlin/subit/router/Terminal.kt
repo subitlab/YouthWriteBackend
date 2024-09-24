@@ -6,6 +6,7 @@ import cn.org.subit.route.terminal.Type.*
 import io.github.smiley4.ktorswaggerui.dsl.routing.route
 import io.ktor.http.*
 import io.ktor.server.application.*
+import io.ktor.server.auth.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
@@ -24,10 +25,10 @@ import subit.console.SimpleAnsiColor.Companion.BLUE
 import subit.console.SimpleAnsiColor.Companion.RED
 import subit.console.command.CommandSet
 import subit.dataClasses.PermissionLevel
+import subit.dataClasses.UserFull
 import subit.logger.ForumLogger
 import subit.logger.ToConsoleHandler
 import subit.utils.LinePrintStream
-import subit.utils.SSO
 import java.io.PrintStream
 import java.util.logging.Handler
 import java.util.logging.LogRecord
@@ -75,11 +76,9 @@ fun Route.terminal() = route("/terminal", {
     init
     webSocket("/api")
     {
-        receiveDeserialized<Packet<String>>().let { packet ->
-            if (packet.type != AUTH) return@webSocket close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Unauthorized"))
-            val user = SSO.getUserFull(packet.data) ?: return@webSocket close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Unauthorized"))
-            if (user.permission != PermissionLevel.ROOT) return@webSocket close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Permission denied"))
-        }
+        val loginUser = call.principal<UserFull>()
+        if (loginUser == null || loginUser.permission != PermissionLevel.ROOT)
+            return@webSocket close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Permission denied"))
 
         val flow = MutableSharedFlow<Packet<String>>(
             replay = 0,
@@ -112,7 +111,6 @@ fun Route.terminal() = route("/terminal", {
                 val packet = receiveDeserialized<Packet<String>>()
                 when (packet.type)
                 {
-                    AUTH -> continue
                     COMMAND -> CommandSet.invokeCommand(sender, packet.data)
                     TAB -> sendSerialized(Packet(TAB, CommandSet.invokeTabComplete(packet.data)))
                     MESSAGE -> Unit
@@ -141,8 +139,6 @@ fun Route.terminal() = route("/terminal", {
 @Serializable
 private enum class Type
 {
-    // request
-    AUTH,
     // request
     COMMAND,
     // request & response

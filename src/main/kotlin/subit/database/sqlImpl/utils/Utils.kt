@@ -1,8 +1,10 @@
+@file:Suppress("unused")
+
 package subit.database.sqlImpl.utils
 
+import subit.dataClasses.Slice
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.rowNumber
-import subit.dataClasses.Slice
 
 fun Query.asSlice(begin: Long, limit: Int): Slice<ResultRow>
 {
@@ -25,7 +27,7 @@ fun Query.asSlice(begin: Long, limit: Int): Slice<ResultRow>
     val q2 = q.aliasOnly().select(this.set.fields.map { Null } + Null + CustomFunction("COUNT", LongColumnType(), theAny<Long>()) + booleanParam(false))
 
     val resQ = q1.union(q2)
-    val list = WithQuery(q, resQ)
+    val list = WithQuery(resQ, q)
         .apply { prepareSQL(QueryBuilder(false)).let(Slice.logger::config) }
         .toList()
 
@@ -79,30 +81,30 @@ private fun ColumnSet.select(columns: List<Expression<*>>, realColumns: List<Exp
         }
 }
 
-private class WithQuery(private val with: QueryAlias, val query: AbstractQuery<*>): Query(
-    Slice(
-        with,
-        query.set.fields
-    ),
+class WithQuery(private val query: AbstractQuery<*>, private vararg val with: QueryAlias): Query(
+    query.set,
     null
 )
 {
     override fun prepareSQL(builder: QueryBuilder): String
     {
-        builder {
-            append("WITH ")
-            append(with.alias)
-            append(" AS (")
-            with.query.prepareSQL(this)
-            append(") ")
+        builder()
+        {
+            with.forEach()
+            {
+                append("WITH ")
+                append(it.alias)
+                append(" AS (")
+                it.query.prepareSQL(this)
+                append(") ")
+            }
             query.prepareSQL(this)
         }
         return builder.toString()
     }
 }
 
-private fun QueryAlias.aliasOnly() = object: Table(this.alias)
-{}
+private fun QueryAlias.aliasOnly() = object: Table(this.alias){}
 
 class CustomExpressionWithColumnType<T>(
     val expression: Expression<T>,

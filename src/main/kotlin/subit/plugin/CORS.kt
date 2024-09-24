@@ -10,11 +10,20 @@ import subit.debug
  */
 fun Application.installCORS() = install(CORS)
 {
+    val serverHost = this@installCORS.environment.config.propertyOrNull("serverHost")
+
+    val servers =
+        if (serverHost == null) emptyList()
+        else runCatching { serverHost.getList() }.getOrElse { listOf(serverHost.getString()) }
+
+    servers.forEach { allowHost(it, schemes = listOf("http", "https", "ws", "wss")) }
+
     if (debug)
     {
         anyHost()
         HttpMethod.DefaultMethods.forEach { allowMethod(it) }
         allowCredentials = true
         allowNonSimpleContentTypes = true
+        allowHeaders { true }
     }
 }
