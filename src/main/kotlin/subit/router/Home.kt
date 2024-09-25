@@ -9,7 +9,6 @@ import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.plugins.ratelimit.*
 import io.ktor.server.request.*
-import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -27,9 +26,7 @@ import subit.utils.HomeFilesUtils
 import subit.utils.HttpStatus
 import subit.utils.respond
 import subit.utils.statuses
-import java.io.ByteArrayOutputStream
 import java.io.File
-import javax.imageio.ImageIO
 
 fun Route.home() = route("/home", {
     tags = listOf("首页")
@@ -188,14 +185,9 @@ private suspend fun Context.putMessage()
     call.respond(HttpStatus.OK)
 }
 
-private suspend fun Context.getImage()
+private fun getImage()
 {
-    val image = HomeFilesUtils.homePng
-    val bytes = ByteArrayOutputStream().use {
-        ImageIO.write(image, "png", it)
-        it.toByteArray()
-    }
-    call.respondBytes(bytes, ContentType.Image.PNG, HttpStatusCode.OK)
+    finishCallWithBytes(HttpStatus.OK, ContentType.Image.PNG, HomeFilesUtils.homePng)
 }
 
 private suspend fun Context.putImage()
@@ -205,8 +197,10 @@ private suspend fun Context.putImage()
         checkHasGlobalAdmin()
         checkRealName()
     }
-    val image = call.receiveStream()
-    HomeFilesUtils.homePng = withContext(Dispatchers.IO) { ImageIO.read(image) }
+    withContext(Dispatchers.IO)
+    {
+        HomeFilesUtils.homePng = call.receiveStream()
+    }
     call.respond(HttpStatus.OK)
 }
 

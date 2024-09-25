@@ -226,7 +226,7 @@ object HomeFilesUtils
         get() = announcementMdFile.readText()
         set(value) = announcementMdFile.writeText(value)
 
-    var homePng: BufferedImage
-        get() = ImageIO.read(homePngFile)
-        set(value) = ImageIO.write(value, "png", homePngFile).run {  }
+    var homePng: InputStream
+        get() = homePngFile.inputStream()
+        set(value) = homePngFile.outputStream().use { value.copyTo(it) }
 }
