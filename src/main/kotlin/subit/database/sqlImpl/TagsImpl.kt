@@ -20,15 +20,20 @@ class TagsImpl: Tags, DaoSqlImpl<TagsImpl.TagsTable>(TagsTable)
         table.select(tag).where { post eq pid }.map { it[tag] }
     }
 
-    override suspend fun removePostTag(pid: PostId, tag: String): Unit = query()
+    override suspend fun removePostTag(pid: PostId, tag: String): Boolean = query()
     {
-        table.deleteWhere { (post eq pid) and (TagsTable.tag eq tag) }
+        table.deleteWhere { (post eq pid) and (TagsTable.tag eq tag) } > 0
     }
 
-    override suspend fun addPostTag(pid: PostId, tag: String): Unit = query()
+    override suspend fun addPostTag(pid: PostId, tag: String): Boolean = query()
     {
-        table.deleteWhere { (post eq pid) and (TagsTable.tag eq tag) }
-        table.insert { it[post] = pid; it[TagsTable.tag] = tag }
+        if (selectAll().where { (post eq pid) and (TagsTable.tag eq tag) }.count() > 0)
+            return@query false
+        table.insert {
+            it[post] = pid
+            it[TagsTable.tag] = tag
+        }
+        true
     }
 
     override suspend fun searchTags(key: String, begin: Long, count: Int): Slice<String> = query()

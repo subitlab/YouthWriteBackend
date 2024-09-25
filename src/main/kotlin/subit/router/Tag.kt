@@ -119,8 +119,11 @@ private suspend fun Context.editPostTag(add: Boolean)
     if (post.parent != null) finishCall(HttpStatus.NotAcceptable.subStatus("不能为评论添加标签"))
     val tag = call.receive<Tag>().tag
     if (tag.isBlank()) finishCall(HttpStatus.BadRequest)
-    if (add) get<Tags>().addPostTag(pid, tag)
-    else get<Tags>().removePostTag(pid, tag)
+    val success =
+        if (add) get<Tags>().addPostTag(pid, tag)
+        else get<Tags>().removePostTag(pid, tag)
+    if (!success && add) finishCall(HttpStatus.Conflict.subStatus("标签已存在"))
+    else if (!success) finishCall(HttpStatus.NotFound.subStatus("标签不存在"))
     finishCall(HttpStatus.OK)
 }
 

@@ -11,14 +11,14 @@ class TagsImpl: Tags
 
     override suspend fun getPostTags(pid: PostId): List<String> = tags[pid]?.toList() ?: emptyList()
 
-    override suspend fun removePostTag(pid: PostId, tag: String)
+    override suspend fun removePostTag(pid: PostId, tag: String): Boolean
     {
-        tags[pid]?.remove(tag)
+        return tags[pid]?.remove(tag) ?: false
     }
 
-    override suspend fun addPostTag(pid: PostId, tag: String)
+    override suspend fun addPostTag(pid: PostId, tag: String): Boolean
     {
-        tags.getOrPut(pid) { mutableSetOf() }.add(tag)
+        return tags.getOrPut(pid) { mutableSetOf() }.add(tag)
     }
 
     override suspend fun searchTags(key: String, begin: Long, count: Int): Slice<String> =

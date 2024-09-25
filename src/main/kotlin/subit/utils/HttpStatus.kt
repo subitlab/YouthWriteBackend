@@ -70,6 +70,8 @@ data class HttpStatus(val code: HttpStatusCode, val message: String)
         val NotRealName = HttpStatus(HttpStatusCode(451, "Unavailable For Legal Reasons"), "未绑定实名信息")
         // 不接受的请求
         val NotAcceptable = HttpStatus(HttpStatusCode.NotAcceptable, "不接受的请求")
+        // 冲突
+        val Conflict = HttpStatus(HttpStatusCode.Conflict, "冲突")
     }
 
     fun subStatus(message: String) = HttpStatus(code, "${this.message}: $message")
