@@ -4,10 +4,9 @@ import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.plugins.ratelimit.*
 import io.ktor.server.response.*
-import subit.dataClasses.PostId.Companion.toPostId
+import subit.dataClasses.PostId.Companion.toPostIdOrNull
 import subit.utils.HttpStatus
 import subit.utils.respond
-import java.util.*
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -21,6 +20,16 @@ sealed interface RateLimit
         get() = RateLimitName(rawRateLimitName)
     suspend fun customResponse(call: ApplicationCall, duration: Duration)
     suspend fun getKey(call: ApplicationCall): Any
+
+    /**
+     * 一个与任何对象(包括自己)都不相等的对象, 用于在getKey中返回一个不相等的对象
+     */
+    @Suppress("EqualsOrHashCode")
+    private object NotEqual
+    {
+        override fun toString(): String = "NotEqual"
+        override fun equals(other: Any?): Boolean = false
+    }
 
     companion object
     {
@@ -60,7 +69,7 @@ sealed interface RateLimit
          * 所以这里用随机UUID这样相当于在这里没有限制
          */
         override suspend fun getKey(call: ApplicationCall): Any =
-            call.parameters["Authorization"] ?: UUID.randomUUID()
+            call.parameters["Authorization"] ?: NotEqual
     }
 
     data object AddView: RateLimit
@@ -75,8 +84,8 @@ sealed interface RateLimit
 
         override suspend fun getKey(call: ApplicationCall): Any
         {
-            val auth = call.request.headers["Authorization"] ?: return UUID.randomUUID()
-            val postId = call.parameters["id"]?.toPostId()
+            val auth = call.request.headers["Authorization"] ?: return NotEqual
+            val postId = call.parameters["id"]?.toPostIdOrNull() ?: return NotEqual
             return auth to postId
         }
     }

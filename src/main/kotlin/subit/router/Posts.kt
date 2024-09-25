@@ -7,7 +7,7 @@ import io.ktor.server.application.*
 import io.ktor.server.plugins.ratelimit.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.JsonElement
 import subit.dataClasses.*
 import subit.dataClasses.BlockId.Companion.toBlockIdOrNull
 import subit.dataClasses.PostId.Companion.toPostIdOrNull
@@ -15,7 +15,6 @@ import subit.dataClasses.PostVersionId.Companion.toPostVersionIdOrNull
 import subit.dataClasses.UserId.Companion.toUserIdOrNull
 import subit.database.*
 import subit.plugin.RateLimit
-import subit.plugin.contentNegotiationJson
 import subit.router.utils.*
 import subit.utils.*
 
@@ -33,7 +32,7 @@ fun Route.posts() = route("/post", {
                 {
                     required = true
                     description = "发帖, 成功返回帖子ID. state为帖子状态, 不允许为DELETE, PRIVATE为预留"
-                    example("example", NewPost("标题", "内容", false, BlockId(0), false, State.NORMAL, false))
+                    example("example", NewPost("标题", PostVersionInfo.example.content, false, BlockId(0), false, State.NORMAL, false))
                 }
             }
             response {
@@ -175,11 +174,11 @@ private fun Route.id() = route("/{id}",{
                 GET /post/{id} 返回的最新版本ID是最新的非草稿版本ID, 但最新版本可能是草稿版本.
                 """.trimIndent()
             request {
-                body<PostVersionInfo.Operation>
+                body<EditPost>
                 {
                     required = true
                     description = "编辑帖子"
-                    example("example", PostVersionInfo.Operation.example)
+                    example("example", EditPost("标题", PostVersionInfo.example.content, false, PostVersionId(0)))
                 }
             }
             response {
@@ -213,6 +212,27 @@ private fun Route.id() = route("/{id}",{
             statuses(HttpStatus.OK)
         }
     }) { setBlockTopPosts() }
+
+    get("/latestVersion", {
+        description = "获取帖子的最新版本"
+        request {
+            queryParameter<Boolean>("containsDraft")
+            {
+                required = false
+                description = "是否包含草稿版本, 若当前用户无权限查看草稿版本则该参数无效且被视为false. 默认为false"
+            }
+            queryParameter<Boolean>("forEdit")
+            {
+                required = false
+                description = "是否为编辑编辑帖子获取, 若为true则containsDraft无效且被视为true, 将返回标号后的内容. 默认为false"
+            }
+        }
+        response {
+            statuses<PostVersionInfo>(HttpStatus.OK, example = PostVersionInfo.example)
+            statuses(HttpStatus.NotFound.subStatus("未找到帖子版本"))
+            statuses(HttpStatus.BadRequest.subStatus("未找到帖子"))
+        }
+    }) { getLatestVersion() }
 
     route("/like")
     {
@@ -286,7 +306,7 @@ private fun Route.version() = route("/version", {
             }
         }
         response {
-            statuses<PostVersionInfo>(HttpStatus.OK, examples = listOf(PostVersionInfo.example0, PostVersionInfo.example1))
+            statuses<PostVersionInfo>(HttpStatus.OK, example = PostVersionInfo.example)
 
         }
     }) { getVersion() }
@@ -300,10 +320,13 @@ private suspend fun Context.getPost()
     call.respond(HttpStatus.OK, checkAnonymous(postFull))
 }
 
+@Serializable
+data class EditPost(val title: String, val content: JsonElement, val draft: Boolean, val oldVersionId: PostVersionId)
+
 val editPostLock = Locks<PostId>()
 private suspend fun Context.editPost()
 {
-    val operators = receiveAndCheckBody<PostVersionInfo.Operation>()
+    val operators = receiveAndCheckBody<EditPost>()
     val id = call.parameters["id"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
 
@@ -313,8 +336,8 @@ private suspend fun Context.editPost()
     {
         postVersions.createPostVersion(
             post = id,
-            title = operators.newTitle,
-            content = contentNegotiationJson.encodeToString<PostVersionInfo.Operation>(operators),
+            title = operators.title,
+            content = operators.content,
             draft = true
         )
 
@@ -327,15 +350,16 @@ private suspend fun Context.editPost()
         val wordMarkings = get<WordMarkings>()
 
         if (postInfo.author != loginUser.id) call.respond(HttpStatus.Forbidden.subStatus(message = "文章仅允许作者编辑"))
-        if (operators.newTitle.length >= 256) return call.respond(HttpStatus.BadRequest.subStatus(message = "标题过长"))
+        if (operators.title.length >= 256) return call.respond(HttpStatus.BadRequest.subStatus(message = "标题过长"))
 
         if (operators.oldVersionId != postInfo.lastVersionId) return@tryWithLock call.respond(HttpStatus.NotLatestVersion)
         val oldVersionInfo = postVersions.getPostVersion(postInfo.lastVersionId) ?: return@tryWithLock call.respond(HttpStatus.NotFound)
 
-        oldVersionInfo.content!! // 保证content不为空
-
         var markings = wordMarkings.getWordMarkings(postInfo.lastVersionId)
 
+        TODO("暂时不支持划词评论的处理")
+
+        /*
         val del = IntArray(oldVersionInfo.content.length + 1)
         for (i in operators.del) // 在每个删除区间的左端点处+1, 右端点+1处-1
         {
@@ -423,6 +447,7 @@ private suspend fun Context.editPost()
 
         // 将新的标记写入数据库
         wordMarkings.batchAddWordMarking(markings)
+        */
     }
 
     call.respond(HttpStatus.OK)
@@ -537,7 +562,7 @@ private suspend fun Context.getLikeStatus()
 @Serializable
 private data class NewPost(
     val title: String,
-    val content: String,
+    val content: JsonElement,
     val anonymous: Boolean,
     val block: BlockId,
     val top: Boolean,
@@ -631,6 +656,19 @@ private suspend fun Context.setBlockTopPosts()
     }
     if (!get<Posts>().setTop(pid, top = top)) return call.respond(HttpStatus.NotFound)
     call.respond(HttpStatus.OK)
+}
+
+private suspend fun Context.getLatestVersion()
+{
+    val id = call.parameters["id"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
+    val containsDraft = call.parameters["containsDraft"]?.toBooleanStrictOrNull() ?: false
+    val forEdit = call.parameters["forEdit"]?.toBooleanStrictOrNull() ?: false
+    val versions = get<PostVersions>()
+    val version = versions.getLatestPostVersion(id, containsDraft)?.let { versions.getPostVersion(it) }
+                    ?: return call.respond(HttpStatus.NotFound.subStatus("未找到帖子版本"))
+    withPermission { checkEdit(version.toPostVersionBasicInfo()) }
+    if (forEdit) finishCall(HttpStatus.OK, version.copy(content = splitContentNode(version.content)))
+    call.respond(HttpStatus.OK, version)
 }
 
 private suspend fun Context.addView()

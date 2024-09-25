@@ -3,11 +3,11 @@ package subit.database.memoryImpl
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.Instant
+import kotlinx.serialization.json.JsonElement
 import org.koin.core.component.KoinComponent
 import subit.dataClasses.*
-import subit.database.PostVersions
 import subit.dataClasses.Slice.Companion.asSlice
-import subit.plugin.contentNegotiationJson
+import subit.database.PostVersions
 import subit.utils.toInstant
 
 class PostVersionsImpl: PostVersions, KoinComponent
@@ -20,7 +20,7 @@ class PostVersionsImpl: PostVersions, KoinComponent
     override suspend fun createPostVersion(
         post: PostId,
         title: String,
-        content: String,
+        content: JsonElement,
         draft: Boolean
     ): PostVersionId = lock.withLock()
     {
@@ -28,8 +28,7 @@ class PostVersionsImpl: PostVersions, KoinComponent
             PostVersionId(list.size + 1L),
             post,
             title,
-            if (draft) null else content,
-            if (draft) contentNegotiationJson.decodeFromString(content) else null,
+            content,
             System.currentTimeMillis(),
             draft,
         )

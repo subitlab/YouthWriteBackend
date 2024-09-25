@@ -1,5 +1,6 @@
 package subit.database
 
+import kotlinx.serialization.json.JsonElement
 import subit.dataClasses.*
 
 interface PostVersions
@@ -14,7 +15,7 @@ interface PostVersions
     suspend fun createPostVersion(
         post: PostId,
         title: String,
-        content: String,
+        content: JsonElement,
         draft: Boolean,
     ): PostVersionId
 

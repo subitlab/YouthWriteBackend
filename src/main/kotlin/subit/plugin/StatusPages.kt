@@ -11,6 +11,9 @@ import subit.utils.HttpStatus
 import subit.utils.respond
 import kotlin.time.Duration.Companion.seconds
 
+private fun ApplicationCall.hasResponseBody() =
+    (this.response.headers[HttpHeaders.ContentLength]?.toLongOrNull() ?: 0) > 0
+
 /**
  * 对于不同的状态码返回不同的页面
  */
@@ -27,9 +30,9 @@ fun Application.installStatusPages() = install(StatusPages)
         call.respond(HttpStatus.InternalServerError)
     }
 
-    status(HttpStatusCode.NotFound) { _ -> call.respond(HttpStatus.NotFound) }
-    status(HttpStatusCode.Forbidden) { _ -> call.respond(HttpStatus.Forbidden) }
-    status(HttpStatusCode.BadRequest) { _ -> call.respond(HttpStatus.BadRequest) }
+    status(HttpStatusCode.NotFound) { _ -> if (!call.hasResponseBody()) call.respond(HttpStatus.NotFound) }
+    status(HttpStatusCode.Forbidden) { _ -> if (!call.hasResponseBody()) call.respond(HttpStatus.Forbidden) }
+    status(HttpStatusCode.BadRequest) { _ -> if (!call.hasResponseBody()) call.respond(HttpStatus.BadRequest) }
     status(HttpStatusCode.InternalServerError) { _ -> call.respond(HttpStatus.InternalServerError) }
 
     /** 针对请求过于频繁的处理, 详见[RateLimit] */

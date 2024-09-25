@@ -78,6 +78,14 @@ open class CheckPermissionScope @PublishedApi internal constructor(val user: Dat
         }
     }
 
+    suspend fun canRead(version: PostVersionBasicInfo): Boolean
+    {
+        val post = posts.getPostInfo(version.post) ?: return false
+        if (!canRead(post)) return false
+        if (!version.draft) return true
+        return post.author == user?.id || hasGlobalAdmin
+    }
+
     /// 可以删除 ///
 
     suspend fun canChangeState(post: PostInfo, newState: State): Boolean = canRead(post) && hasRealName && when (post.state)
@@ -127,6 +135,15 @@ open class CheckPermissionScope @PublishedApi internal constructor(val user: Dat
     {
         NORMAL  -> getPermission(block.id) >= block.posting && getPermission(block.id) >= block.reading
         else -> false
+    }
+
+    suspend fun canEdit(version: PostVersionBasicInfo): Boolean
+    {
+        val post = posts.getPostInfo(version.post) ?: return false
+        if (!canRead(post)) return false
+        if (!hasRealName) return false
+        if (post.state != NORMAL) return false
+        return post.author == user?.id
     }
 
     /// 可以匿名 ///
@@ -218,6 +235,14 @@ class CheckPermissionInContextScope @PublishedApi internal constructor(val conte
         }
     }
 
+    suspend fun checkRead(version: PostVersionBasicInfo)
+    {
+        val post = posts.getPostInfo(version.post) ?: finishCall(HttpStatus.NotFound)
+        checkRead(post)
+        checkRealName()
+        checkOrFinish(post.author == user?.id || hasGlobalAdmin, HttpStatus.Forbidden)
+    }
+
     /// 可以删除 ///
 
     suspend fun checkChangeState(post: PostInfo, newState: State)
@@ -276,6 +301,17 @@ class CheckPermissionInContextScope @PublishedApi internal constructor(val conte
         checkOrFinish(canPost(block), HttpStatus.Forbidden)
     }
 
+    /// 可以编辑 ///
+
+    suspend fun checkEdit(version: PostVersionBasicInfo)
+    {
+        val post = posts.getPostInfo(version.post) ?: finishCall(HttpStatus.NotFound)
+        checkRead(post)
+        checkRealName()
+        if (post.state != NORMAL) finishCall(HttpStatus.NotAcceptable.subStatus("当前帖子状态不允许编辑"))
+        checkOrFinish(post.author == user?.id, HttpStatus.Forbidden)
+    }
+
     /// 可以匿名 ///
 
     suspend fun checkAnonymous(block: Block)
@@ -284,7 +320,7 @@ class CheckPermissionInContextScope @PublishedApi internal constructor(val conte
         checkOrFinish(canAnonymous(block), HttpStatus.Forbidden)
     }
 
-
+    /// 修改他人权限 ///
 
     suspend fun checkChangePermission(block: Block?, other: DatabaseUser, permission: PermissionLevel)
     {

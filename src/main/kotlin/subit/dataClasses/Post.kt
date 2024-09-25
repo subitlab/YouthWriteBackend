@@ -1,57 +1,39 @@
 package subit.dataClasses
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 import org.koin.core.component.KoinComponent
-import subit.dataClasses.PostFullBasicInfo.Companion.SUB_CONTENT_LENGTH
+import subit.plugin.contentNegotiationJson
+import subit.utils.getContentText
 
 @Serializable
 data class PostVersionInfo(
     val id: PostVersionId,
     val post: PostId,
     val title: String,
-    val content: String?,
-    val operation: Operation?,
+    val content: JsonElement,
     val time: Long,
     val draft: Boolean,
 )
 {
-
-    @Serializable
-    data class Interval(val start: Int, val end: Int)
-
-    @Serializable
-    data class Operation(
-        val insert: Map<Int, String> = mapOf(),
-        val del: List<Interval> = listOf(),
-        val newTitle: String,
-        val draft: Boolean,
-        val oldVersionId: PostVersionId,
-    )
-    {
-        companion object
-        {
-            val example = Operation(mapOf(0 to "a"), listOf(Interval(1, 2)), "new title", false, PostVersionId(0))
-        }
-    }
-
     companion object
     {
-        val example0 = PostVersionInfo(
+        val example = PostVersionInfo(
             PostVersionId(1),
             PostId(1),
             "标题",
-            "内容",
-            null,
-            System.currentTimeMillis(),
-            false,
-        )
-
-        val example1 = PostVersionInfo(
-            PostVersionId(1),
-            PostId(1),
-            "标题",
-            null,
-            Operation.example,
+            contentNegotiationJson.parseToJsonElement("""
+                [
+                  {
+                    "id":"ff6br",
+                    "children":[
+                      {
+                        "text":"1"
+                      }
+                    ],
+                    "type":"p"
+                  }
+                ]""".trimIndent()),
             System.currentTimeMillis(),
             false,
         )
@@ -72,7 +54,7 @@ data class PostVersionBasicInfo(
 {
     companion object
     {
-        val example = PostVersionInfo.example0.toPostVersionBasicInfo()
+        val example = PostVersionInfo.example.toPostVersionBasicInfo()
     }
 }
 
@@ -105,7 +87,7 @@ data class PostInfo(
 
     fun toPostFull(
         title: String,
-        content: String,
+        content: JsonElement,
         create: Long,
         lastModified: Long,
         lastVersionId: PostVersionId,
@@ -143,7 +125,7 @@ data class PostInfo(
 data class PostFull(
     val id: PostId,
     val title: String?,
-    val content: String?,
+    val content: JsonElement?,
     val author: UserId,
     val anonymous: Boolean,
     val create: Long?,
@@ -168,7 +150,7 @@ data class PostFull(
         PostFullBasicInfo(
             id,
             title,
-            content?.let { if (it.length > SUB_CONTENT_LENGTH) "${it.substring(0, SUB_CONTENT_LENGTH)}…" else it },
+            content?.let { getContentText(it) },
             author,
             anonymous,
             create,
@@ -191,7 +173,7 @@ data class PostFull(
         val example = PostFull(
             PostId(1),
             "帖子标题",
-            "帖子内容",
+            PostVersionInfo.example.content,
             UserId(1),
             false,
             System.currentTimeMillis(),
@@ -236,6 +218,8 @@ data class PostFullBasicInfo(
     companion object
     {
         val example = PostFull.example.toPostFullBasicInfo()
-        const val SUB_CONTENT_LENGTH = 100
     }
+
+    fun toPostInfo(): PostInfo =
+        PostInfo(id, author, anonymous, view, block, top, state, parent, root)
 }

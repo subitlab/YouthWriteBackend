@@ -4,6 +4,8 @@ package subit.database.sqlImpl
 
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import org.intellij.lang.annotations.Language
 import org.jetbrains.exposed.dao.id.IdTable
 import org.jetbrains.exposed.sql.*
@@ -21,12 +23,13 @@ import subit.dataClasses.*
 import subit.dataClasses.Slice
 import subit.database.*
 import subit.database.Posts.PostListSort.*
-import subit.database.sqlImpl.PostVersionsImpl.PostVersionsTable
+import subit.database.sqlImpl.PostVersionsImpl.PostVersionTable
 import subit.database.sqlImpl.PostsImpl.PostsTable.view
 import subit.database.sqlImpl.utils.asSlice
 import subit.database.sqlImpl.utils.single
 import subit.database.sqlImpl.utils.singleOrNull
 import subit.database.sqlImpl.utils.withColumnType
+import subit.utils.SUB_CONTENT_LENGTH
 import subit.utils.toInstant
 import java.sql.ResultSet
 import kotlin.reflect.typeOf
@@ -69,7 +72,7 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
      * COALESCE(MIN(post_versions.time), '0001-01-01T00:00:00Z') AS create
      * ```
      */
-    private val create = PostVersionsTable.time.min().alias("createTime")
+    private val create = PostVersionTable.time.min().alias("createTime")
 
     /**
      * 最后修改时间, 为最新的版本的时间, 若没有版本为null
@@ -79,9 +82,9 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
      * COALESCE(MAX(post_versions.time), '0001-01-01T00:00:00Z') AS lastModified
      * ```
      */
-    private val lastModified = PostVersionsTable.time.max().alias("lastModifiedTime")
+    private val lastModified = PostVersionTable.time.max().alias("lastModifiedTime")
 
-    private val lastVersionId = PostVersionsTable.id.max().alias("lastVersionId")
+    private val lastVersionId = PostVersionTable.id.max().alias("lastVersionId")
 
     /**
      * 一篇帖子的点赞数
@@ -126,9 +129,9 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
     private val rawCommentCount = PostsTable.alias("comments")[PostsTable.rootPost].count().alias("commentCount")
 
     /**
-     * content的前[PostFullBasicInfo.SUB_CONTENT_LENGTH]个字符(多保留几个字符, 用于确认是否需要省略号)
+     * content的前[SUB_CONTENT_LENGTH]个字符(多保留几个字符, 用于确认是否需要省略号)
      */
-    private val content100 = PostVersionsTable.content.substring(0, 105).alias("content100")
+    private val content100 = PostVersionTable.textContent.substring(0, 105).alias("content100")
 
     /**
      * 热度
@@ -172,11 +175,11 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
         val postFullType = typeOf<PostFull>()
         val postFull = PostFull(
             id = row[PostsTable.id].value,
-            title = if (type != postInfoType) row[PostVersionsTable.title] else null,
+            title = if (type != postInfoType) row[PostVersionTable.title] else null,
             content = when (type)
             {
-                postFullBasicInfoType -> row[content100]
-                postFullType          -> row[PostVersionsTable.content]
+                postFullBasicInfoType -> JsonObject(mapOf("text" to JsonPrimitive(row[content100])))
+                postFullType          -> row[PostVersionTable.content]
                 else                  -> null
             },
             author = row[PostsTable.author].value,
@@ -210,7 +213,7 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
      */
     private val postFullBasicInfoColumns = listOf(
         PostsTable.id,
-        PostVersionsTable.title,
+        PostVersionTable.title,
         content100,
         PostsTable.author,
         PostsTable.anonymous,
@@ -232,7 +235,7 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
     /**
      * [PostFull]中包含的列
      */
-    private val postFullColumns = postFullBasicInfoColumns - content100 + PostVersionsTable.content
+    private val postFullColumns = postFullBasicInfoColumns - content100 + PostVersionTable.content
 
     private fun Join.joinPostFull(containsDraft: Boolean): Join
     {
@@ -281,6 +284,7 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
                 rawLikeCount.aliasOnlyExpression(),
                 rawStarCount.aliasOnlyExpression(),
                 TagsImpl.TagsTable.tag,
+                PostVersionTable.textContent,
             )
             - setOf(
                 hotScore,
@@ -521,7 +525,7 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
             if (createAfter != null) andWhere { create.aliasOnlyExpression() greaterEq timestampParam(createAfter) }
             if (lastModifiedBefore != null) andWhere { lastModified.aliasOnlyExpression() lessEq timestampParam(lastModifiedBefore) }
             if (lastModifiedAfter != null) andWhere { lastModified.aliasOnlyExpression() greaterEq timestampParam(lastModifiedAfter) }
-            if (!containsKeyWord.isNullOrBlank()) andWhere { PostVersionsTable.content like "%$containsKeyWord%" }
+            if (!containsKeyWord.isNullOrBlank()) andWhere { PostVersionTable.textContent like "%$containsKeyWord%" }
             if (!tag.isNullOrBlank()) andHaving { TagsImpl.TagsTable.tag eq tag }
             return this
         }
@@ -583,27 +587,21 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
 
         val aMonthAgo = Clock.System.now() - 30.days
 
-        val ids = PostsTable
+        PostsTable
+            .joinPostFull(false)
             .join(blockTable, JoinType.INNER, table.block, blockTable.id)
             .join(permissionTable, JoinType.LEFT, table.block, permissionTable.block) { permissionTable.user eq loginUser?.id }
-            .join(likeTable, JoinType.LEFT, table.id, likeTable.post) { likeTable.time greaterEq timestampParam(aMonthAgo) }
-            .select(table.id)
+            .join(likeTable, JoinType.LEFT, table.id, likeTable.post) { likeTable.time greaterEq aMonthAgo }
+            .select(postFullBasicInfoColumns)
             .checkPermission()
             .andWhere { parent.isNull() }
-            .groupBy(*(table.columns + likeTable.post + blockTable.columns).toTypedArray())
+            .andWhere { table.state eq state }
+            .andWhere { lastVersionId.aliasOnlyExpression().isNotNull() }
+            .groupBy(id, create, blockTable.id, blockTable.reading)
+            .groupPostFull()
             .orderBy(likeTable.post.count() to SortOrder.DESC)
             .asSlice(begin, count)
-            .map { it[table.id].value }
-
-        val res = table.joinPostFull(false)
-            .select(postFullBasicInfoColumns)
-            .andWhere { table.id inList ids.list }
-            .groupPostFull()
-            .toList()
             .map { deserializePost<PostFullBasicInfo>(it) }
-            .associateBy { it.id }
-
-        return@query ids.map { res[it]!! }
     }
 
     override suspend fun totalPostCount(comment: Boolean, duration: Duration?): Map<State, Long> = query()

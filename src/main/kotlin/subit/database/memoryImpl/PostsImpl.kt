@@ -12,6 +12,7 @@ import subit.dataClasses.PostId.Companion.toPostId
 import subit.dataClasses.Slice.Companion.asSlice
 import subit.database.*
 import subit.router.utils.withPermission
+import subit.utils.getContentText
 import subit.utils.toInstant
 import java.util.*
 import kotlin.math.pow
@@ -138,7 +139,7 @@ class PostsImpl: Posts, KoinComponent
 
         return post.toPostFull(
             title = lastVersion.title,
-            content = lastVersion.content!!,
+            content = lastVersion.content,
             lastModified = (postVersions as PostVersionsImpl).getLastModified(pid).toEpochMilliseconds(),
             create = (postVersions as PostVersionsImpl).getCreate(pid).toEpochMilliseconds(),
             like = likes.getLikesCount(pid),
@@ -196,7 +197,7 @@ class PostsImpl: Posts, KoinComponent
                 && (createAfter == null || it.create!! >= createAfter.toEpochMilliseconds())
                 && (lastModifiedBefore == null || it.lastModified!! <= lastModifiedBefore.toEpochMilliseconds())
                 && (lastModifiedAfter == null || it.lastModified!! >= lastModifiedAfter.toEpochMilliseconds())
-                && (containsKeyWord == null || (it.title?.contains(containsKeyWord) == true) || (it.content?.contains(containsKeyWord)) == true)
+                && (containsKeyWord == null || (it.title?.contains(containsKeyWord) == true) || (it.content?.let(::getContentText)?.contains(containsKeyWord)) == true)
 
             }
             .sortedBy(sortBy(sortBy))

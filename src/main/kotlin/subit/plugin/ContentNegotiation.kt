@@ -26,9 +26,11 @@ val contentNegotiationJson = Json()
 /**
  * 用作数据处理的json序列化/反序列化
  */
+@OptIn(ExperimentalSerializationApi::class)
 val dataJson = Json(contentNegotiationJson)
 {
     prettyPrint = false
+    explicitNulls = false
 }
 
 /**
