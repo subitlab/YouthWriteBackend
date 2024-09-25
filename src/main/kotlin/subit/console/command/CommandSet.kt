@@ -7,13 +7,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.jline.reader.*
 import org.jline.reader.impl.DefaultParser
-import subit.console.AnsiStyle
 import subit.console.AnsiStyle.Companion.RESET
 import subit.console.AnsiStyle.Companion.ansi
 import subit.console.Console
 import subit.console.SimpleAnsiColor
 import subit.logger.ForumLogger
-import subit.utils.LinePrintStream
 import subit.utils.Power.shutdown
 
 /**
@@ -119,16 +117,6 @@ object CommandSet: TreeCommand(
             }
         }
     }
-
-    /**
-     * 命令输出流,格式是[COMMAND][INFO/ERROR]message
-     */
-    private class CommandOutputStream(
-        private val style: AnsiStyle,
-        private val level: String
-    ): LinePrintStream({
-        Console.println("${SimpleAnsiColor.PURPLE.bright()}[COMMAND]$style$level$RESET $it$RESET")
-    })
 
     interface CommandSender
     {
