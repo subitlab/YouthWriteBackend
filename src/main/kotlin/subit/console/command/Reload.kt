@@ -15,7 +15,7 @@ object Reload: Command
         if (args.isEmpty()) ConfigLoader.reloadAll()
         else if (args.size == 1) ConfigLoader.reload(args[0])
         else return false
-        sender.out.println("Reloaded.")
+        sender.out("Reloaded.")
         return true
     }
 

@@ -104,8 +104,8 @@ object TestDatabase: Command, KoinComponent
     {
         if (!debug)
         {
-            sender.err.println("此命令仅用于调试, 请在debug模式下使用.")
-            sender.err.println("${RED}开启debug模式请在启动参数中加入 -debug=true")
+            sender.err("此命令仅用于调试, 请在debug模式下使用.")
+            sender.err("${RED}开启debug模式请在启动参数中加入 -debug=true")
             return true
         }
 
@@ -128,7 +128,7 @@ object TestDatabase: Command, KoinComponent
 
         val res = if (method.isSuspend) method.callSuspendBy(params)
         else method.callBy(params)
-        sender.out.println("Result: $res")
+        sender.out("Result: $res")
         return true
     }
 

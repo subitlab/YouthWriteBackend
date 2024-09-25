@@ -15,7 +15,6 @@ import subit.console.SimpleAnsiColor
 import subit.logger.ForumLogger
 import subit.utils.LinePrintStream
 import subit.utils.Power.shutdown
-import java.io.PrintStream
 
 /**
  * Command set.
@@ -82,11 +81,11 @@ object CommandSet: TreeCommand(
             success = false
             if (command == null)
             {
-                sender.err.println("Unknown command: ${words[0]}, use \"help\" to get help")
+                sender.err("Unknown command: ${words[0]}, use \"help\" to get help")
             }
             else if (!command.execute(sender, words.subList(1, words.size)))
             {
-                sender.err.println("Command is illegal, use \"help ${words[0]}\" to get help")
+                sender.err("Command is illegal, use \"help ${words[0]}\" to get help")
             }
             else success = true
         }
@@ -134,16 +133,23 @@ object CommandSet: TreeCommand(
     interface CommandSender
     {
         val name: String
-        val out: PrintStream
-        val err: PrintStream
-        fun clear()
+        suspend fun out(line: String)
+        suspend fun err(line: String)
+        suspend fun clear()
+
+        fun parseLine(line: String, err: Boolean): String
+        {
+            val color = if (err) SimpleAnsiColor.RED.bright() else SimpleAnsiColor.BLUE.bright()
+            val type = if (err) "[ERROR]" else "[INFO]"
+            return SimpleAnsiColor.PURPLE.bright().ansi().toString() + "[COMMAND]" + color.ansi() + type + RESET + line + RESET
+        }
     }
 
     object ConsoleCommandSender: CommandSender
     {
         override val name: String = "Console"
-        override val out: PrintStream = CommandOutputStream(SimpleAnsiColor.BLUE.bright().ansi(), "[INFO]")
-        override val err: PrintStream = CommandOutputStream(SimpleAnsiColor.RED.bright().ansi(), "[ERROR]")
-        override fun clear() = Console.clear()
+        override suspend fun out(line: String) = Console.println(parseLine(line, false))
+        override suspend fun err(line: String) = Console.println(parseLine(line, true))
+        override suspend fun clear() = Console.clear()
     }
 }

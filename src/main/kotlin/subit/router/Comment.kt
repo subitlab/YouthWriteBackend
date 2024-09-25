@@ -9,6 +9,7 @@ import io.ktor.server.application.*
 import io.ktor.server.plugins.ratelimit.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 import subit.dataClasses.*
 import subit.dataClasses.PostId.Companion.toPostIdOrNull
 import subit.database.*
@@ -40,7 +41,7 @@ fun Route.comment() = route("/comment", {
                     example(
                         "example",
                         NewComment(
-                            content = "评论内容",
+                            content = PostVersionInfo.example.content,
                             wordMarking = WordMarking(PostId(1), 0, 10),
                             draft = false,
                             anonymous = false
@@ -55,8 +56,7 @@ fun Route.comment() = route("/comment", {
         }) { commentPost() }
     }
 
-    get("/list/{postId}", {
-        description = "获取一个帖子的评论列表, 即获得所有parent为{postId}的帖子"
+    route("/list/{postId}", {
         request {
             paged()
             pathParameter<PostId>("postId")
@@ -75,34 +75,22 @@ fun Route.comment() = route("/comment", {
             statuses<Slice<PostFull>>(HttpStatus.OK, example = sliceOf(PostFull.example))
             statuses(HttpStatus.NotFound)
         }
-    }) { getComments(all = false) }
+    })
+    {
+        get("", {
+            description = "获取一个帖子的评论列表, 即获得所有parent为{postId}的帖子"
 
-    get("/list/{postId}/all", {
-        description = "获取一个帖子的所有评论, 即获得所有parent为{postId}的帖子及其所有后代"
-        request {
-            paged()
-            pathParameter<PostId>("postId")
-            {
-                required = true
-                description = "帖子id"
-            }
-            queryParameter<Posts.PostListSort>("sort")
-            {
-                description = "排序方式"
-                required = true
-                example(Posts.PostListSort.NEW)
-            }
-        }
-        response {
-            statuses<Slice<PostFull>>(HttpStatus.OK, example = sliceOf(PostFull.example))
-            statuses(HttpStatus.NotFound)
-        }
-    }) { getComments(all = true) }
+        }) { getComments(all = false) }
+
+        get("/all", {
+            description = "获取一个帖子的所有评论, 即获得所有parent为{postId}的帖子及其所有后代"
+        }) { getComments(all = true) }
+    }
 }
 
 @Serializable
 private data class NewComment(
-    val content: String,
+    val content: JsonElement,
     val wordMarking: WordMarking? = null,
     val draft: Boolean,
     val anonymous: Boolean
@@ -120,10 +108,17 @@ private suspend fun Context.commentPost()
 
     val parent = posts.getPostInfo(postId) ?: return call.respond(HttpStatus.NotFound.subStatus("目标帖子不存在"))
     val block = get<Blocks>().getBlock(parent.block) ?: return call.respond(HttpStatus.NotFound.subStatus("目标板块不存在"))
+
+    val markingPost = newComment.wordMarking?.let { posts.getPostFullBasicInfo(it.postId) }
+    val markingPostVersion = markingPost?.lastVersionId
     withPermission {
         checkComment(parent)
+        if (markingPost != null) checkComment(markingPost.toPostInfo())
         if (newComment.anonymous) checkAnonymous(block)
     }
+
+    if (newComment.wordMarking != null && markingPostVersion == null)
+        return call.respond(HttpStatus.NotFound.subStatus("标记的帖子不存在"))
 
     val commentId = posts.createPost(
         parent = postId,
@@ -140,14 +135,8 @@ private suspend fun Context.commentPost()
         draft = false,
     )
 
-    if (newComment.wordMarking != null) editPostLock.withLock(newComment.wordMarking.postId)
+    if (markingPostVersion != null) editPostLock.withLock(markingPost.id)
     {
-        val markingPostVersion =
-            posts
-                .getPostFullBasicInfo(newComment.wordMarking.postId)
-                ?.lastVersionId
-            ?: return call.respond(HttpStatus.NotFound.subStatus("标记的帖子不存在"))
-
         get<WordMarkings>().addWordMarking(
             postVersion = markingPostVersion,
             comment = commentId,

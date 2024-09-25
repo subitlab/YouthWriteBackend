@@ -13,12 +13,12 @@ object About: Command
 
     override suspend fun execute(sender: CommandSet.CommandSender, args: List<String>): Boolean
     {
-        sender.out.println("SubIT Forum Backend")
-        sender.out.println("Version: $version")
-        sender.out.println("Author: SubIT Team")
-        sender.out.println("Github: https://github.com/subitlab")
-        sender.out.println("Website: https://subit.org.cn")
-        sender.out.println("Email: subit@i.pkuschool.edu.cn")
+        sender.out("SubIT Forum Backend")
+        sender.out("Version: $version")
+        sender.out("Author: SubIT Team")
+        sender.out("Github: https://github.com/subitlab")
+        sender.out("Website: https://subit.org.cn")
+        sender.out("Email: subit@i.pkuschool.edu.cn")
         return true
     }
 }

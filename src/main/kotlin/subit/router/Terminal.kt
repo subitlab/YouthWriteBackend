@@ -18,18 +18,11 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import subit.Loader
 import subit.config.loggerConfig
-import subit.console.AnsiStyle.Companion.RESET
-import subit.console.AnsiStyle.Companion.ansi
-import subit.console.SimpleAnsiColor
-import subit.console.SimpleAnsiColor.Companion.BLUE
-import subit.console.SimpleAnsiColor.Companion.RED
 import subit.console.command.CommandSet
 import subit.dataClasses.PermissionLevel
 import subit.dataClasses.UserFull
 import subit.logger.ForumLogger
 import subit.logger.ToConsoleHandler
-import subit.utils.LinePrintStream
-import java.io.PrintStream
 import java.util.logging.Handler
 import java.util.logging.LogRecord
 
@@ -80,30 +73,17 @@ fun Route.terminal() = route("/terminal", {
         if (loginUser == null || loginUser.permission != PermissionLevel.ROOT)
             return@webSocket close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Permission denied"))
 
-        val flow = MutableSharedFlow<Packet<String>>(
-            replay = 0,
-            extraBufferCapacity = 100,
-            onBufferOverflow = BufferOverflow.DROP_OLDEST
-        )
-
         val job = launch { sharedFlow.collect { sendSerialized(it) } }
-        val job1 = launch { flow.asSharedFlow().collect { sendSerialized(it) } }
 
-        class WebSocketCommandSender(ip: String): CommandSet.CommandSender
+        class WebSocketCommandSender(user: UserFull): CommandSet.CommandSender
         {
-            override val name: String = "WebSocket($ip)"
-            override val out: PrintStream = LinePrintStream {
-                val message = "${SimpleAnsiColor.PURPLE.bright()}[COMMAND]${BLUE.bright().ansi()}[INFO]$RESET $it$RESET"
-                flow.tryEmit(Packet(MESSAGE, message))
-            }
-            override val err: PrintStream = LinePrintStream {
-                val message = "${SimpleAnsiColor.PURPLE.bright()}[COMMAND]${RED.bright().ansi()}[ERROR]$RESET $it$RESET"
-                flow.tryEmit(Packet(MESSAGE, message))
-            }
-            override fun clear() = Unit
+            override val name: String = "WebSocket('${user.username}' (id: ${user.id}))"
+            override suspend fun out(line: String) = sendSerialized(Packet(MESSAGE,parseLine(line, false)))
+            override suspend fun err(line: String) = sendSerialized(Packet(MESSAGE,parseLine(line, true)))
+            override suspend fun clear() = sendSerialized(Packet(CLEAR, null))
         }
 
-        val sender = WebSocketCommandSender(call.request.local.remoteHost)
+        val sender = WebSocketCommandSender(loginUser)
 
         runCatching {
             while (true)
@@ -113,14 +93,13 @@ fun Route.terminal() = route("/terminal", {
                 {
                     COMMAND -> CommandSet.invokeCommand(sender, packet.data)
                     TAB -> sendSerialized(Packet(TAB, CommandSet.invokeTabComplete(packet.data)))
-                    MESSAGE -> Unit
+                    MESSAGE, CLEAR -> Unit
                 }
             }
         }.onFailure { exception ->
             logger.info("WebSocket exception: ${exception.localizedMessage}")
         }.also {
             job.cancel()
-            job1.cancel()
         }
     }
 
@@ -144,7 +123,9 @@ private enum class Type
     // request & response
     TAB,
     // response
-    MESSAGE
+    MESSAGE,
+    // response
+    CLEAR,
 }
 
 @Serializable

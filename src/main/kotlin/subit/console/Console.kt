@@ -1,5 +1,6 @@
 package subit.console
 
+import kotlinx.coroutines.runBlocking
 import org.jline.reader.LineReader
 import org.jline.reader.LineReaderBuilder
 import org.jline.reader.impl.LineReaderImpl
@@ -75,14 +76,14 @@ object Console
         this.lineReader = lineReader
     }
 
-    fun onUserInterrupt(sender: CommandSet.CommandSender): Nothing
+    fun onUserInterrupt(sender: CommandSet.CommandSender): Nothing = runBlocking()
     {
-        sender.err.println("You might have pressed Ctrl+C or performed another operation to stop the server.")
-        sender.err.println(
+        sender.err("You might have pressed Ctrl+C or performed another operation to stop the server.")
+        sender.err(
             "This method is feasible but not recommended, " +
             "it should only be used when a command-line system error prevents the program from closing."
         )
-        sender.err.println("If you want to stop the server, please use the \"stop\" command.")
+        sender.err("If you want to stop the server, please use the \"stop\" command.")
         Power.shutdown(0, "User interrupt")
     }
 

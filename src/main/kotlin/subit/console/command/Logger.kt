@@ -23,18 +23,18 @@ object Logger : TreeCommand(Level, Filter, ShowLoggerName)
         {
             if (args.isEmpty()) // 没参数就打印当前日志等级
             {
-                sender.out.println("logger level: ${ForumLogger.globalLogger.logger.level.name}")
+                sender.out("logger level: ${ForumLogger.globalLogger.logger.level.name}")
             }
             else try
             {
                 // 有参数就设置日志等级
                 val level=java.util.logging.Level.parse(args[0])
                 ForumLogger.setLevel(level)
-                sender.out.println("set logger level to ${level.name}")
+                sender.out("set logger level to ${level.name}")
             }
             catch (e: IllegalArgumentException) // 输入的日志等级不合法
             {
-                sender.err.println("Unknown level: ${args[0]}")
+                sender.err("Unknown level: ${args[0]}")
             }
             return true
         }
@@ -71,11 +71,11 @@ object Logger : TreeCommand(Level, Filter, ShowLoggerName)
             {
                 if (args.isEmpty())
                 {
-                    sender.err.println("No filter specified.")
+                    sender.err("No filter specified.")
                     return true
                 }
                 ForumLogger.addFilter(args[0])
-                sender.out.println("Added filter: ${args[0]}")
+                sender.out("Added filter: ${args[0]}")
                 return true
             }
         }
@@ -96,11 +96,11 @@ object Logger : TreeCommand(Level, Filter, ShowLoggerName)
             {
                 if (args.isEmpty())
                 {
-                    sender.err.println("No filter specified.")
+                    sender.err("No filter specified.")
                     return true
                 }
                 ForumLogger.removeFilter(args[0])
-                sender.out.println("Removed filter: ${args[0]}")
+                sender.out("Removed filter: ${args[0]}")
                 return true
             }
 
@@ -127,10 +127,10 @@ object Logger : TreeCommand(Level, Filter, ShowLoggerName)
                 args: kotlin.collections.List<String>
             ): Boolean
             {
-                sender.out.println("Filters:")
+                sender.out("Filters:")
                 for (filter in ForumLogger.filters())
                 {
-                    sender.out.println("- $filter")
+                    sender.out("- $filter")
                 }
                 return true
             }
@@ -151,7 +151,7 @@ object Logger : TreeCommand(Level, Filter, ShowLoggerName)
             {
                 if (args.isEmpty())
                 {
-                    sender.out.println("filter mode: ${if (loggerConfig.whiteList) "whitelist" else "blacklist"}")
+                    sender.out("filter mode: ${if (loggerConfig.whiteList) "whitelist" else "blacklist"}")
                 }
                 else
                 {
@@ -160,16 +160,16 @@ object Logger : TreeCommand(Level, Filter, ShowLoggerName)
                         "whitelist" ->
                         {
                             ForumLogger.setWhiteList(true)
-                            sender.out.println("set filter mode to whitelist")
+                            sender.out("set filter mode to whitelist")
                         }
                         "blacklist" ->
                         {
                             ForumLogger.setWhiteList(false)
-                            sender.out.println("set filter mode to blacklist")
+                            sender.out("set filter mode to blacklist")
                         }
                         else ->
                         {
-                            sender.out.println("Unknown mode: ${args[0]}")
+                            sender.out("Unknown mode: ${args[0]}")
                             return true
                         }
                     }
@@ -197,7 +197,7 @@ object Logger : TreeCommand(Level, Filter, ShowLoggerName)
         {
             if (args.isEmpty())
             {
-                sender.out.println("show logger name: ${loggerConfig.showLoggerName}")
+                sender.out("show logger name: ${loggerConfig.showLoggerName}")
                 return true
             }
             if (args.size != 1) return false

@@ -79,7 +79,7 @@ abstract class TreeCommand(): Command
         val command = map[args[0]] // 获取命令对象
         return if (command==null) // 如果命令对象不存在
         {
-            sender.err.println("Unknown argument: ${args[0]}")
+            sender.err("Unknown argument: ${args[0]}")
             true
         }
         else command.execute(sender, args.drop(1)) // 删掉第一个参数并给到下一层

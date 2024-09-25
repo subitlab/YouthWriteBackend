@@ -49,7 +49,7 @@ object Color: TreeCommand(Test, Mode, Effect)
             sb.append("B:\n")
             for (i in 0..UByte.MAX_VALUE.toInt())
                 sb.append("${RGBAnsiColor.fromRGB(0, 0, i)}$i${AnsiStyle.RESET} ")
-            sb.toString().split("\n").forEach { sender.out.println(it) }
+            sb.toString().split("\n").forEach { sender.out(it) }
             return true
         }
     }
@@ -65,7 +65,7 @@ object Color: TreeCommand(Test, Mode, Effect)
             {
                 Console.ansiColorMode = ColorDisplayMode.RGB
                 loggerConfig = loggerConfig.copy(color = ColorDisplayMode.RGB)
-                sender.out.println("Color mode: RGB")
+                sender.out("Color mode: RGB")
                 return true
             }
         }
@@ -77,7 +77,7 @@ object Color: TreeCommand(Test, Mode, Effect)
             {
                 Console.ansiColorMode = ColorDisplayMode.SIMPLE
                 loggerConfig = loggerConfig.copy(color = ColorDisplayMode.SIMPLE)
-                sender.out.println("Color mode: Simple")
+                sender.out("Color mode: Simple")
                 return true
             }
         }
@@ -89,7 +89,7 @@ object Color: TreeCommand(Test, Mode, Effect)
             {
                 Console.ansiColorMode = ColorDisplayMode.NONE
                 loggerConfig = loggerConfig.copy(color = ColorDisplayMode.NONE)
-                sender.out.println("Color mode: None")
+                sender.out("Color mode: None")
                 return true
             }
         }
@@ -106,7 +106,7 @@ object Color: TreeCommand(Test, Mode, Effect)
             {
                 Console.ansiEffectMode = EffectDisplayMode.ON
                 loggerConfig = loggerConfig.copy(effect = true)
-                sender.out.println("Color effect: On")
+                sender.out("Color effect: On")
                 return true
             }
         }
@@ -118,7 +118,7 @@ object Color: TreeCommand(Test, Mode, Effect)
             {
                 Console.ansiEffectMode = EffectDisplayMode.OFF
                 loggerConfig = loggerConfig.copy(effect = false)
-                sender.out.println("Color effect: Off")
+                sender.out("Color effect: Off")
                 return true
             }
         }

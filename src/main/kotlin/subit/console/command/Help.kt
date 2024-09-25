@@ -30,7 +30,7 @@ object Help: Command
     {
         if (args.isEmpty()) // 直接使用help命令的话打印所有命令列表
         {
-            sender.out.println("Commands:")
+            sender.out("Commands:")
             for (command in CommandSet.allCommands()) // 每个命令的格式: 命令名|别名1|别名2 - 命令描述
             {
                 val sb: StringBuilder = StringBuilder()
@@ -41,7 +41,7 @@ object Help: Command
                     sb.append(command.aliases.joinToString("|"))
                 }
                 sb.append(" - ${command.description}")
-                sender.out.println(sb.toString())
+                sender.out(sb.toString())
             }
         }
         else
@@ -49,21 +49,21 @@ object Help: Command
             val command = getCommand(args)
             if (command==null)
             {
-                sender.err.println("Unknown command: ${args.dropLast(1).joinToString(" ")}")
+                sender.err("Unknown command: ${args.dropLast(1).joinToString(" ")}")
                 return true
             }
             val rawCmdName=args.dropLast(1).toMutableList() // 实际命令名
             rawCmdName.add(command.name)
-            sender.out.println("Command: ${rawCmdName.joinToString(" ")}")
-            sender.out.println("Description: ${command.description}")
-            sender.out.println("Aliases: ${command.aliases.joinToString(", ")}")
+            sender.out("Command: ${rawCmdName.joinToString(" ")}")
+            sender.out("Description: ${command.description}")
+            sender.out("Aliases: ${command.aliases.joinToString(", ")}")
             val cmdArgs=command.args.split("\n")
             if (cmdArgs.size>1)// 如果有多个参数，就分行打印
             {
-                sender.out.println("Arguments:")
-                cmdArgs.forEach { sender.out.println("  $it") }
+                sender.out("Arguments:")
+                cmdArgs.forEach { sender.out("  $it") }
             }
-            else sender.out.println("Arguments: ${cmdArgs[0]}") // 否则就直接打印
+            else sender.out("Arguments: ${cmdArgs[0]}") // 否则就直接打印
         }
         return true
     }
