@@ -525,7 +525,7 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
             if (createAfter != null) andWhere { create.aliasOnlyExpression() greaterEq timestampParam(createAfter) }
             if (lastModifiedBefore != null) andWhere { lastModified.aliasOnlyExpression() lessEq timestampParam(lastModifiedBefore) }
             if (lastModifiedAfter != null) andWhere { lastModified.aliasOnlyExpression() greaterEq timestampParam(lastModifiedAfter) }
-            if (!containsKeyWord.isNullOrBlank()) andWhere { PostVersionTable.textContent like "%$containsKeyWord%" }
+            if (!containsKeyWord.isNullOrBlank()) andWhere { (PostVersionTable.textContent like "%$containsKeyWord%") or (PostVersionTable.title like "%$containsKeyWord%") }
             if (!tag.isNullOrBlank()) andHaving { TagsImpl.TagsTable.tag eq tag }
             return this
         }

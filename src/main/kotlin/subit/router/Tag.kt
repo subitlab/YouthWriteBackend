@@ -101,7 +101,7 @@ fun Route.tag() = route("/tag", {
 @Serializable
 data class Tag(val tag: String)
 
-private suspend fun Context.getPostTags()
+private suspend fun Context.getPostTags(): Nothing
 {
     val pid = call.parameters["id"]?.toPostIdOrNull() ?: finishCall(HttpStatus.BadRequest)
     val post = get<Posts>().getPostInfo(pid) ?: finishCall(HttpStatus.NotFound)
@@ -110,7 +110,7 @@ private suspend fun Context.getPostTags()
     finishCall(HttpStatus.OK, tags)
 }
 
-private suspend fun Context.editPostTag(add: Boolean)
+private suspend fun Context.editPostTag(add: Boolean): Nothing
 {
     val pid = call.parameters["id"]?.toPostIdOrNull() ?: finishCall(HttpStatus.BadRequest)
     val post = get<Posts>().getPostInfo(pid) ?: finishCall(HttpStatus.NotFound)
@@ -127,7 +127,7 @@ private suspend fun Context.editPostTag(add: Boolean)
     finishCall(HttpStatus.OK)
 }
 
-private suspend fun Context.searchTags()
+private suspend fun Context.searchTags(): Nothing
 {
     val key = call.parameters["key"] ?: finishCall(HttpStatus.BadRequest)
     val (begin, count) = call.getPage()
@@ -135,7 +135,7 @@ private suspend fun Context.searchTags()
     finishCall(HttpStatus.OK, tags)
 }
 
-private suspend fun Context.getAllTags()
+private suspend fun Context.getAllTags(): Nothing
 {
     val (begin, count) = call.getPage()
     val tags = get<Tags>().getAllTags(begin, count)

@@ -16,10 +16,7 @@ import subit.database.*
 import subit.plugin.RateLimit
 import subit.router.posts.editPostLock
 import subit.router.utils.*
-import subit.utils.HttpStatus
-import subit.utils.respond
-import subit.utils.statuses
-import subit.utils.toEnumOrNull
+import subit.utils.*
 
 fun Route.comment() = route("/comment", {
     tags = listOf("评论")
@@ -130,9 +127,9 @@ private suspend fun Context.commentPost()
 
     get<PostVersions>().createPostVersion(
         post = commentId,
-        content = newComment.content,
+        content = if (newComment.draft) newComment.content else clearAndMerge(newComment.content),
         title = "",
-        draft = false,
+        draft = newComment.draft,
     )
 
     if (markingPostVersion != null) editPostLock.withLock(markingPost.id)
@@ -166,6 +163,13 @@ private suspend fun Context.getComments(all: Boolean)
     val posts = get<Posts>()
     val post = posts.getPostInfo(postId) ?: return call.respond(HttpStatus.NotFound)
     withPermission { checkRead(post) }
-    val comments = if (all) posts.getDescendants(postId, type, begin, count) else posts.getChildPosts(postId, type, begin, count)
-    call.respond(HttpStatus.OK, checkAnonymous(comments))
+    val comments =
+        if (all) posts.getDescendants(postId, type, begin, count)
+        else posts.getChildPosts(postId, type, begin, count)
+    val wordMarkings = get<WordMarkings>()
+    val res = comments.map {
+        if (it.lastVersionId == null || it.content == null) return@map it
+        it.copy(content = withWordMarkings(it.content, wordMarkings.getWordMarkings(it.lastVersionId)))
+    }
+    call.respond(HttpStatus.OK, checkAnonymous(res))
 }

@@ -317,140 +317,47 @@ private suspend fun Context.getPost()
     val id = call.parameters["id"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val postFull = get<Posts>().getPostFull(id) ?: return call.respond(HttpStatus.NotFound)
     withPermission { checkRead(postFull.toPostInfo()) }
-    call.respond(HttpStatus.OK, checkAnonymous(postFull))
+    val wordMarkings = postFull.lastVersionId?.let { get<WordMarkings>().getWordMarkings(it) }
+    val resContent = postFull.content?.let { withWordMarkings(it, wordMarkings!!) }
+    call.respond(HttpStatus.OK, checkAnonymous(postFull.copy(content = resContent)))
 }
 
 @Serializable
 data class EditPost(val title: String, val content: JsonElement, val draft: Boolean, val oldVersionId: PostVersionId)
 
 val editPostLock = Locks<PostId>()
-private suspend fun Context.editPost()
-{
+private suspend fun Context.editPost() = editPostLock.tryWithLock(
+    call.parameters["id"]?.toPostIdOrNull() ?: finishCall(HttpStatus.BadRequest),
+    { finishCall(HttpStatus.TooManyRequests) }
+)
+{ id ->
     val operators = receiveAndCheckBody<EditPost>()
-    val id = call.parameters["id"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
 
     val postVersions = get<PostVersions>()
+    val postInfo = get<Posts>().getPostFullBasicInfo(id) ?: return call.respond(HttpStatus.NotFound)
+    val oldVersionId = postVersions.getLatestPostVersion(id, true)
+    if (postInfo.author != loginUser.id) call.respond(HttpStatus.Forbidden.subStatus(message = "文章仅允许作者编辑"))
+    if (operators.oldVersionId != oldVersionId) return call.respond(HttpStatus.NotLatestVersion)
+    if (operators.title.length >= 256) return call.respond(HttpStatus.BadRequest.subStatus(message = "标题过长"))
 
-    if (operators.draft)
-    {
-        postVersions.createPostVersion(
-            post = id,
-            title = operators.title,
-            content = operators.content,
-            draft = true
-        )
+    val newVersionId = postVersions.createPostVersion(
+        post = id,
+        title = operators.title,
+        content = if (operators.draft) operators.content else clearAndMerge(operators.content),
+        draft = operators.draft
+    )
 
-        finishCall(HttpStatus.OK)
-    }
+    if (operators.draft) finishCall(HttpStatus.OK)
 
-    editPostLock.tryWithLock(id, { call.respond(HttpStatus.TooManyRequests) })
-    {
-        val postInfo = get<Posts>().getPostFullBasicInfo(id) ?: return call.respond(HttpStatus.NotFound)
-        val wordMarkings = get<WordMarkings>()
+    val wordMarkings = get<WordMarkings>()
+    val oldVersionInfo = postVersions.getPostVersion(oldVersionId) ?: return@tryWithLock call.respond(HttpStatus.NotFound)
+    val markings = wordMarkings.getWordMarkings(oldVersionId)
+    val newMarkings =
+        mapWordMarkings(oldVersionInfo.content, operators.content, markings).map { it.copy(postVersion = newVersionId) }
 
-        if (postInfo.author != loginUser.id) call.respond(HttpStatus.Forbidden.subStatus(message = "文章仅允许作者编辑"))
-        if (operators.title.length >= 256) return call.respond(HttpStatus.BadRequest.subStatus(message = "标题过长"))
-
-        if (operators.oldVersionId != postInfo.lastVersionId) return@tryWithLock call.respond(HttpStatus.NotLatestVersion)
-        val oldVersionInfo = postVersions.getPostVersion(postInfo.lastVersionId) ?: return@tryWithLock call.respond(HttpStatus.NotFound)
-
-        var markings = wordMarkings.getWordMarkings(postInfo.lastVersionId)
-
-        TODO("暂时不支持划词评论的处理")
-
-        /*
-        val del = IntArray(oldVersionInfo.content.length + 1)
-        for (i in operators.del) // 在每个删除区间的左端点处+1, 右端点+1处-1
-        {
-            del[i.start]++
-            del[i.end+1]--
-        }
-        // 进行前缀和操作
-        for (i in 1 until del.size) del[i] += del[i - 1]
-        // 到此处del[i]表示原字符串中第i个字符被删除的次数, 理论上只能为0或1
-
-        // 计算新的content
-        val newContent = StringBuilder()
-        for (i in oldVersionInfo.content.indices)
-        {
-            val insert = operators.insert[i]
-            // 如果有插入的话先插入
-            if (insert != null) newContent.append(insert)
-            // 如果没有删除的话再添加
-            if (del[i] == 0) newContent.append(oldVersionInfo.content[i])
-        }
-        // 如果末尾有插入的话添加
-        val insert = operators.insert[oldVersionInfo.content.length]
-        if (insert != null) newContent.append(insert)
-
-        val newVersion = postVersions.createPostVersion(
-            post = id,
-            title = operators.newTitle,
-            content = newContent.toString(),
-            draft = false
-        )
-
-        markings.map { it.copy(postVersion = newVersion) }
-
-        //////////////////////////// 以下为对划词评论的处理 ////////////////////////////
-
-        val pre = IntArray(oldVersionInfo.content.length + 1)
-
-        ///////// 处理划词评论中出现删除的情况 /////////
-
-        // 对del数组进行再前缀和操作
-        for (i in 1 until pre.size) pre[i] = pre[i - 1] + del[i - 1]
-        // 到此处pre[i]表示原字符串中第i个字符及其之前的字符被删除的次数
-
-        markings = markings.map {
-            if (it.state != WordMarkingState.NORMAL) return@map it
-            // 如果删除区间的左端点和右端点的删除次数相同, 则说明标记区间内的字符没有被删除, 不做处理
-            // 注意: pre[start-1]是在区间前的字符被删除的次数, pre[end]是在末尾及之前的字符被删除的次数,
-            // 所以要判断start-1和end是否相等. 如果判断start和end相等的话, 则会导致在start处的字符被删除的情况被忽略
-            if (pre[it.start-1] == pre[it.end]) return@map it
-            // 如果删除区间的左端点和右端点的删除次数不同, 则说明标记区间内的字符有被删除的情况
-            // 需要将标记区间的状态设置为DELETED
-            it.copy(state = WordMarkingState.DELETED, start = 0, end = 0)
-        }
-        // 到此处所有因为删除操作而被删除的标记都被处理完了
-        for (i in pre.indices) pre[i] = 0 // 重置pre数组
-
-        ///////// 处理划词评论中出现插入的情况 /////////
-
-        // insert的位置进行前缀和操作
-        for (i in 1 until pre.size) pre[i] = pre[i - 1] + (if (operators.insert[i - 1] != null) 1 else 0)
-        // 到此处pre[i]表示原字符串中第i个字符及其之前的字符被插入的次数
-
-        markings = markings.map {
-            if (it.state != WordMarkingState.NORMAL) return@map it
-            // 如果插入区间的左端点和右端点的插入次数相同, 则说明标记区间内的字符没有被插入, 不做处理
-            // 注意: pre[start]是在区间前的字符被插入的次数, pre[end]是在末尾及之前的字符被插入的次数, 所以要判断start和end是否相等.
-            if (pre[it.start] == pre[it.end]) return@map it
-            // 如果插入区间的左端点和右端点的插入次数不同, 则说明标记区间内的字符有被插入的情况
-            // 需要将标记区间的状态设置为DELETED
-            it.copy(state = WordMarkingState.DELETED, start = 0, end = 0)
-        }
-        for (i in pre.indices) pre[i] = 0 // 重置pre数组
-
-        ///////// 至此所有因为修改而失效的划词都处理完了, 接下来是修改导致的划词位置偏移 /////////
-
-        for (i in 1 until pre.size) pre[i] = pre[i - 1] - del[i - 1] + (if (operators.insert[i - 1] != null) 1 else 0)
-        // 到此处pre[i]表示原字符串中第i个字符及其之前的字符数目变化, 为正表示总的来说字符数目增加, 为负表示总的来说字符数目减少
-
-        markings = markings.map {
-            if (it.state != WordMarkingState.NORMAL) return@map it
-            it.copy(start = it.start + pre[it.start], end = it.end + pre[it.end])
-        }
-
-        ///////// 至此所有的划词评论的处理结束了 /////////
-
-        // 将新的标记写入数据库
-        wordMarkings.batchAddWordMarking(markings)
-        */
-    }
-
-    call.respond(HttpStatus.OK)
+    wordMarkings.batchAddWordMarking(newMarkings)
+    finishCall(HttpStatus.OK)
 }
 
 private suspend fun Context.changeState()
@@ -598,7 +505,7 @@ private suspend fun Context.newPost()
     get<PostVersions>().createPostVersion(
         post = id,
         title = newPost.title,
-        content = newPost.content,
+        content = if (newPost.draft) newPost.content else clearAndMerge(newPost.content),
         draft = newPost.draft
     )
     call.respond(HttpStatus.OK, id)
