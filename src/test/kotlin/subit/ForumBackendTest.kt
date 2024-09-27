@@ -49,6 +49,14 @@ class ForumBackendTest
               }
             ],
             "type":"p"
+          },
+          {
+            "type": "p",
+            "children": [
+              {
+                "text": ""
+              }
+            ]
           }
         ]
         """.trimIndent()
@@ -95,6 +103,14 @@ class ForumBackendTest
                 "wmid": [
                   3
                 ]
+              }
+            ]
+          },
+          {
+            "type": "p",
+            "children": [
+              {
+                "text": ""
               }
             ]
           }

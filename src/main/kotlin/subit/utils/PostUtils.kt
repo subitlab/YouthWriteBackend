@@ -1,10 +1,8 @@
 package subit.utils
 
-import kotlinx.serialization.ExperimentalSerializationApi
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.*
-import org.intellij.lang.annotations.Language
-import subit.dataClasses.*
+import subit.dataClasses.WordMarkingId
+import subit.dataClasses.WordMarkingInfo
 
 const val SUB_CONTENT_LENGTH = 100
 
@@ -50,6 +48,7 @@ fun splitContentNode(nodes: JsonElement): JsonElement
                     obj[ID_KEY] = JsonPrimitive(id++)
                     list.add(JsonObject(obj))
                 }
+                if (text.isEmpty()) list.add(nodes)
                 list
             }
             else if (node != null)
@@ -60,7 +59,7 @@ fun splitContentNode(nodes: JsonElement): JsonElement
                 obj.remove("children")
                 obj.remove(ID_KEY)
                 val splitNode = splitContentNodeImpl(node)
-                obj["children"] = splitNode[0]
+                obj["children"] = if (splitNode.size == 1) splitNode[0] else JsonArray(splitNode)
                 listOf(JsonObject(obj))
             }
             else listOf(nodes)
@@ -168,14 +167,13 @@ fun clearAndMerge(nodes: JsonElement): JsonElement
         {
             val map1 = node1.toMutableMap()
             val map2 = node2.toMutableMap()
+            if (map1["children"] != null && map2["children"] != null) return false
             map1.remove(ID_KEY)
             map2.remove(ID_KEY)
             map1.remove("id")
             map2.remove("id")
             map1.remove("text")
             map2.remove("text")
-            map1.remove("children")
-            map2.remove("children")
             map1.remove(WORD_MARKING_KEY)
             map2.remove(WORD_MARKING_KEY)
             return equals(map1, map2)
@@ -186,22 +184,16 @@ fun clearAndMerge(nodes: JsonElement): JsonElement
     fun merge(node1: JsonObject, node2: JsonObject): JsonElement
     {
         val map = node1.toMutableMap()
-        val c1 = node1["text"] ?: node1["children"]
-        val c2 = node2["text"] ?: node2["children"]
+        val c1 = node1["text"]
+        val c2 = node2["text"]
         map.remove(ID_KEY)
         map.remove("id")
         map.remove("text")
         map.remove("children")
+        map.remove(WORD_MARKING_KEY)
         if (c1 is JsonPrimitive && c2 is JsonPrimitive)
         {
             map["text"] = JsonPrimitive(c1.content + c2.content)
-        }
-        else if (c1 is JsonArray && c2 is JsonArray)
-        {
-            val list = mutableListOf<JsonElement>()
-            list.addAll(c1)
-            list.addAll(c2)
-            map["children"] = JsonArray(list)
         }
         return JsonObject(map)
     }
@@ -221,7 +213,7 @@ fun clearAndMerge(nodes: JsonElement): JsonElement
                 }
                 if (canMerge(last, node))
                 {
-                    list[list.size - 1] = merge(last as JsonObject, node as JsonObject)
+                    list[list.lastIndex] = merge(last as JsonObject, node as JsonObject)
                 }
                 else list.add(node)
             }
@@ -240,7 +232,7 @@ fun clearAndMerge(nodes: JsonElement): JsonElement
             obj.remove("children")
             obj.remove(WORD_MARKING_KEY)
             if (node is JsonPrimitive)
-                obj["text"] = JsonPrimitive(node.content)
+                obj["text"] = node
             else if (node != null)
                 obj["children"] = clearAndMerge(node)
             JsonObject(obj)
@@ -314,6 +306,7 @@ fun withWordMarkings(jsonElement: JsonElement, wordMarkings: List<WordMarkingInf
                         }
                         id++
                     }
+                    if (text.isEmpty()) list.add(nodes.toMutableMap())
                     SplitContentNode(id - 1, list.map { JsonObject(it) })
                 }
                 else if (node != null)
