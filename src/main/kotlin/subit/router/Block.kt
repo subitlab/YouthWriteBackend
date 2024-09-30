@@ -85,6 +85,11 @@ fun Route.block() = route("/block", {
         description = "获得所有板块, 只包含当前用户有权限看的板块"
         request {
             paged()
+            queryParameter<Boolean>("editable")
+            {
+                description = "是否只获取当前用户有权限编辑的板块, 不填视为false"
+                required = false
+            }
         }
         response {
             statuses<Slice<Block>>(HttpStatus.OK, example = sliceOf(Block.example))
@@ -93,6 +98,13 @@ fun Route.block() = route("/block", {
 
     get("/all/tree", {
         description = "以树形结构获得所有当前用户可见的板块"
+        request {
+            queryParameter<Boolean>("editable")
+            {
+                description = "是否只获取当前用户有权限编辑的板块, 不填视为false"
+                required = false
+            }
+        }
         response {
             statuses<Set<BlockTree>>(HttpStatus.OK, example = setOf(BlockTree.leafExample, BlockTree.example))
         }
@@ -311,7 +323,8 @@ private suspend fun Context.getChildren()
 private suspend fun Context.getAllBlocks()
 {
     val (begin, count) = call.getPage()
-    val res = get<Blocks>().getAllBlocks(getLoginUser()?.toDatabaseUser(), begin, count)
+    val editable = call.parameters["editable"].toBoolean()
+    val res = get<Blocks>().getAllBlocks(getLoginUser()?.toDatabaseUser(), editable, begin, count)
     finishCall(HttpStatus.OK, res)
 }
 
@@ -339,9 +352,7 @@ private fun MutableSet<Block>.toBlockTree(root: Block? = null): Set<BlockTree>
 
 private suspend fun Context.getBlockTree()
 {
-    val blocks = get<Blocks>()
-    val loginUser = getLoginUser()
-    val allBlocks = blocks.getAllBlocks(loginUser?.toDatabaseUser(), 0, Int.MAX_VALUE).list.toMutableSet()
-    val res = allBlocks.toBlockTree()
-    call.respond(HttpStatus.OK, res)
+    val editable = call.parameters["editable"].toBoolean()
+    val allBlocks = get<Blocks>().getAllBlocks(getLoginUser()?.toDatabaseUser(), editable, 0, Int.MAX_VALUE).list.toMutableSet()
+    call.respond(HttpStatus.OK, allBlocks.toBlockTree())
 }

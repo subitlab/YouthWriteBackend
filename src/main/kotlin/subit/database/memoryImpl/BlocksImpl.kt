@@ -66,8 +66,13 @@ class BlocksImpl: Blocks
     override suspend fun searchBlock(loginUser: UserId?, key: String, begin: Long, count: Int): Slice<BlockId> =
         map.values.filter { it.name.contains(key) }.asSequence().asSlice(begin, count).map { it.id }
 
-    override suspend fun getAllBlocks(loginUser: DatabaseUser?, begin: Long, count: Int): Slice<Block> = withPermission(loginUser, null)
+    override suspend fun getAllBlocks(
+        loginUser: DatabaseUser?,
+        editable: Boolean,
+        begin: Long,
+        count: Int
+    ): Slice<Block> = withPermission(loginUser, null)
     {
-        map.values.filter { canRead(it) }.asSequence().asSlice(begin, count)
+        map.values.filter { if (editable) canPost(it) else canRead(it) }.asSequence().asSlice(begin, count)
     }
 }
