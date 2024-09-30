@@ -595,7 +595,7 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
             .select(postFullBasicInfoColumns)
             .checkPermission()
             .andWhere { parent.isNull() }
-            .andWhere { table.state eq state }
+            .andWhere { table.state eq State.NORMAL }
             .andWhere { lastVersionId.aliasOnlyExpression().isNotNull() }
             .groupBy(id, create, blockTable.id, blockTable.reading)
             .groupPostFull()

@@ -66,14 +66,14 @@ class Locks<K>
      * 尝试获取锁, 获取失败则执行 onFail 并返回其结果
      */
     @OptIn(ExperimentalContracts::class)
-    suspend inline fun <R> tryWithLock(key: K, onFail: (K)->Unit, block: (K)->R): R?
+    suspend inline fun <R> tryWithLock(key: K, onFail: (K)->R, block: (K)->R): R
     {
         contract {
             callsInPlace(block, InvocationKind.AT_MOST_ONCE)
             callsInPlace(onFail, InvocationKind.AT_MOST_ONCE)
         }
         val lock = getLock(key)
-        if (!lock.tryLock()) return onFail(key).let { null }
+        if (!lock.tryLock()) return onFail(key)
         return try
         {
             block(key)
