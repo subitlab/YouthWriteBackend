@@ -25,7 +25,7 @@ class PostVersionsImpl: DaoSqlImpl<PostVersionsImpl.PostVersionTable>(PostVersio
         val post = reference("post", PostsImpl.PostsTable)
         val title = varchar("title", 255)
         val content = jsonb<JsonElement>("content", dataJson)
-        val textContent = varchar("text_content", 255)
+        val textContent = text("text_content")
         val time = timestamp("time").defaultExpression(CurrentTimestamp).index()
         val draft = bool("draft").default(false)
         override val primaryKey = PrimaryKey(id)

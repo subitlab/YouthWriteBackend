@@ -10,6 +10,7 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.koin.ktor.ext.inject
 import subit.config.systemConfig
+import subit.dataClasses.PermissionLevel
 import subit.database.Prohibits
 import subit.database.checkParameters
 import subit.router.admin.admin
@@ -25,6 +26,7 @@ import subit.router.report.report
 import subit.router.tags.tag
 import subit.router.teapot.teapot
 import subit.router.user.user
+import subit.router.utils.finishCall
 import subit.router.utils.getLoginUser
 import subit.router.wordMarkings.wordMarking
 import subit.utils.HttpStatus
@@ -63,13 +65,10 @@ fun Application.router() = routing()
                 finish()
             }
 
-            // 检查用户是否被封禁
-            getLoginUser()?.id?.apply {
-                if (prohibits.isProhibited(this))
-                {
-                    call.respond(HttpStatus.Prohibit)
-                    finish()
-                }
+            getLoginUser()?.apply()
+            {
+                if (this.permission < PermissionLevel.NORMAL || prohibits.isProhibited(this.id))
+                    finishCall(HttpStatus.Prohibit)
             }
 
             // 检查参数是否包含违禁词

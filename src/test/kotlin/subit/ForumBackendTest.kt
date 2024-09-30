@@ -13,10 +13,14 @@ import subit.utils.*
 
 class ForumBackendTest
 {
-    fun test() = testApplication() {
-        createClient() {
-            install(ContentNegotiation) {
-                json(Json() {
+    fun test() = testApplication()
+    {
+        createClient()
+        {
+            install(ContentNegotiation)
+            {
+                json(Json()
+                {
                     prettyPrint = true
                     isLenient = true
                     ignoreUnknownKeys = true
