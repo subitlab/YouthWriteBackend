@@ -45,17 +45,8 @@ private val init: Unit = run {
         override fun publish(record: LogRecord)
         {
             if (!loggerConfig.check(record)) return
-
             if (record.loggerName.startsWith("io.ktor.websocket")) return
-
-            val messages = mutableListOf(formatter.format(record))
-
-            if (record.thrown != null)
-            {
-                val str = record.thrown.stackTraceToString()
-                str.split("\n").forEach { messages.add(it) }
-            }
-            loggerFlow.tryEmit(Packet(MESSAGE, messages.joinToString("\n")))
+            loggerFlow.tryEmit(Packet(MESSAGE, formatter.format(record)))
         }
         override fun flush() = Unit
         override fun close() = Unit
@@ -73,7 +64,7 @@ fun Route.terminal() = route("/terminal", {
         if (loginUser == null || loginUser.permission != PermissionLevel.ROOT)
             return@webSocket close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Permission denied"))
 
-        val job = launch { sharedFlow.collect { sendSerialized(it) } }
+        val job = launch { sharedFlow.collect(::sendSerialized) }
 
         class WebSocketCommandSender(user: UserFull): CommandSet.CommandSender
         {

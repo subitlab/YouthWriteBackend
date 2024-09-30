@@ -11,17 +11,13 @@ import subit.console.Console
 import subit.console.SimpleAnsiColor
 import subit.console.SimpleAnsiColor.Companion.CYAN
 import subit.console.SimpleAnsiColor.Companion.PURPLE
-import subit.logger.ForumLogger.nativeOut
 import subit.logger.ForumLogger.safe
 import subit.workDir
 import java.io.*
 import java.text.SimpleDateFormat
 import java.util.*
+import java.util.logging.*
 import java.util.logging.Formatter
-import java.util.logging.Handler
-import java.util.logging.Level
-import java.util.logging.LogRecord
-import java.util.logging.Logger
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import kotlin.jvm.optionals.getOrDefault
@@ -168,6 +164,12 @@ object ToConsoleHandler: Handler()
             override fun format(record: LogRecord): String
             {
                 val message = formatMessage(record)
+                val messages = mutableListOf(message)
+                if (record.thrown != null)
+                {
+                    val str = record.thrown.stackTraceToString()
+                    str.split("\n").forEach { messages.add(it) }
+                }
                 val level = record.level
                 val ansiStyle = if (level.intValue() >= Level.SEVERE.intValue()) SimpleAnsiColor.RED.bright()
                 else if (level.intValue() >= Level.WARNING.intValue()) SimpleAnsiColor.YELLOW.bright()
@@ -191,7 +193,7 @@ object ToConsoleHandler: Handler()
                     level.name,
                     RESET,
                 )
-                return "$head $message $RESET"
+                return messages.joinToString("\n") { "$head $it$RESET" }
             }
         }
     }
@@ -199,13 +201,7 @@ object ToConsoleHandler: Handler()
     override fun publish(record: LogRecord) = safe()
     {
         if (!loggerConfig.check(record)) return
-        val messages = mutableListOf(formatter.format(record))
-
-        if (record.thrown != null)
-        {
-            val str = record.thrown.stackTraceToString()
-            str.split("\n").forEach { messages.add(it) }
-        }
+        val message = formatter.format(record)
         /**
          * 当[Console.println]调用的时候, 向终端打印日志, 会调用jline库,
          * 使得[org.jline.utils.StyleResolver]会在此时打印等级为FINEST的日志.
@@ -213,33 +209,9 @@ object ToConsoleHandler: Handler()
          * 当该日志打印时会调用[Console.println], 再次引起日志打印, 造成无限递归.
          * 因此在这里特别处理
          */
-        if (record.loggerName.startsWith("org.jline"))
-        {
-            /**
-             * 如果等级不足INFO就不打印了
-             */
-            if (record.level.intValue() >= Level.INFO.intValue())
-            {
-                /**
-                 * 如果等级大于等于INFO, 也不能直接调用[Console.println], 所以使用[nativeOut]直接打印到终端
-                 */
-                val head = if (loggerConfig.showLoggerName) String.format(
-                    "[%s][%s][%s]",
-                    ForumLogger.loggerDateFormat.format(record.millis),
-                    record.loggerName,
-                    record.level.name
-                )
-                else String.format(
-                    "[%s][%s]",
-                    ForumLogger.loggerDateFormat.format(record.millis),
-                    record.level.name
-                )
-                messages.forEach { message -> nativeOut.println("$head $message") }
-            }
-            return
-        }
+        if (record.loggerName.startsWith("org.jline")) return
 
-        messages.forEach(Console::println)
+        Console.println(message)
     }
 
     override fun flush() = Unit
@@ -279,6 +251,12 @@ object ToFileHandler: Handler()
             override fun format(record: LogRecord): String
             {
                 val message = formatMessage(record)
+                val messages = mutableListOf(message)
+                if (record.thrown != null)
+                {
+                    val str = record.thrown.stackTraceToString()
+                    str.split("\n").forEach { messages.add(it) }
+                }
                 val level = record.level
                 val head = if (loggerConfig.showLoggerName) String.format(
                     "[%s][%s][%s]",
@@ -291,7 +269,7 @@ object ToFileHandler: Handler()
                     ForumLogger.loggerDateFormat.format(record.millis),
                     level.name
                 )
-                return "$head $message"
+                return messages.joinToString("\n") { "$head $it" }
             }
         }
     }
@@ -365,15 +343,9 @@ object ToFileHandler: Handler()
     override fun publish(record: LogRecord) = safe()
     {
         if (!loggerConfig.check(record)) return
-        val messages = mutableListOf(formatter.format(record))
-
-        if (record.thrown != null)
-        {
-            val str = record.thrown.stackTraceToString()
-            str.split("\n").forEach { messages.add(it) }
-        }
-        val messagesWithOutColor = messages.map { colorMatcher.replace(it, "") }
-        append(messagesWithOutColor)
+        val message = formatter.format(record)
+        val messagesWithOutColor = colorMatcher.replace(message, "")
+        append(messagesWithOutColor.split("\n"))
     }
 
     override fun flush() = Unit
