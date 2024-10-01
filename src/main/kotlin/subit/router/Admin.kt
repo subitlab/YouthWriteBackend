@@ -122,7 +122,7 @@ private suspend fun Context.changePermission()
     if (loginUser.id != changePermission.id) get<Notices>().createNotice(
         Notice.SystemNotice(
             user = changePermission.id,
-            content = "您的全局权限已被修改"
+            content = "您的全局权限已被修改为${changePermission.permission}",
         ),
         false
     )
