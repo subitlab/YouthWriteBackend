@@ -9,9 +9,9 @@ val swagger_ui_version: String by project
 val schema_kenerator_version: String by project
 
 plugins {
-    kotlin("jvm") version "2.0.10"
-    kotlin("plugin.serialization") version "2.0.10"
-    id("io.ktor.plugin") version "2.3.11"
+    kotlin("jvm") version "2.0.20"
+    kotlin("plugin.serialization") version "2.0.20"
+    id("io.ktor.plugin") version "2.3.12"
 }
 
 group = "subit"
