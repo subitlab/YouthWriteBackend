@@ -132,6 +132,7 @@ fun Application.init()
 
     installApiDoc()
     installAuthentication()
+    installAutoHead()
     installContentNegotiation()
     installCORS()
     installDoubleReceive()
