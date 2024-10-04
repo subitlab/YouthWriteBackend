@@ -659,6 +659,47 @@
         document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
     });
 
+    let history = [];
+    let historyIndex = history.length;
+
+    document.getElementById('messageInput').addEventListener('keydown', (event) => {
+        const messageInput = document.getElementById('messageInput');
+        if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')
+        {
+            historyIndex = history.length;
+            return;
+        }
+        event.preventDefault();
+        if (event.key === 'ArrowUp')
+        {
+            if (historyIndex > 0)
+            {
+                historyIndex--;
+                messageInput.value = history[historyIndex];
+            }
+            else if (historyIndex === 0)
+            {
+                historyIndex--;
+                messageInput.value = '';
+            }
+            return;
+        }
+        if (event.key === 'ArrowDown')
+        {
+            if (historyIndex < history.length - 1)
+            {
+                historyIndex++;
+                messageInput.value = history[historyIndex];
+            }
+            else if (historyIndex === history.length - 1)
+            {
+                historyIndex++;
+                messageInput.value = '';
+            }
+            return;
+        }
+    })
+
     document.getElementById('messageInput').addEventListener('keydown', (event) => {
         const messageInput = document.getElementById('messageInput');
         const message = messageInput.value;
@@ -697,6 +738,10 @@
             );
             return;
         }
+        messageInput.value = '';
+        if (message === '') return;
+        history.push(message);
+        historyIndex = history.length;
         select = undefined;
         socket.send(
             JSON.stringify(
@@ -706,7 +751,6 @@
                 }
             )
         );
-        messageInput.value = ''; // 清空输入框
     });
 
     // 显示一个提示信息, 连接失败并显示一个按钮，点击按钮后跳转到SSO登录页面
