@@ -20,7 +20,7 @@ import subit.dataClasses.sliceOf
 import subit.database.Blocks
 import subit.database.Posts
 import subit.database.receiveAndCheckBody
-import subit.plugin.RateLimit
+import subit.plugin.rateLimit.RateLimit
 import subit.router.utils.*
 import subit.utils.HomeFilesUtils
 import subit.utils.HttpStatus

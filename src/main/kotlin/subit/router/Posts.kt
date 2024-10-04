@@ -14,7 +14,7 @@ import subit.dataClasses.PostId.Companion.toPostIdOrNull
 import subit.dataClasses.PostVersionId.Companion.toPostVersionIdOrNull
 import subit.dataClasses.UserId.Companion.toUserIdOrNull
 import subit.database.*
-import subit.plugin.RateLimit
+import subit.plugin.rateLimit.RateLimit
 import subit.router.utils.*
 import subit.utils.*
 

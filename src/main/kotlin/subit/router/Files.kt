@@ -21,7 +21,7 @@ import subit.dataClasses.*
 import subit.dataClasses.Slice.Companion.asSlice
 import subit.dataClasses.UserId.Companion.toUserIdOrNull
 import subit.database.*
-import subit.plugin.contentNegotiationJson
+import subit.plugin.contentNegotiation.contentNegotiationJson
 import subit.router.utils.*
 import subit.utils.*
 import subit.utils.FileUtils.canDelete

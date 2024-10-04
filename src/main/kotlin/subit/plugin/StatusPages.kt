@@ -1,4 +1,6 @@
-package subit.plugin
+@file:Suppress("PackageDirectoryMismatch")
+
+package subit.plugin.statusPages
 
 import io.ktor.http.*
 import io.ktor.server.application.*
@@ -6,6 +8,7 @@ import io.ktor.server.plugins.*
 import io.ktor.server.plugins.statuspages.*
 import io.ktor.server.request.*
 import subit.logger.ForumLogger
+import subit.plugin.rateLimit.RateLimit
 import subit.router.utils.CallFinish
 import subit.utils.HttpStatus
 import subit.utils.respond

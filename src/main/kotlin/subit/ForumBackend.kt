@@ -7,7 +7,16 @@ import net.mamoe.yamlkt.Yaml
 import subit.console.command.CommandSet.startCommandThread
 import subit.database.loadDatabaseImpl
 import subit.logger.ForumLogger
-import subit.plugin.*
+import subit.plugin.apiDoc.installApiDoc
+import subit.plugin.authentication.installAuthentication
+import subit.plugin.autoHead.installAutoHead
+import subit.plugin.contentNegotiation.installContentNegotiation
+import subit.plugin.cors.installCORS
+import subit.plugin.doubleReceive.installDoubleReceive
+import subit.plugin.koin.installKoin
+import subit.plugin.rateLimit.installRateLimit
+import subit.plugin.statusPages.installStatusPages
+import subit.plugin.webSockets.installWebSockets
 import subit.router.router
 import subit.utils.FileUtils
 import subit.utils.Power

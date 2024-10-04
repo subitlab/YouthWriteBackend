@@ -4,7 +4,7 @@ package subit.utils
 
 import kotlinx.datetime.Instant
 import org.jetbrains.exposed.sql.kotlin.datetime.timestampParam
-import subit.plugin.contentNegotiationJson
+import subit.plugin.contentNegotiation.contentNegotiationJson
 import java.io.ByteArrayOutputStream
 import java.io.OutputStream
 import java.io.PrintStream

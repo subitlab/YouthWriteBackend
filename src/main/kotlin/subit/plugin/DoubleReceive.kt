@@ -1,4 +1,6 @@
-package subit.plugin
+@file:Suppress("PackageDirectoryMismatch")
+
+package subit.plugin.doubleReceive
 
 import io.ktor.http.*
 import io.ktor.server.application.*

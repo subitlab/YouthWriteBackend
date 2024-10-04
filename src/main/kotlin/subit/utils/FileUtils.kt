@@ -9,7 +9,7 @@ import subit.dataClasses.PermissionLevel
 import subit.dataClasses.UserFull
 import subit.dataClasses.UserId
 import subit.dataDir
-import subit.plugin.dataJson
+import subit.plugin.contentNegotiation.dataJson
 import java.awt.image.BufferedImage
 import java.io.File
 import java.io.FileInputStream

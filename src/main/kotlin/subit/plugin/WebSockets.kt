@@ -1,8 +1,11 @@
-package subit.plugin
+@file:Suppress("PackageDirectoryMismatch")
+
+package subit.plugin.webSockets
 
 import io.ktor.serialization.kotlinx.*
 import io.ktor.server.application.*
 import io.ktor.server.websocket.*
+import subit.plugin.contentNegotiation.contentNegotiationJson
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.toJavaDuration
 

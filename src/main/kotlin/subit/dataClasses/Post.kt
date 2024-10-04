@@ -3,7 +3,7 @@ package subit.dataClasses
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 import org.koin.core.component.KoinComponent
-import subit.plugin.contentNegotiationJson
+import subit.plugin.contentNegotiation.contentNegotiationJson
 import subit.utils.getContentText
 
 @Serializable

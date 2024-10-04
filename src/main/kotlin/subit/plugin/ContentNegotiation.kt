@@ -1,4 +1,6 @@
-package subit.plugin
+@file:Suppress("PackageDirectoryMismatch")
+
+package subit.plugin.contentNegotiation
 
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*

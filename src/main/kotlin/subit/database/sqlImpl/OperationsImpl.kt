@@ -8,7 +8,7 @@ import org.jetbrains.exposed.sql.kotlin.datetime.timestampWithTimeZone
 import org.koin.core.component.KoinComponent
 import subit.dataClasses.UserId
 import subit.database.Operations
-import subit.plugin.dataJson
+import subit.plugin.contentNegotiation.dataJson
 import kotlin.reflect.KType
 
 class OperationsImpl: DaoSqlImpl<OperationsImpl.OperationsTable>(OperationsTable), Operations, KoinComponent

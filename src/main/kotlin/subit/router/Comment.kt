@@ -13,7 +13,7 @@ import kotlinx.serialization.json.JsonElement
 import subit.dataClasses.*
 import subit.dataClasses.PostId.Companion.toPostIdOrNull
 import subit.database.*
-import subit.plugin.RateLimit
+import subit.plugin.rateLimit.RateLimit
 import subit.router.posts.editPostLock
 import subit.router.utils.*
 import subit.utils.*

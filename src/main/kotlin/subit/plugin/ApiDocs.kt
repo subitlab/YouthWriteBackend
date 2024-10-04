@@ -1,4 +1,6 @@
-package subit.plugin
+@file:Suppress("PackageDirectoryMismatch")
+
+package subit.plugin.apiDoc
 
 import io.github.smiley4.ktorswaggerui.SwaggerUI
 import io.github.smiley4.ktorswaggerui.data.AuthKeyLocation
@@ -13,6 +15,7 @@ import io.github.smiley4.schemakenerator.swagger.withAutoTitle
 import io.ktor.server.application.*
 import io.ktor.server.plugins.ratelimit.*
 import kotlinx.serialization.serializer
+import subit.plugin.contentNegotiation.showJson
 
 /**
  * 在/api-docs 路径下安装SwaggerUI

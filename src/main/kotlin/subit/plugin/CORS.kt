@@ -1,4 +1,6 @@
-package subit.plugin
+@file:Suppress("PackageDirectoryMismatch")
+
+package subit.plugin.cors
 
 import io.ktor.http.*
 import io.ktor.server.application.*

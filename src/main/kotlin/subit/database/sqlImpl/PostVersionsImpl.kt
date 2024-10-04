@@ -14,7 +14,7 @@ import subit.dataClasses.*
 import subit.database.PostVersions
 import subit.database.sqlImpl.utils.asSlice
 import subit.database.sqlImpl.utils.singleOrNull
-import subit.plugin.dataJson
+import subit.plugin.contentNegotiation.dataJson
 import subit.utils.getContentText
 
 class PostVersionsImpl: DaoSqlImpl<PostVersionsImpl.PostVersionTable>(PostVersionTable), PostVersions, KoinComponent

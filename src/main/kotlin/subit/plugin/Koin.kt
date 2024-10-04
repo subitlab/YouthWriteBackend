@@ -1,4 +1,6 @@
-package subit.plugin
+@file:Suppress("PackageDirectoryMismatch")
+
+package subit.plugin.koin
 
 import io.ktor.server.application.*
 import org.koin.dsl.bind
