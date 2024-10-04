@@ -1,1 +1,1 @@
-rootProject.name = "ForumBackendKtor"
+rootProject.name = "YouthWriteBackend"

@@ -1,5 +1,12 @@
 package subit.utils
 
+import io.ktor.client.HttpClient
+import io.ktor.client.call.body
+import io.ktor.client.engine.java.Java
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.request.bearerAuth
+import io.ktor.client.request.get
+import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.koin.core.component.KoinComponent
@@ -7,51 +14,33 @@ import org.koin.core.component.inject
 import subit.config.systemConfig
 import subit.dataClasses.*
 import subit.database.Users
-import subit.plugin.dataJson
-import java.net.HttpURLConnection
-import java.net.URL
+import subit.plugin.contentNegotiation.contentNegotiationJson
 
 @Suppress("MemberVisibilityCanBePrivate")
 object SSO: KoinComponent
 {
     val users: Users by inject()
-
-    private fun decodeSsoUser(response: String): SsoUser?
+    private val httpClient = HttpClient(Java)
     {
-        runCatching {
-            return dataJson.decodeFromString<Response<SsoUserFull>>(response).data
+        engine()
+        {
+            pipelining = true
+            protocolVersion = java.net.http.HttpClient.Version.HTTP_2
         }
-
-        runCatching {
-            return dataJson.decodeFromString<Response<SsoUserInfo>>(response).data
+        install(ContentNegotiation)
+        {
+            json(contentNegotiationJson)
         }
-
-        return null
     }
 
     suspend fun getUser(userId: UserId): SsoUser? = withContext(Dispatchers.IO)
     {
-        val url = URL(systemConfig.ssoServer + "/info/${userId.value}")
-        val connection = url.openConnection() as HttpURLConnection
-        connection.requestMethod = "GET"
-        connection.connect()
-        val response =
-            runCatching { connection.inputStream.bufferedReader().readText() }.getOrNull() ?: return@withContext null
-        connection.disconnect()
-        return@withContext decodeSsoUser(response)
+        runCatching { httpClient.get (systemConfig.ssoServer + "/info/${userId.value}").body<Response<SsoUser>>().data }.getOrNull()
     }
 
     suspend fun getUser(token: String): SsoUserFull? = withContext(Dispatchers.IO)
     {
-        val url = URL(systemConfig.ssoServer + "/info/0")
-        val connection = url.openConnection() as HttpURLConnection
-        connection.setRequestProperty("Authorization", token)
-        connection.requestMethod = "GET"
-        connection.connect()
-        val response =
-            runCatching { connection.inputStream.bufferedReader().readText() }.getOrNull() ?: return@withContext null
-        connection.disconnect()
-        return@withContext decodeSsoUser(response) as? SsoUserFull
+        runCatching { httpClient.get(systemConfig.ssoServer + "/info/0") { bearerAuth(token) }.body<Response<SsoUserFull>>().data }.getOrNull()
     }
 
     suspend fun getUserFull(token: String): UserFull?
