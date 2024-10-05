@@ -26,6 +26,8 @@ data class HttpStatus(val code: HttpStatusCode, val message: String)
         val UsernameFormatError = HttpStatus(HttpStatusCode.BadRequest, "用户名格式错误")
         // 操作需要登陆, 未登陆 401
         val Unauthorized = HttpStatus(HttpStatusCode.Unauthorized, "未登录, 请先登录")
+        // OAuth code 无效
+        val InvalidOAuthCode = HttpStatus(HttpStatusCode.BadRequest, "授权码无效")
         // 密码错误 401
         val PasswordError = HttpStatus(HttpStatusCode.Unauthorized, "账户或密码错误")
         // 无法创建用户, 邮箱已被注册 406
@@ -72,6 +74,8 @@ data class HttpStatus(val code: HttpStatusCode, val message: String)
         val NotAcceptable = HttpStatus(HttpStatusCode.NotAcceptable, "不接受的请求")
         // 冲突
         val Conflict = HttpStatus(HttpStatusCode.Conflict, "冲突")
+        // 登录成功但未授权
+        val LoginSuccessButNotAuthorized = HttpStatus(HttpStatusCode.ExpectationFailed, "登录成功但未授权")
     }
 
     fun subStatus(message: String) = HttpStatus(code, "${this.message}: $message")

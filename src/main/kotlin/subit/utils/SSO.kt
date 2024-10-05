@@ -4,11 +4,11 @@ import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.java.Java
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.client.request.bearerAuth
-import io.ktor.client.request.get
+import io.ktor.client.request.*
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import subit.config.systemConfig
@@ -33,19 +33,55 @@ object SSO: KoinComponent
         }
     }
 
-    suspend fun getUser(userId: UserId): SsoUser? = withContext(Dispatchers.IO)
+    @Serializable
+    enum class AuthorizationStatus
     {
-        runCatching { httpClient.get (systemConfig.ssoServer + "/info/${userId.value}").body<Response<SsoUser>>().data }.getOrNull()
+        UNAUTHORIZED,
+        AUTHORIZED,
+        CANCELED,
     }
 
-    suspend fun getUser(token: String): SsoUserFull? = withContext(Dispatchers.IO)
+    private const val MAX_ACCESS_TOKEN_VALID_TIME = 2592000
+
+    @Serializable
+    private data class AccessTokenResponse(
+        val accessToken: String,
+        val accessTokenExpiresIn: Int,
+        val refreshToken: String,
+        val refreshTokenExpiresIn: Int,
+        val tokenType: String
+    )
+
+
+    suspend fun getUser(accessToken: String): SsoUserFull? = withContext(Dispatchers.IO)
     {
-        runCatching { httpClient.get(systemConfig.ssoServer + "/info/0") { bearerAuth(token) }.body<Response<SsoUserFull>>().data }.getOrNull()
+        runCatching { httpClient.get(systemConfig.ssoServer + "/serviceApi/info") { bearerAuth(accessToken) }.body<Response<SsoUserFull>>().data }.getOrNull()
     }
 
-    suspend fun getUserFull(token: String): UserFull?
+    suspend fun getAccessToken(id: UserId): String? = withContext(Dispatchers.IO)
     {
-        val ssoUser = getUser(token) ?: return null
+        runCatching { httpClient.get(systemConfig.ssoServer + "/serviceApi/accessToken?user=${id.value}") { bearerAuth(systemConfig.ssoSecret) }.body<Response<String>>().data }.getOrNull()
+    }
+
+    suspend fun getStatus(accessToken: String): AuthorizationStatus? = withContext(Dispatchers.IO)
+    {
+        runCatching { httpClient.get(systemConfig.ssoServer + "/serviceApi/oauth/status") { bearerAuth(accessToken) }.body<Response<AuthorizationStatus>>().data }.getOrNull()
+    }
+
+    suspend fun getAccessToken(code: String): String? = withContext(Dispatchers.IO)
+    {
+        runCatching {
+            httpClient.get(systemConfig.ssoServer + "/serviceApi/oauth/accessToken?time=${MAX_ACCESS_TOKEN_VALID_TIME}")
+            {
+                bearerAuth(systemConfig.ssoSecret)
+                header("Oauth-Code", "Bearer $code")
+            }.body<Response<AccessTokenResponse>>().data?.accessToken
+        }.getOrNull()
+    }
+
+    suspend fun getUserFull(accessToken: String): UserFull?
+    {
+        val ssoUser = getUser(accessToken) ?: return null
         val dbUser = users.getOrCreateUser(ssoUser.id)
         return UserFull.from(ssoUser, dbUser)
     }
@@ -55,13 +91,13 @@ object SSO: KoinComponent
      */
     suspend fun getDbUser(userId: UserId): DatabaseUser?
     {
-        val ssoUser = getUser(userId) ?: return null
-        return users.getOrCreateUser(ssoUser.id)
+        val ssoUser = getAccessToken(userId) ?: return null
+        return users.getOrCreateUser(userId)
     }
 
     suspend fun getUserAndDbUser(userId: UserId): Pair<SsoUser, DatabaseUser>?
     {
-        val ssoUser = getUser(userId) ?: return null
+        val ssoUser = getAccessToken(userId)?.let { getUser(it) } ?: return null
         val dbUser = users.getOrCreateUser(userId)
         return ssoUser to dbUser
     }

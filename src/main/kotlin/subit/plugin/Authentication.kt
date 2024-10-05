@@ -10,6 +10,8 @@ import io.ktor.server.auth.Authentication
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import subit.config.apiDocsConfig
+import subit.router.utils.finishCall
+import subit.utils.HttpStatus
 import subit.utils.SSO
 
 /**
@@ -43,8 +45,10 @@ fun Application.installAuthentication() = install(Authentication)
         }
         authenticate {
             val token = it.token
-            val user = SSO.getUserFull("Bearer $token")
-            return@authenticate user
+            val status = SSO.getStatus(token)
+            if (status == null) finishCall(HttpStatus.Unauthorized)
+            else if (status != SSO.AuthorizationStatus.AUTHORIZED) finishCall(HttpStatus.LoginSuccessButNotAuthorized)
+            else SSO.getUserFull(token)
         }
     }
 }

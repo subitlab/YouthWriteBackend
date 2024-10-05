@@ -2,6 +2,7 @@ package subit.router
 
 import cn.org.subit.route.terminal.terminal
 import io.github.smiley4.ktorswaggerui.dsl.routing.get
+import io.github.smiley4.ktorswaggerui.dsl.routing.route
 import io.github.smiley4.ktorswaggerui.routing.openApiSpec
 import io.github.smiley4.ktorswaggerui.routing.swaggerUI
 import io.ktor.server.application.*
@@ -20,6 +21,7 @@ import subit.router.comment.comment
 import subit.router.files.files
 import subit.router.home.home
 import subit.router.notice.notice
+import subit.router.oauth.oauth
 import subit.router.posts.posts
 import subit.router.privateChat.privateChat
 import subit.router.report.report
@@ -31,6 +33,7 @@ import subit.router.utils.getLoginUser
 import subit.router.wordMarkings.wordMarking
 import subit.utils.HttpStatus
 import subit.utils.respond
+import subit.utils.statuses
 
 fun Application.router() = routing()
 {
@@ -74,21 +77,28 @@ fun Application.router() = routing()
             // 检查参数是否包含违禁词
             checkParameters()
         }
-
-        admin()
-        bannedWords()
-        block()
-        comment()
-        files()
-        home()
-        notice()
-        posts()
-        privateChat()
-        report()
-        tag()
-        teapot()
-        terminal()
-        user()
-        wordMarking()
+        route("", {
+            response {
+                statuses(HttpStatus.Maintaining, HttpStatus.Prohibit, HttpStatus.LoginSuccessButNotAuthorized)
+            }
+        })
+        {
+            admin()
+            bannedWords()
+            block()
+            comment()
+            files()
+            home()
+            notice()
+            posts()
+            privateChat()
+            report()
+            tag()
+            teapot()
+            terminal()
+            user()
+            wordMarking()
+        }
     }
+    oauth()
 }
