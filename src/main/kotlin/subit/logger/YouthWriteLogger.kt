@@ -11,7 +11,7 @@ import subit.console.Console
 import subit.console.SimpleAnsiColor
 import subit.console.SimpleAnsiColor.Companion.CYAN
 import subit.console.SimpleAnsiColor.Companion.PURPLE
-import subit.logger.ForumLogger.safe
+import subit.logger.YouthWriteLogger.safe
 import subit.workDir
 import java.io.*
 import java.text.SimpleDateFormat
@@ -29,7 +29,7 @@ import kotlin.time.Duration
  * logger系统
  */
 @Suppress("MemberVisibilityCanBePrivate")
-object ForumLogger
+object YouthWriteLogger
 {
     val globalLogger = LoggerUtils(Logger.getLogger(""))
     fun getLogger(name: String): LoggerUtils = LoggerUtils(Logger.getLogger(name))
@@ -178,7 +178,7 @@ object ToConsoleHandler: Handler()
                 val head = if (loggerConfig.showLoggerName) String.format(
                     "%s[%s]%s[%s]%s[%s]%s",
                     PURPLE.bright(),
-                    ForumLogger.loggerDateFormat.format(record.millis),
+                    YouthWriteLogger.loggerDateFormat.format(record.millis),
                     CYAN.bright(),
                     record.loggerName,
                     ansiStyle,
@@ -188,7 +188,7 @@ object ToConsoleHandler: Handler()
                 else String.format(
                     "%s[%s]%s[%s]%s",
                     PURPLE.bright(),
-                    ForumLogger.loggerDateFormat.format(record.millis),
+                    YouthWriteLogger.loggerDateFormat.format(record.millis),
                     ansiStyle,
                     level.name,
                     RESET,
@@ -260,13 +260,13 @@ object ToFileHandler: Handler()
                 val level = record.level
                 val head = if (loggerConfig.showLoggerName) String.format(
                     "[%s][%s][%s]",
-                    ForumLogger.loggerDateFormat.format(record.millis),
+                    YouthWriteLogger.loggerDateFormat.format(record.millis),
                     record.loggerName,
                     level.name
                 )
                 else String.format(
                     "[%s][%s]",
-                    ForumLogger.loggerDateFormat.format(record.millis),
+                    YouthWriteLogger.loggerDateFormat.format(record.millis),
                     level.name
                 )
                 return messages.joinToString("\n") { "$head $it" }

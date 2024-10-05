@@ -18,5 +18,5 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Subit ForumBackendKtor Artifact
+          name: Subit YouthWriteBackend Artifact
           path: build/libs/*.jar

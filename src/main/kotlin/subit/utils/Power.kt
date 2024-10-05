@@ -6,13 +6,13 @@ import org.koin.core.component.KoinComponent
 import subit.console.AnsiStyle.Companion.RESET
 import subit.console.SimpleAnsiColor.Companion.CYAN
 import subit.console.SimpleAnsiColor.Companion.PURPLE
-import subit.logger.ForumLogger
+import subit.logger.YouthWriteLogger
 import kotlin.system.exitProcess
 
 @Suppress("unused")
 object Power: KoinComponent
 {
-    val logger = ForumLogger.getLogger()
+    val logger = YouthWriteLogger.getLogger()
 
     fun shutdown(code: Int, cause: String = "unknown"): Nothing
     {
@@ -31,7 +31,7 @@ object Power: KoinComponent
             else this@shutdown.dispose()
         }.onFailure {
             logger.warning("Failed to stop Ktor: ${it.message}")
-            it.printStackTrace(ForumLogger.err)
+            it.printStackTrace(YouthWriteLogger.err)
         }
         else logger.warning("Application is null")
         // 无论是否成功关闭, 都强制退出

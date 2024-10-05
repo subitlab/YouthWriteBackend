@@ -12,14 +12,14 @@ import kotlinx.serialization.Serializable
 import subit.dataClasses.*
 import subit.dataClasses.UserId.Companion.toUserIdOrNull
 import subit.database.*
-import subit.logger.ForumLogger
+import subit.logger.YouthWriteLogger
 import subit.router.utils.*
 import subit.utils.HttpStatus
 import subit.utils.SSO
 import subit.utils.respond
 import subit.utils.statuses
 
-private val logger = ForumLogger.getLogger()
+private val logger = YouthWriteLogger.getLogger()
 fun Route.user() = route("/user", {
     tags = listOf("用户")
     description = "用户接口"

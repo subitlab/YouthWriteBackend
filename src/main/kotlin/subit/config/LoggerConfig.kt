@@ -3,11 +3,10 @@ package subit.config
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
-import kotlinx.serialization.builtins.serializer
 import net.mamoe.yamlkt.Comment
 import subit.console.ColorDisplayMode
 import subit.console.Console
-import subit.logger.ForumLogger
+import subit.logger.YouthWriteLogger
 import subit.logger.ToFileHandler
 import java.util.logging.Level
 import java.util.logging.LogRecord
@@ -47,7 +46,7 @@ var loggerConfig: LoggerConfig by config(
     "logger.yml",
     LoggerConfig(listOf(), true, "INFO", false, ColorDisplayMode.RGB, true, 7.days),
     { _, new ->
-        ForumLogger.globalLogger.logger.setLevel(new.level)
+        YouthWriteLogger.globalLogger.logger.setLevel(new.level)
         Console.ansiEffectMode =
             if (new.effect) subit.console.EffectDisplayMode.ON
             else subit.console.EffectDisplayMode.OFF

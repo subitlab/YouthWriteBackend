@@ -5,7 +5,7 @@ import kotlinx.serialization.serializer
 import net.mamoe.yamlkt.Yaml
 import net.mamoe.yamlkt.YamlElement
 import net.mamoe.yamlkt.YamlMap
-import subit.logger.ForumLogger
+import subit.logger.YouthWriteLogger
 import subit.workDir
 import java.io.File
 import java.lang.ref.WeakReference
@@ -62,7 +62,7 @@ class ConfigLoader<T: Any> private constructor(
     @Suppress("unused", "MemberVisibilityCanBePrivate")
     companion object
     {
-        private val logger by lazy { ForumLogger.getLogger() }
+        private val logger by lazy { YouthWriteLogger.getLogger() }
         fun init() // 初始化所有配置
         {
             apiDocsConfig

@@ -11,7 +11,7 @@ import org.junit.Test
 import subit.dataClasses.*
 import subit.utils.*
 
-class ForumBackendTest
+class YouthWriteTest
 {
     fun test() = testApplication()
     {

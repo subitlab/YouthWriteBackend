@@ -53,7 +53,7 @@ fun Application.router() = routing()
         }
     }
 
-    authenticate("forum-auth", optional = true)
+    authenticate("auth", optional = true)
     {
         val prohibits: Prohibits by inject()
         intercept(ApplicationCallPipeline.Call)

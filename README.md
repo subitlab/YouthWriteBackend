@@ -1,6 +1,6 @@
-# ForumBackendKtor
+# YouthWriteBackend
 
-新一代论坛后端，完全使用ktor和Kotlin/Jvm
+北大附中创意写作选修课官网后端
 
 开源协议: [AGPL-3.0](https://www.gnu.org/licenses/agpl-3.0.html)
 
@@ -9,7 +9,7 @@
 1. 确保您的电脑上安装了JDK 17或更高版本
 2. 克隆本仓库
 3. 运行`./gradlew clean build`构建项目
-4. 在`build/libs`目录下找到`ForumBackendKtor-all.jar`文件
+4. 在`build/libs`目录下找到`YouthWriteBackend.jar`文件
 ## 运行
 请先确保您的电脑上拥有JRE 17或更高版本, 在命令行中输入以下内容以检查是否安装了JRE及其版本
 ```shell

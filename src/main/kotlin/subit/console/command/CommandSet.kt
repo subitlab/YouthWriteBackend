@@ -11,7 +11,7 @@ import subit.console.AnsiStyle.Companion.RESET
 import subit.console.AnsiStyle.Companion.ansi
 import subit.console.Console
 import subit.console.SimpleAnsiColor
-import subit.logger.ForumLogger
+import subit.logger.YouthWriteLogger
 import subit.utils.Power.shutdown
 
 /**
@@ -29,7 +29,7 @@ object CommandSet: TreeCommand(
     TestDatabase,
 )
 {
-    private val logger = ForumLogger.getLogger()
+    private val logger = YouthWriteLogger.getLogger()
 
     /**
      * 上一次命令是否成功
@@ -41,7 +41,7 @@ object CommandSet: TreeCommand(
     /**
      * 命令提示符, 上一次成功为青色, 失败为红色
      */
-    private val prompt: String get() = parsePrompt("FORUM > ")
+    private val prompt: String get() = parsePrompt("YouthWrite > ")
     private val rightPrompt: String get() = parsePrompt("<| POWERED BY SUBIT |>")
 
     fun Application.startCommandThread() = CoroutineScope(Dispatchers.IO).launch()

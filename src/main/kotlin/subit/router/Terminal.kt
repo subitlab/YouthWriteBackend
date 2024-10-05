@@ -21,12 +21,12 @@ import subit.config.loggerConfig
 import subit.console.command.CommandSet
 import subit.dataClasses.PermissionLevel
 import subit.dataClasses.UserFull
-import subit.logger.ForumLogger
+import subit.logger.YouthWriteLogger
 import subit.logger.ToConsoleHandler
 import java.util.logging.Handler
 import java.util.logging.LogRecord
 
-private val logger = ForumLogger.getLogger()
+private val logger = YouthWriteLogger.getLogger()
 
 private val loggerFlow = MutableSharedFlow<Packet<String>>(
     replay = 100,
@@ -36,7 +36,7 @@ private val loggerFlow = MutableSharedFlow<Packet<String>>(
 private val sharedFlow = loggerFlow.asSharedFlow()
 
 private val init: Unit = run {
-    ForumLogger.globalLogger.logger.addHandler(object : Handler()
+    YouthWriteLogger.globalLogger.logger.addHandler(object : Handler()
     {
         init
         {

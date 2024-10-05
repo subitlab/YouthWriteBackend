@@ -2,7 +2,7 @@ package subit.dataClasses
 
 import kotlinx.serialization.Serializable
 import subit.dataClasses.Slice.Companion.asSlice
-import subit.logger.ForumLogger
+import subit.logger.YouthWriteLogger
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.contract
 
@@ -28,7 +28,7 @@ data class Slice<T>(
     @Suppress("unused")
     companion object
     {
-        val logger = ForumLogger.getLogger()
+        val logger = YouthWriteLogger.getLogger()
         /**
          * 生成一个空切片
          */

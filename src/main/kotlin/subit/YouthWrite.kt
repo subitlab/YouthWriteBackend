@@ -6,7 +6,7 @@ import io.ktor.server.netty.*
 import net.mamoe.yamlkt.Yaml
 import subit.console.command.CommandSet.startCommandThread
 import subit.database.loadDatabaseImpl
-import subit.logger.ForumLogger
+import subit.logger.YouthWriteLogger
 import subit.plugin.apiDoc.installApiDoc
 import subit.plugin.authentication.installAuthentication
 import subit.plugin.autoHead.installAutoHead
@@ -88,7 +88,7 @@ fun main(args: Array<String>)
             ?.readAllBytes()
             ?.let(configFile::writeBytes)
             ?: error("default_config.yaml not found")
-        ForumLogger.getLogger().severe(
+        YouthWriteLogger.getLogger().severe(
             "config.yaml not found, the default config has been created, " +
             "please modify it and restart the program"
         )
@@ -123,8 +123,8 @@ fun Application.init()
 
     Loader.getResource("logo/SubIT-logo.txt")
         ?.bufferedReader()
-        ?.use { it.readText().split("\n").forEach(ForumLogger.globalLogger::info) }
-    ?: ForumLogger.globalLogger.warning("SubIT-logo.txt not found")
+        ?.use { it.readText().split("\n").forEach(YouthWriteLogger.globalLogger::info) }
+    ?: YouthWriteLogger.globalLogger.warning("SubIT-logo.txt not found")
 
     startCommandThread()
 

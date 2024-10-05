@@ -13,7 +13,7 @@ object About: Command
 
     override suspend fun execute(sender: CommandSet.CommandSender, args: List<String>): Boolean
     {
-        sender.out("SubIT Forum Backend")
+        sender.out("SubIT Youth Write Backend")
         sender.out("Version: $version")
         sender.out("Author: SubIT Team")
         sender.out("Github: https://github.com/subitlab")

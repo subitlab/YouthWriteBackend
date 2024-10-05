@@ -7,7 +7,7 @@ import subit.console.SimpleAnsiColor.Companion.GREEN
 import subit.console.SimpleAnsiColor.Companion.RED
 import subit.database.memoryImpl.MemoryDatabaseImpl
 import subit.database.sqlImpl.SqlDatabaseImpl
-import subit.logger.ForumLogger
+import subit.logger.YouthWriteLogger
 import subit.utils.Power.shutdown
 import kotlin.reflect.KClass
 
@@ -18,7 +18,7 @@ val databaseImpls: List<IDatabase> = listOf(
 
 fun Application.loadDatabaseImpl()
 {
-    val logger = ForumLogger.getLogger()
+    val logger = YouthWriteLogger.getLogger()
     val impls = databaseImpls.associateBy { it.name }
     logger.config("Available database implementations: ${impls.keys.joinToString(", ")}")
 

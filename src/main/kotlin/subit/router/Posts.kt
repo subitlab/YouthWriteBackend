@@ -571,7 +571,7 @@ private suspend fun Context.getLatestVersion()
     val containsDraft = call.parameters["containsDraft"]?.toBooleanStrictOrNull() ?: false
     val forEdit = call.parameters["forEdit"]?.toBooleanStrictOrNull() ?: false
     val versions = get<PostVersions>()
-    val version = versions.getLatestPostVersion(id, containsDraft)?.let { versions.getPostVersion(it) }
+    val version = versions.getLatestPostVersion(id, forEdit || containsDraft)?.let { versions.getPostVersion(it) }
                     ?: return call.respond(HttpStatus.NotFound.subStatus("未找到帖子版本"))
     withPermission { checkEdit(version.toPostVersionBasicInfo()) }
     if (forEdit) finishCall(HttpStatus.OK, version.copy(content = splitContentNode(version.content)))

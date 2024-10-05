@@ -29,7 +29,7 @@ fun Application.installAuthentication() = install(Authentication)
         }
     }
 
-    bearer("forum-auth")
+    bearer("auth")
     {
         authHeader {
             val token = it.request.header(HttpHeaders.Authorization) ?: run {

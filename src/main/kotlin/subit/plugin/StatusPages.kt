@@ -7,7 +7,7 @@ import io.ktor.server.application.*
 import io.ktor.server.plugins.*
 import io.ktor.server.plugins.statuspages.*
 import io.ktor.server.request.*
-import subit.logger.ForumLogger
+import subit.logger.YouthWriteLogger
 import subit.plugin.rateLimit.RateLimit
 import subit.router.utils.CallFinish
 import subit.utils.HttpStatus
@@ -22,14 +22,13 @@ private fun ApplicationCall.hasResponseBody() =
  */
 fun Application.installStatusPages() = install(StatusPages)
 {
-    val logger = ForumLogger.getLogger()
+    val logger = YouthWriteLogger.getLogger()
 
     exception<CallFinish> { call, finish -> finish.block(call) }
     exception<BadRequestException> { call, _ -> call.respond(HttpStatus.BadRequest) }
     exception<Throwable>
     { call, throwable ->
-        ForumLogger.getLogger("ForumBackend.installStatusPages")
-            .warning("出现位置错误, 访问接口: ${call.request.path()}", throwable)
+        logger.warning("出现位置错误, 访问接口: ${call.request.path()}", throwable)
         call.respond(HttpStatus.InternalServerError)
     }
 

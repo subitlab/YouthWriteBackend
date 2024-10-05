@@ -1,9 +1,8 @@
 ktor:
-  deployment:
-    port: 8080
   application:
     modules:
-      - subit.ForumBackendKt.init
-    id: "SubitForumBackend"
+      - subit.YouthWriteKt.init
+    id: "YouthWriteBackend"
+
 # 通过gradle的插件处理, 会自动替换为当前项目的版本号
 version: ${version}

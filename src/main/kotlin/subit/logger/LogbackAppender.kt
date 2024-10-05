@@ -11,7 +11,7 @@ import java.util.logging.Level
 import java.util.logging.LogRecord
 
 /**
- * 使用[ForumLogger]接管ktor的logger
+ * 使用[YouthWriteLogger]接管ktor的logger
  */
 class LogbackAppender: AppenderBase<ILoggingEvent>()
 {
@@ -36,7 +36,7 @@ class LogbackAppender: AppenderBase<ILoggingEvent>()
                     .toArray { size: Int -> arrayOfNulls(size) })
             record.thrown = throwable
         }
-        ForumLogger.globalLogger.logger.log(record)
+        YouthWriteLogger.globalLogger.logger.log(record)
     }.onFailure { AnsiConsole.sysOut().println("Failure in LogbackAppender, message: ${it.stackTraceToString()}"); }.run { }
 
     private fun fromInt(id: Int): Level

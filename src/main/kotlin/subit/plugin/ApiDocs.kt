@@ -24,9 +24,9 @@ fun Application.installApiDoc() = install(SwaggerUI)
 {
     info()
     {
-        title = "论坛后端API文档"
+        title = "创意写作官网后端API文档"
         version = subit.version
-        description = "SubIT论坛后端API文档"
+        description = "SubIT创意写作官网后端API文档"
     }
     this.ignoredRouteSelectors += RateLimitRouteSelector::class
 

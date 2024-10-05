@@ -11,7 +11,7 @@ import subit.console.SimpleAnsiColor.Companion.RED
 import subit.console.SimpleAnsiColor.Companion.YELLOW
 import subit.database.*
 import subit.debug
-import subit.logger.ForumLogger
+import subit.logger.YouthWriteLogger
 import subit.utils.Power
 
 object MemoryDatabaseImpl: IDatabase, KoinComponent
@@ -20,7 +20,7 @@ object MemoryDatabaseImpl: IDatabase, KoinComponent
 
     override fun Application.init()
     {
-        val logger = ForumLogger.getLogger()
+        val logger = YouthWriteLogger.getLogger()
         logger.info("Init database. impl: $name")
 
         if (!debug)

@@ -20,7 +20,7 @@ import subit.console.SimpleAnsiColor.Companion.GREEN
 import subit.console.SimpleAnsiColor.Companion.RED
 import subit.dataClasses.*
 import subit.database.*
-import subit.logger.ForumLogger
+import subit.logger.YouthWriteLogger
 import subit.utils.Power.shutdown
 import java.sql.Driver
 import kotlin.reflect.KClass
@@ -54,7 +54,7 @@ object SqlDatabaseImpl: IDatabase, KoinComponent
      * 数据库
      */
     private lateinit var config: ApplicationConfig
-    private val logger = ForumLogger.getLogger()
+    private val logger = YouthWriteLogger.getLogger()
     private val drivers:List<Driver> = listOf(
         org.postgresql.Driver(),
     )

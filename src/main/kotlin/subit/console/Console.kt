@@ -10,7 +10,7 @@ import org.jline.widget.AutopairWidgets
 import org.jline.widget.AutosuggestionWidgets
 import subit.console.command.CommandSet
 import subit.dataDir
-import subit.logger.ForumLogger.nativeOut
+import subit.logger.YouthWriteLogger.nativeOut
 import subit.utils.Power
 import sun.misc.Signal
 import java.io.File
