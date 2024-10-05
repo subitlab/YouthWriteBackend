@@ -9,6 +9,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import org.intellij.lang.annotations.Language
 import org.jetbrains.exposed.dao.id.IdTable
 import org.jetbrains.exposed.sql.*
+import org.jetbrains.exposed.sql.Function
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.coalesce
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.div
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.minus
@@ -144,8 +145,13 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
              TimesOp(commentCount.delegate, longParam(2), LongColumnType()) +
              1)
 
+        class Epoch(val expression: Expression<Instant>): Function<Long>(LongColumnType())
+        {
+            override fun toQueryBuilder(queryBuilder: QueryBuilder) = queryBuilder { append("EXTRACT(EPOCH FROM (", expression, "))") }
+        }
+
         val create = coalesce(create.aliasOnlyExpression().withColumnType(KotlinInstantColumnType()), timestampParam(0L.toInstant()))
-        val second = (Second(CurrentTimestamp - create) + 1) / 60000
+        val second = (Epoch(CurrentTimestamp - create) + 1) / 60000
         @Suppress("UNCHECKED_CAST")
         val order = x / (PowerFunction(second, doubleParam(1.8)) as Expression<Long>)
         @Suppress("UNCHECKED_CAST")
