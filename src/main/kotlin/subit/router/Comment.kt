@@ -103,13 +103,13 @@ private suspend fun Context.commentPost()
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     val posts = get<Posts>()
 
-    val parent = posts.getPostInfo(postId) ?: return call.respond(HttpStatus.NotFound.subStatus("目标帖子不存在"))
+    val parent = posts.getPostFullBasicInfo(postId) ?: return call.respond(HttpStatus.NotFound.subStatus("目标帖子不存在"))
     val block = get<Blocks>().getBlock(parent.block) ?: return call.respond(HttpStatus.NotFound.subStatus("目标板块不存在"))
 
     val markingPost = newComment.wordMarking?.let { posts.getPostFullBasicInfo(it.postId) }
     val markingPostVersion = markingPost?.lastVersionId
     withPermission {
-        checkComment(parent)
+        checkComment(parent.toPostInfo())
         if (markingPost != null) checkComment(markingPost.toPostInfo())
         if (newComment.anonymous) checkAnonymous(block)
     }
@@ -143,14 +143,25 @@ private suspend fun Context.commentPost()
         )
     }
 
-    if (loginUser.id != parent.author) get<Notices>().createNotice(
-        Notice.PostNotice(
-            type = if (parent.parent == null) Notice.Type.POST_COMMENT else Notice.Type.COMMENT_REPLY,
-            user = parent.author,
-            post = postId,
-        ),
-        loginUser.mergeNotice
-    )
+    if (loginUser.id != parent.author)
+    {
+        val notices = get<Notices>()
+        val notice =
+            if (loginUser.mergeNotice) Notice.PostNotice.brief(
+                user = parent.author,
+                type = if (parent.parent == null) Notice.Type.POST_COMMENT else Notice.Type.COMMENT_REPLY,
+                post = parent.id,
+                count = 1
+            )
+            else Notice.PostNotice.detail(
+                user = parent.author,
+                type = if (parent.parent == null) Notice.Type.POST_COMMENT else Notice.Type.COMMENT_REPLY,
+                post = parent,
+                operatorName = loginUser.username,
+                content = getContentText(newComment.content, SUB_CONTENT_LENGTH)
+            )
+        notices.createNotice(notice, loginUser.mergeNotice)
+    }
 
     call.respond(HttpStatus.OK)
 }

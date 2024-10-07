@@ -4,6 +4,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 import org.koin.core.component.KoinComponent
 import subit.plugin.contentNegotiation.contentNegotiationJson
+import subit.utils.SUB_CONTENT_LENGTH
 import subit.utils.getContentText
 
 @Serializable
@@ -150,7 +151,7 @@ data class PostFull(
         PostFullBasicInfo(
             id,
             title,
-            content?.let { getContentText(it) },
+            content?.let { getContentText(it, SUB_CONTENT_LENGTH) },
             author,
             anonymous,
             create,

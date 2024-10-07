@@ -58,8 +58,7 @@ fun Route.notice() = route("/notice", {
                 - type: 通知类型
                 - read: 是否已读
                 - post: 帖子ID, 若type为SYSTEM则为null, 否则为被点赞/收藏/评论的帖子ID
-                - count: 通知数量, 若type为SYSTEM则恒为1, 否则为当前被点赞/收藏/评论的数量
-                - content: 通知内容, 若type为SYSTEM则为通知内容, 否则为null
+                - content: 通知内容
                 """.trimIndent()
         request {
             pathParameter<NoticeId>("id")
@@ -130,7 +129,6 @@ private data class NoticeResponse(
     val type: Type,
     val read: Boolean,
     val post: PostId?,
-    val count: Long,
     val content: String?,
 )
 {
@@ -138,29 +136,15 @@ private data class NoticeResponse(
     {
         fun fromNotice(notice: Notice): NoticeResponse
         {
-            return when (notice)
-            {
-                is SystemNotice -> NoticeResponse(
-                    notice.id,
-                    notice.time,
-                    notice.user,
-                    notice.type,
-                    notice.read,
-                    null,
-                    1,
-                    notice.content
-                )
-                is PostNotice -> NoticeResponse(
-                    notice.id,
-                    notice.time,
-                    notice.user,
-                    notice.type,
-                    notice.read,
-                    notice.post,
-                    notice.count,
-                    null
-                )
-            }
+            return NoticeResponse(
+                notice.id,
+                notice.time,
+                notice.user,
+                notice.type,
+                notice.read,
+                (notice as? PostNotice)?.post,
+                notice.content
+            )
         }
 
         val example = sliceOf(

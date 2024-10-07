@@ -21,7 +21,7 @@ class UsersImpl: DaoSqlImpl<UsersImpl.UsersTable>(UsersTable), Users
         override val id = userId("id").entityId()
         val introduction = text("introduction").nullable().default(null)
         val showStars = bool("show_stars").default(true)
-        val mergeNotice = bool("merge_notice").default(true)
+        val mergeNotice = bool("merge_notice").default(false)
         val permission = enumeration<PermissionLevel>("permission").default(PermissionLevel.NORMAL)
         val filePermission = enumeration<PermissionLevel>("file_permission").default(PermissionLevel.NORMAL)
         override val primaryKey = PrimaryKey(id)

@@ -396,10 +396,10 @@ private data class LikePost(val type: LikeType)
 private suspend fun Context.likePost()
 {
     val id = call.parameters["id"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
-    val post = get<Posts>().getPostInfo(id) ?: return call.respond(HttpStatus.NotFound)
+    val post = get<Posts>().getPostFullBasicInfo(id) ?: return call.respond(HttpStatus.NotFound)
     val type = receiveAndCheckBody<LikePost>().type
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
-    withPermission { checkRead(post) }
+    withPermission { checkRead(post.toPostInfo()) }
     when (type)
     {
         LikeType.LIKE    -> get<Likes>().addLike(loginUser.id, id)
@@ -408,14 +408,23 @@ private suspend fun Context.likePost()
         LikeType.UNSTAR  -> get<Stars>().removeStar(loginUser.id, id)
     }
     if (loginUser.id != post.author && (type == LikeType.LIKE || type == LikeType.STAR))
-        get<Notices>().createNotice(
-            Notice.PostNotice(
+    {
+        val notice =
+            if (loginUser.mergeNotice) Notice.PostNotice.brief(
                 type = if (type == LikeType.LIKE) Notice.Type.LIKE else Notice.Type.STAR,
                 user = post.author,
-                post = id
-            ),
-            loginUser.mergeNotice
-        )
+                post = id,
+                count = 1
+            )
+            else Notice.PostNotice.detail(
+                type = if (type == LikeType.LIKE) Notice.Type.LIKE else Notice.Type.STAR,
+                user = post.author,
+                post = post,
+                operatorName = loginUser.username,
+                content = post.subContent
+            )
+        get<Notices>().createNotice(notice, loginUser.mergeNotice)
+    }
     call.respond(HttpStatus.OK)
 }
 

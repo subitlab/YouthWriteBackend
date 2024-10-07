@@ -11,33 +11,34 @@ import java.util.*
 
 class NoticesImpl: Notices
 {
-    private val notices = Collections.synchronizedMap(hashMapOf<NoticeId, Notice>())
+    private val notices = Collections.synchronizedMap(hashMapOf<NoticeId, Pair<Notice, Boolean>>())
 
     override suspend fun createNotice(notice: Notice, merge: Boolean)
     {
         val id = (notices.size + 1).toNoticeId()
         if (!merge || notice is Notice.SystemNotice)
-            notices[id] = notice.copy(id = id, time = System.currentTimeMillis())
+            notices[id] = notice.copy(id = id, time = System.currentTimeMillis()) to false
         else if (notice is Notice.PostNotice)
         {
             val same = notices.values.singleOrNull {
-                it is Notice.PostNotice &&
-                it.user == notice.user &&
-                it.type == notice.type &&
-                it.post == notice.post &&
-                !it.read
+                it.second &&
+                it.first is Notice.PostNotice &&
+                it.first.user == notice.user &&
+                it.first.type == notice.type &&
+                (it.first as? Notice.PostNotice)?.post == notice.post &&
+                !it.first.read
             }
             if (same == null)
-                notices[id] = notice.copy(id = id, time = System.currentTimeMillis())
+                notices[id] = notice.copy(id = id, time = System.currentTimeMillis()) to true
             else
             {
                 val count = (same as Notice.PostNotice).count + notice.count
-                notices[same.id] = same.copy(count = count)
+                notices[same.id] = Notice.PostNotice.brief(same.id, same.type, same.time, same.user, same.post, count) to true
             }
         }
     }
 
-    override suspend fun getNotice(id: NoticeId): Notice? = notices[id]
+    override suspend fun getNotice(id: NoticeId): Notice? = notices[id]?.first
 
     override suspend fun getNotices(
         user: UserId,
@@ -48,6 +49,7 @@ class NoticesImpl: Notices
     ): Slice<Notice> =
         notices.values
             .asSequence()
+            .map { it.first }
             .filter { it.user == user }
             .filter { type == null || it.type == type }
             .filter { read == null || it.read == read }
@@ -55,12 +57,12 @@ class NoticesImpl: Notices
 
     override suspend fun readNotice(id: NoticeId)
     {
-        notices[id] = notices[id]!!.copy(read = true)
+        notices[id] = notices[id]!!.let { it.first.copy(read = true) to it.second }
     }
 
     override suspend fun readNotices(user: UserId)
     {
-        notices.values.filter { it.user == user }.forEach { readNotice(it.id) }
+        notices.values.filter { it.first.user == user }.forEach { readNotice(it.first.id) }
     }
 
     override suspend fun deleteNotice(id: NoticeId)
@@ -70,6 +72,6 @@ class NoticesImpl: Notices
 
     override suspend fun deleteNotices(user: UserId)
     {
-        notices.entries.removeIf { it.value.user == user }
+        notices.entries.removeIf { it.value.first.user == user }
     }
 }

@@ -36,7 +36,13 @@ class NoticesImpl: DaoSqlImpl<NoticesImpl.NoticesTable>(NoticesTable), Notices, 
         val type = row[type]
         val read = row[read]
         if (type == SYSTEM) SystemNotice(id, time, row[user].value, read, row[content])
-        else PostNotice(id, time, type, row[user].value, read, obj, row[content].toLongOrNull()?: 1)
+        else
+        {
+            val content = row[content]
+            val count = content.toLongOrNull()
+            if (count != null) PostNotice.brief(id, type, time, row[user].value, obj, count)
+            else PostNotice(id, time, type, row[user].value, read, obj, content = content)
+        }
     }
 
     override suspend fun createNotice(notice: Notice, merge: Boolean): Unit = query()
@@ -56,7 +62,7 @@ class NoticesImpl: DaoSqlImpl<NoticesImpl.NoticesTable>(NoticesTable), Notices, 
                 it[user] = notice.user
                 it[type] = notice.type
                 it[post] = notice.post
-                it[content] = notice.count.toString()
+                it[content] = notice.content
             }
         }
         // 否则需要考虑同类型消息的合并
@@ -69,7 +75,9 @@ class NoticesImpl: DaoSqlImpl<NoticesImpl.NoticesTable>(NoticesTable), Notices, 
                 .andWhere { read eq false }
                 .singleOrNull()
 
-            if (result == null) insert {
+            val count0 = result?.get(table.content)?.toLongOrNull()
+
+            if (count0 == null) insert {
                 it[user] = notice.user
                 it[type] = notice.type
                 it[post] = notice.post
