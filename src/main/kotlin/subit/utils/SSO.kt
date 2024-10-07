@@ -52,15 +52,40 @@ object SSO: KoinComponent
         val tokenType: String
     )
 
+    @Serializable
+    private data class Information<User>(
+        val user: User,
+        val service: BasicServiceInfo,
+    )
+
+    @Serializable
+    data class BasicServiceInfo(
+        val id: Int,
+        val name: String,
+        val description: String,
+    )
 
     suspend fun getUser(accessToken: String): SsoUserFull? = withContext(Dispatchers.IO)
     {
-        runCatching { httpClient.get(systemConfig.ssoServer + "/serviceApi/info") { bearerAuth(accessToken) }.body<Response<SsoUserFull>>().data }.getOrNull()
+        runCatching {
+            val data = httpClient.get(systemConfig.ssoServer + "/serviceApi/info")
+            {
+                bearerAuth(accessToken)
+            }.body<Response<Information<SsoUserFull>>>().data
+            if (data?.service?.id != systemConfig.ssoServerId) null else data.user
+        }.getOrNull()
     }
 
     suspend fun getAccessToken(id: UserId): String? = withContext(Dispatchers.IO)
     {
-        runCatching { httpClient.get(systemConfig.ssoServer + "/serviceApi/accessToken?user=${id.value}") { bearerAuth(systemConfig.ssoSecret) }.body<Response<String>>().data }.getOrNull()
+        runCatching {
+            httpClient.get(systemConfig.ssoServer + "/serviceApi/accessToken")
+            {
+                bearerAuth(systemConfig.ssoSecret)
+                parameter("user", id)
+                parameter("time", MAX_ACCESS_TOKEN_VALID_TIME)
+            }.body<Response<AccessTokenResponse>>().data?.accessToken
+        }.getOrNull()
     }
 
     suspend fun getStatus(accessToken: String): AuthorizationStatus? = withContext(Dispatchers.IO)
@@ -71,10 +96,11 @@ object SSO: KoinComponent
     suspend fun getAccessToken(code: String): String? = withContext(Dispatchers.IO)
     {
         runCatching {
-            httpClient.get(systemConfig.ssoServer + "/serviceApi/oauth/accessToken?time=${MAX_ACCESS_TOKEN_VALID_TIME}")
+            httpClient.get(systemConfig.ssoServer + "/serviceApi/oauth/accessToken")
             {
                 bearerAuth(systemConfig.ssoSecret)
                 header("Oauth-Code", "Bearer $code")
+                parameter("time", MAX_ACCESS_TOKEN_VALID_TIME)
             }.body<Response<AccessTokenResponse>>().data?.accessToken
         }.getOrNull()
     }
