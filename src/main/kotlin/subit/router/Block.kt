@@ -141,7 +141,7 @@ fun Route.block() = route("/block", {
                 paged()
             }
             response {
-                statuses<Slice<BlockId>>(HttpStatus.OK, example = sliceOf(BlockId(0)))
+                statuses<Slice<Block>>(HttpStatus.OK, example = sliceOf(Block.example))
                 statuses(HttpStatus.Forbidden, HttpStatus.Unauthorized)
             }
         }) { getChildren() }
@@ -218,7 +218,15 @@ private suspend fun Context.editBlockInfo()
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     val id = call.parameters["id"]?.toBlockIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val editBlockInfo = receiveAndCheckBody<EditBlockInfo>()
-    withPermission { checkHasAdminIn(id) }
+    val block = get<Blocks>().getBlock(id) ?: return call.respond(HttpStatus.NotFound)
+    val parent = editBlockInfo.parent?.let { get<Blocks>().getBlock(it) }
+    withPermission {
+        checkRead(block)
+        checkHasAdminIn(id)
+    }
+    if (parent != null && editBlockInfo.readingPermission != null && editBlockInfo.readingPermission < parent.reading)
+        finishCall(HttpStatus.BadRequest.subStatus("读取权限不能低于父板块"))
+
     get<Blocks>().setPermission(
         block = id,
         posting = editBlockInfo.postingPermission,

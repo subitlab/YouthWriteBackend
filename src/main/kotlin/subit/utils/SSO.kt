@@ -34,6 +34,7 @@ object SSO: KoinComponent
     }
 
     @Serializable
+    @Suppress("unused")
     enum class AuthorizationStatus
     {
         UNAUTHORIZED,
@@ -117,6 +118,7 @@ object SSO: KoinComponent
      */
     suspend fun getDbUser(userId: UserId): DatabaseUser?
     {
+        @Suppress("UNUSED_VARIABLE")
         val ssoUser = getAccessToken(userId) ?: return null
         return users.getOrCreateUser(userId)
     }

@@ -61,10 +61,10 @@ class BlocksImpl: Blocks
         map[block] = b.copy(state = state)
     }
 
-    override suspend fun getChildren(loginUser: UserId?, parent: BlockId?, begin: Long, count: Int): Slice<BlockId> =
-        map.values.filter { it.parent == parent }.asSequence().asSlice(begin, count).map { it.id }
-    override suspend fun searchBlock(loginUser: UserId?, key: String, begin: Long, count: Int): Slice<BlockId> =
-        map.values.filter { it.name.contains(key) }.asSequence().asSlice(begin, count).map { it.id }
+    override suspend fun getChildren(loginUser: UserId?, parent: BlockId?, begin: Long, count: Int): Slice<Block> =
+        map.values.filter { it.parent == parent }.asSequence().asSlice(begin, count)
+    override suspend fun searchBlock(loginUser: UserId?, key: String, begin: Long, count: Int): Slice<Block> =
+        map.values.filter { it.name.contains(key) || it.description.contains(key) }.asSequence().asSlice(begin, count)
 
     override suspend fun getAllBlocks(
         loginUser: DatabaseUser?,

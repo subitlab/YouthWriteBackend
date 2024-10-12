@@ -101,24 +101,24 @@ class BlocksImpl: DaoSqlImpl<BlocksImpl.BlocksTable>(BlocksTable), Blocks, KoinC
         }
     }
 
-    override suspend fun getChildren(loginUser: UserId?, parent: BlockId?, begin: Long, count: Int) = query()
+    override suspend fun getChildren(loginUser: UserId?, parent: BlockId?, begin: Long, count: Int): Slice<Block> = query()
     {
         val permissionTable = (permissions as PermissionsImpl).table
         val additionalConstraint: (SqlExpressionBuilder.()->Op<Boolean>)? =
             if (loginUser != null) ({ permissionTable.user eq loginUser })
             else null
         BlocksTable.join(permissionTable, JoinType.LEFT, id, permissionTable.block, additionalConstraint = additionalConstraint)
-            .select(id)
+            .select(BlocksTable.columns)
             .where { BlocksTable.parent eq parent }
             .andWhere { state eq State.NORMAL }
             .groupBy(id, reading)
             .having { (permissionTable.permission.max() greaterEq reading) or (reading lessEq PermissionLevel.NORMAL) }
             .orderBy(id, SortOrder.DESC)
             .asSlice(begin, count)
-            .map { it[id].value }
+            .map(::deserializeBlock)
     }
 
-    override suspend fun searchBlock(loginUser: UserId?, key: String, begin: Long, count: Int): Slice<BlockId> = query()
+    override suspend fun searchBlock(loginUser: UserId?, key: String, begin: Long, count: Int): Slice<Block> = query()
     {
         val permissionTable = (permissions as PermissionsImpl).table
         val additionalConstraint: (SqlExpressionBuilder.()->Op<Boolean>)? =
@@ -132,7 +132,7 @@ class BlocksImpl: DaoSqlImpl<BlocksImpl.BlocksTable>(BlocksTable), Blocks, KoinC
             .having { (permissionTable.permission.max() greaterEq reading) or (reading lessEq PermissionLevel.NORMAL) }
             .orderBy(id, SortOrder.DESC)
             .asSlice(begin, count)
-            .map { it[id].value }
+            .map(::deserializeBlock)
     }
 
     override suspend fun getAllBlocks(

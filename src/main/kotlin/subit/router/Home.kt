@@ -13,10 +13,7 @@ import io.ktor.server.routing.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
-import subit.dataClasses.BlockId
-import subit.dataClasses.PostFullBasicInfo
-import subit.dataClasses.Slice
-import subit.dataClasses.sliceOf
+import subit.dataClasses.*
 import subit.database.Blocks
 import subit.database.Posts
 import subit.database.receiveAndCheckBody
@@ -53,7 +50,7 @@ fun Route.home() = route("/home", {
             get("/block", {
                 description = "搜索板块, 会返回板块名称或介绍包含关键词的板块"
                 response {
-                    statuses<Slice<BlockId>>(HttpStatus.OK, example = sliceOf(BlockId(0)))
+                    statuses<Slice<Block>>(HttpStatus.OK, example = sliceOf(Block.example))
                 }
             }) { searchBlock() }
         }

@@ -32,8 +32,9 @@ class NoticesImpl: Notices
                 notices[id] = notice.copy(id = id, time = System.currentTimeMillis()) to true
             else
             {
-                val count = (same as Notice.PostNotice).count + notice.count
-                notices[same.id] = Notice.PostNotice.brief(same.id, same.type, same.time, same.user, same.post, count) to true
+                val samePost = (same.first as Notice.PostNotice)
+                val count = samePost.count + notice.count
+                notices[samePost.id] = Notice.PostNotice.brief(samePost.id, samePost.type, samePost.time, samePost.user, samePost.post, count) to true
             }
         }
     }
