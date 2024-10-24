@@ -11,7 +11,6 @@ import kotlinx.serialization.Serializable
 import subit.dataClasses.*
 import subit.dataClasses.ReportId.Companion.toReportIdOrNull
 import subit.database.Reports
-import subit.database.receiveAndCheckBody
 import subit.router.utils.*
 import subit.utils.HttpStatus
 import subit.utils.respond
@@ -103,7 +102,7 @@ private suspend fun Context.newReport()
     val id = call.parameters["id"]?.toLongOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val type = call.parameters["type"]?.runCatching { ReportObject.valueOf(this) }?.getOrNull()
                ?: return call.respond(HttpStatus.BadRequest)
-    val content = receiveAndCheckBody<ReportContent>().content
+    val content =call.receiveAndCheckBody<ReportContent>().content
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     get<Reports>().addReport(type, id, loginUser.id, content)
     call.respond(HttpStatus.OK)

@@ -25,10 +25,9 @@ object Power: KoinComponent
         // 尝试主动结束Ktor, 这一过程不一定成功, 例如Ktor本来就在启动过程中出错将关闭失败
         if (this != null) runCatching()
         {
-            val environment = this.environment
-            environment.monitor.raise(ApplicationStopPreparing, environment)
-            if (environment is ApplicationEngineEnvironment) environment.stop()
-            else this@shutdown.dispose()
+            monitor.raise(ApplicationStopPreparing, environment)
+            engine.stop()
+            this.dispose()
         }.onFailure {
             logger.warning("Failed to stop Ktor: ${it.message}")
             it.printStackTrace(YouthWriteLogger.err)

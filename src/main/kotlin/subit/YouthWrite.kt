@@ -105,10 +105,8 @@ fun main(args: Array<String>)
 
     val resArgs = args1 + "-config=${tempFile.absolutePath}"
 
-    // 生成环境
-    val environment = commandLineEnvironment(args = resArgs)
     // 启动服务器
-    embeddedServer(Netty, environment).start(wait = true)
+    EngineMain.main(resArgs)
     // 若服务器关闭则终止整个程序
     Power.shutdown(0)
 }

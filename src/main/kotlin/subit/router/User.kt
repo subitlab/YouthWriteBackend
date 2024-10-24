@@ -219,7 +219,7 @@ private suspend fun Context.changeIntroduction()
     val id = call.parameters["id"]?.toUserIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     withPermission { checkRealName() }
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
-    val changeIntroduction = receiveAndCheckBody<ChangeIntroduction>()
+    val changeIntroduction =call.receiveAndCheckBody<ChangeIntroduction>()
     if (id == UserId(0))
     {
         get<Users>().changeIntroduction(loginUser.id, changeIntroduction.introduction)
@@ -283,7 +283,7 @@ private data class BooleanSetting(val showStars: Boolean)
 private suspend fun Context.switchStars()
 {
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
-    val switchStars = receiveAndCheckBody<BooleanSetting>()
+    val switchStars =call.receiveAndCheckBody<BooleanSetting>()
     get<Users>().changeShowStars(loginUser.id, switchStars.showStars)
     call.respond(HttpStatus.OK)
 }
@@ -291,7 +291,7 @@ private suspend fun Context.switchStars()
 private suspend fun Context.mergeNotice()
 {
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
-    val mergeNotice = receiveAndCheckBody<BooleanSetting>()
+    val mergeNotice =call.receiveAndCheckBody<BooleanSetting>()
     get<Users>().changeMergeNotice(loginUser.id, mergeNotice.showStars)
     call.respond(HttpStatus.OK)
 }

@@ -16,7 +16,6 @@ import kotlinx.serialization.Serializable
 import subit.dataClasses.*
 import subit.database.Blocks
 import subit.database.Posts
-import subit.database.receiveAndCheckBody
 import subit.plugin.rateLimit.RateLimit
 import subit.router.utils.*
 import subit.utils.HomeFilesUtils
@@ -177,7 +176,7 @@ private suspend fun Context.putMessage()
         checkHasGlobalAdmin()
         checkRealName()
     }
-    val message = receiveAndCheckBody<Message>()
+    val message = call.receiveAndCheckBody<Message>()
     HomeFilesUtils.homeMd = message.message
     call.respond(HttpStatus.OK)
 }
@@ -213,7 +212,7 @@ private suspend fun Context.putAnnouncement()
         checkHasGlobalAdmin()
         checkRealName()
     }
-    val message = receiveAndCheckBody<Message>()
+    val message = call.receiveAndCheckBody<Message>()
     HomeFilesUtils.announcementMd = message.message
     call.respond(HttpStatus.OK)
 }

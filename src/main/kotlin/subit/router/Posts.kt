@@ -32,7 +32,10 @@ fun Route.posts() = route("/post", {
                 {
                     required = true
                     description = "发帖, 成功返回帖子ID. state为帖子状态, 不允许为DELETE, PRIVATE为预留"
-                    example("example", NewPost("标题", PostVersionInfo.example.content, false, BlockId(0), false, State.NORMAL, false))
+                    example(
+                        "example",
+                        NewPost("标题", PostVersionInfo.example.content, false, BlockId(0), false, State.NORMAL, false)
+                    )
                 }
             }
             response {
@@ -42,7 +45,7 @@ fun Route.posts() = route("/post", {
         }) { newPost() }
     }
 
-    get("/list",{
+    get("/list", {
         description = "获取帖子列表, 不登录也可以获取, 但是登录/有相应权限的人可能会看到更多内容"
         request {
             queryParameter<UserId>("author")
@@ -129,7 +132,7 @@ fun Route.posts() = route("/post", {
     version()
 }
 
-private fun Route.id() = route("/{id}",{
+private fun Route.id() = route("/{id}", {
     request {
         pathParameter<PostId>("id")
         {
@@ -224,7 +227,8 @@ private fun Route.id() = route("/{id}",{
             queryParameter<Boolean>("forEdit")
             {
                 required = false
-                description = "是否为编辑编辑帖子获取, 若为true则containsDraft无效且被视为true, 将返回标号后的内容. 默认为false"
+                description =
+                    "是否为编辑编辑帖子获取, 若为true则containsDraft无效且被视为true, 将返回标号后的内容. 默认为false"
             }
         }
         response {
@@ -259,7 +263,8 @@ private fun Route.id() = route("/{id}",{
         }) { getLikeStatus() }
 
         get("/list", {
-            description = "获取帖子的点赞/收藏列表, 若用户设置了不显示自己的点赞/收藏且当前用户不是全局管理员, 则user为null"
+            description =
+                "获取帖子的点赞/收藏列表, 若用户设置了不显示自己的点赞/收藏且当前用户不是全局管理员, 则user为null"
             request {
                 paged()
                 queryParameter<Boolean>("star")
@@ -282,7 +287,8 @@ private fun Route.version() = route("/version", {
 })
 {
     get("/list/{postId}", {
-        description = "获取帖子的版本列表, 如果当前登录用户是作者或者全局管理员的话可以获得包含草稿版本在内的所有版本, 否则只能获得非草稿版本"
+        description =
+            "获取帖子的版本列表, 如果当前登录用户是作者或者全局管理员的话可以获得包含草稿版本在内的所有版本, 否则只能获得非草稿版本"
         request {
             paged()
             pathParameter<PostId>("postId")
@@ -297,7 +303,8 @@ private fun Route.version() = route("/version", {
     }) { listVersions() }
 
     get("/{versionId}", {
-        description = "获取帖子版本信息, 需要当前登录的用户可以看到该版本所属的帖子, 并且草稿版本只能由作者或全局管理员查看"
+        description =
+            "获取帖子版本信息, 需要当前登录的用户可以看到该版本所属的帖子, 并且草稿版本只能由作者或全局管理员查看"
         request {
             pathParameter<PostVersionId>("versionId")
             {
@@ -331,7 +338,7 @@ private suspend fun Context.editPost() = editPostLock.tryWithLock(
     { finishCall(HttpStatus.TooManyRequests) }
 )
 { id ->
-    val operators = receiveAndCheckBody<EditPost>()
+    val operators = call.receiveAndCheckBody<EditPost>()
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
 
     val postVersions = get<PostVersions>()
@@ -351,7 +358,8 @@ private suspend fun Context.editPost() = editPostLock.tryWithLock(
     if (operators.draft) finishCall(HttpStatus.OK)
 
     val wordMarkings = get<WordMarkings>()
-    val oldVersionInfo = postVersions.getPostVersion(oldVersionId) ?: return@tryWithLock call.respond(HttpStatus.NotFound)
+    val oldVersionInfo =
+        postVersions.getPostVersion(oldVersionId) ?: return@tryWithLock call.respond(HttpStatus.NotFound)
     val markings = wordMarkings.getWordMarkings(oldVersionId)
     val newMarkings =
         mapWordMarkings(oldVersionInfo.content, operators.content, markings).map { it.copy(postVersion = newVersionId) }
@@ -397,15 +405,15 @@ private suspend fun Context.likePost()
 {
     val id = call.parameters["id"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val post = get<Posts>().getPostFullBasicInfo(id) ?: return call.respond(HttpStatus.NotFound)
-    val type = receiveAndCheckBody<LikePost>().type
+    val type = call.receiveAndCheckBody<LikePost>().type
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     withPermission { checkRead(post.toPostInfo()) }
     when (type)
     {
-        LikeType.LIKE    -> get<Likes>().addLike(loginUser.id, id)
-        LikeType.UNLIKE  -> get<Likes>().removeLike(loginUser.id, id)
-        LikeType.STAR    -> get<Stars>().addStar(loginUser.id, id)
-        LikeType.UNSTAR  -> get<Stars>().removeStar(loginUser.id, id)
+        LikeType.LIKE -> get<Likes>().addLike(loginUser.id, id)
+        LikeType.UNLIKE -> get<Likes>().removeLike(loginUser.id, id)
+        LikeType.STAR -> get<Stars>().addStar(loginUser.id, id)
+        LikeType.UNSTAR -> get<Stars>().removeStar(loginUser.id, id)
     }
     if (loginUser.id != post.author && (type == LikeType.LIKE || type == LikeType.STAR))
     {
@@ -488,7 +496,7 @@ private data class NewPost(
 
 private suspend fun Context.newPost()
 {
-    val newPost = receiveAndCheckBody<NewPost>()
+    val newPost = call.receiveAndCheckBody<NewPost>()
     if (newPost.state == State.DELETED) return call.respond(HttpStatus.BadRequest)
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
 
@@ -581,7 +589,7 @@ private suspend fun Context.getLatestVersion()
     val forEdit = call.parameters["forEdit"]?.toBooleanStrictOrNull() ?: false
     val versions = get<PostVersions>()
     val version = versions.getLatestPostVersion(id, forEdit || containsDraft)?.let { versions.getPostVersion(it) }
-                    ?: return call.respond(HttpStatus.NotFound.subStatus("未找到帖子版本"))
+                  ?: return call.respond(HttpStatus.NotFound.subStatus("未找到帖子版本"))
     withPermission { checkEdit(version.toPostVersionBasicInfo()) }
     if (forEdit) finishCall(HttpStatus.OK, version.copy(content = splitContentNode(version.content)))
     call.respond(HttpStatus.OK, version)

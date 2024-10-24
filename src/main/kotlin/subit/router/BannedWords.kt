@@ -7,7 +7,6 @@ import io.ktor.server.application.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
 import subit.database.BannedWords
-import subit.database.receiveAndCheckBody
 import subit.router.utils.*
 import subit.utils.HttpStatus
 import subit.utils.respond
@@ -93,7 +92,7 @@ private data class NewBannedWord(val word: String)
 
 private suspend fun Context.newBannedWord()
 {
-    val newBannedWord = receiveAndCheckBody<NewBannedWord>()
+    val newBannedWord = call.receiveAndCheckBody<NewBannedWord>()
     val bannedWords = get<BannedWords>()
     withPermission { checkHasGlobalAdmin() }
     bannedWords.addBannedWord(newBannedWord.word)
@@ -112,7 +111,7 @@ private suspend fun Context.deleteBannedWord()
 private suspend fun Context.editBannedWord()
 {
     val word = call.parameters["word"] ?: return call.respond(HttpStatus.BadRequest)
-    val newBannedWord = receiveAndCheckBody<NewBannedWord>()
+    val newBannedWord = call.receiveAndCheckBody<NewBannedWord>()
     val bannedWords = get<BannedWords>()
     withPermission { checkHasGlobalAdmin() }
     bannedWords.updateBannedWord(word, newBannedWord.word)

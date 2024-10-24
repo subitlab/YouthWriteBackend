@@ -10,7 +10,6 @@ import kotlinx.serialization.Serializable
 import subit.dataClasses.*
 import subit.dataClasses.UserId.Companion.toUserIdOrNull
 import subit.database.PrivateChats
-import subit.database.receiveAndCheckBody
 import subit.router.utils.*
 import subit.utils.HttpStatus
 import subit.utils.respond
@@ -152,7 +151,7 @@ private data class SendPrivateChat(
 
 private suspend fun Context.sendPrivateChat()
 {
-    val (to, content) = receiveAndCheckBody<SendPrivateChat>()
+    val (to, content) =call.receiveAndCheckBody<SendPrivateChat>()
     val from = getLoginUser()?.id ?: return call.respond(HttpStatus.Unauthorized)
     val privateChats = get<PrivateChats>()
     if (privateChats.getIsBlock(to, from)) return call.respond(HttpStatus.UserInBlackList)
@@ -215,7 +214,7 @@ private suspend fun Context.setBlock()
 {
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     val userId = call.parameters["userId"]?.toUserIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
-    val isBlock = receiveAndCheckBody<IsBlock>().isBlock
+    val isBlock =call.receiveAndCheckBody<IsBlock>().isBlock
     get<PrivateChats>().setIsBlock(userId, loginUser.id, isBlock)
     call.respond(HttpStatus.OK)
 }

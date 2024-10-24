@@ -99,7 +99,7 @@ private data class WordMarking(val postId: PostId, val start: Int, val end: Int)
 private suspend fun Context.commentPost()
 {
     val postId = call.parameters["postId"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
-    val newComment = receiveAndCheckBody<NewComment>()
+    val newComment = call.receiveAndCheckBody<NewComment>()
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     val posts = get<Posts>()
 

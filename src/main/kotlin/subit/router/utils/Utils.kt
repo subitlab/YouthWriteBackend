@@ -15,12 +15,12 @@ import org.koin.ktor.ext.get
 import subit.dataClasses.*
 import subit.utils.HttpStatus
 
-typealias Context = PipelineContext<*, ApplicationCall>
+typealias Context = PipelineContext<*, out ApplicationCall>
 
 inline fun <reified T: Any> Context.get(
     qualifier: Qualifier? = null,
     noinline parameters: ParametersDefinition? = null
-) = application.get<T>(qualifier, parameters)
+) = context.application.get<T>(qualifier, parameters)
 
 /**
  * 辅助方法, 标记此方法返回需要传入begin和count, 用于分页
@@ -59,7 +59,8 @@ inline fun <reified T> OpenApiRequestParameter.example(any: T)
     this.example = ValueExampleDescriptor("example", any)
 }
 
-inline fun Context.getLoginUser(): UserFull? = call.principal<UserFull>()
+inline fun Context.getLoginUser(): UserFull? = call.getLoginUser()
+inline fun ApplicationCall.getLoginUser(): UserFull? = this.principal<UserFull>()
 
 @JvmName("checkAnonymousPostFull")
 inline fun Context.checkAnonymous(posts: Slice<PostFull>) = withPermission()

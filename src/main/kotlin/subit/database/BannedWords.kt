@@ -23,28 +23,3 @@ interface BannedWords
      */
     suspend fun check(str: String): Boolean
 }
-
-suspend fun Context.checkBannedWords(str: String)
-{
-    val bannedWords = get<BannedWords>()
-    if (bannedWords.check(str))
-    {
-        call.respond(HttpStatus.ContainsBannedWords)
-        finish()
-    }
-}
-suspend fun Context.checkParameters()
-{
-    val parameterValues = call.parameters.toMap().values.flatten()
-    // 全部拼接在一起, 一次查询搞定
-    val str = parameterValues.joinToString("/") { it }
-    checkBannedWords(str)
-}
-
-// 接受body并检查是否包含违禁词汇
-suspend inline fun <reified T : Any> Context.receiveAndCheckBody(): T
-{
-    val body = call.receive<T>()
-    checkBannedWords(body.toString())
-    return body
-}

@@ -4,6 +4,7 @@ package subit.utils
 
 import kotlinx.datetime.Instant
 import org.jetbrains.exposed.sql.kotlin.datetime.timestampParam
+import org.koin.core.component.KoinComponent
 import subit.plugin.contentNegotiation.contentNegotiationJson
 import java.io.ByteArrayOutputStream
 import java.io.OutputStream
@@ -56,3 +57,5 @@ open class LinePrintStream(private val line: (String) -> Unit): PrintStream(Line
     override fun println(x: CharArray) = println(x.joinToString("") as Any?)
     override fun println(x: String?) = println(x as Any?)
 }
+
+fun getKoin() = object: KoinComponent {}

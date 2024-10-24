@@ -16,6 +16,7 @@ import io.ktor.util.*
 import io.ktor.utils.io.core.*
 import io.ktor.utils.io.jvm.javaio.*
 import io.ktor.utils.io.streams.*
+import kotlinx.io.asByteChannel
 import kotlinx.serialization.Serializable
 import subit.dataClasses.*
 import subit.dataClasses.Slice.Companion.asSlice
@@ -212,13 +213,12 @@ private suspend fun Context.uploadFile()
     val user = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     val multipart = call.receiveMultipart()
     var fileInfo: UploadFile? = null
-    @Suppress("DEPRECATION")
     var input: Input? = null
     val size = call.parameters["size"]?.toLongOrNull() ?: return call.respond(HttpStatus.BadRequest)
     multipart.forEachPart { part ->
         val content = when (part)
         {
-            is PartData.FileItem -> part.provider()
+            is PartData.FileItem -> part.provider().toInputStream().asInput()
             is PartData.FormItem -> part.value.byteInputStream().asInput()
             is PartData.BinaryItem -> part.provider()
             is PartData.BinaryChannelItem -> part.provider().toInputStream().asInput()
@@ -269,7 +269,7 @@ private data class ChangePublic(val id: String, val public: Boolean)
 
 private suspend fun Context.changePublic()
 {
-    val (id, public) = receiveAndCheckBody<ChangePublic>().let {
+    val (id, public) = call.receiveAndCheckBody<ChangePublic>().let {
         val id = it.id.toUUIDOrNull() ?: return@let null
         val public = it.public
         id to public
@@ -287,7 +287,7 @@ private data class ChangePermission(val id: UserId, val filePermission: Permissi
 private suspend fun Context.changePermission()
 {
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
-    val changePermission = receiveAndCheckBody<ChangePermission>()
+    val changePermission = call.receiveAndCheckBody<ChangePermission>()
     val user = SSO.getDbUser(changePermission.id) ?: return call.respond(HttpStatus.NotFound)
     withPermission { checkChangeFilePermission(user, changePermission.filePermission) }
     get<Users>().changeFilePermission(changePermission.id, changePermission.filePermission)

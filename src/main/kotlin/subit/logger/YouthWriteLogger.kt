@@ -2,9 +2,11 @@ package subit.logger
 
 import kotlinx.datetime.Clock
 import kotlinx.datetime.toKotlinInstant
+import me.nullaqua.api.kotlin.reflect.KallerSensitive
+import me.nullaqua.api.kotlin.reflect.getCallerClass
+import me.nullaqua.api.kotlin.reflect.getCallerClasses
+import me.nullaqua.api.kotlin.utils.LoggerUtil
 import me.nullaqua.api.reflect.CallerSensitive
-import me.nullaqua.kotlin.reflect.getCallerClass
-import me.nullaqua.kotlin.reflect.getCallerClasses
 import subit.config.loggerConfig
 import subit.console.AnsiStyle.Companion.RESET
 import subit.console.Console
@@ -22,6 +24,9 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import kotlin.jvm.optionals.getOrDefault
 import kotlin.reflect.KClass
+import kotlin.reflect.KProperty
+import kotlin.reflect.jvm.javaField
+import kotlin.reflect.jvm.javaGetter
 import kotlin.reflect.jvm.jvmName
 import kotlin.time.Duration
 
@@ -31,9 +36,9 @@ import kotlin.time.Duration
 @Suppress("MemberVisibilityCanBePrivate")
 object YouthWriteLogger
 {
-    val globalLogger = LoggerUtils(Logger.getLogger(""))
-    fun getLogger(name: String): LoggerUtils = LoggerUtils(Logger.getLogger(name))
-    fun getLogger(clazz: KClass<*>): LoggerUtils
+    val globalLogger = LoggerUtil(Logger.getLogger(""))
+    fun getLogger(name: String): LoggerUtil = LoggerUtil(Logger.getLogger(name))
+    fun getLogger(clazz: KClass<*>): LoggerUtil
     {
         val c: KClass<*> = when
         {
@@ -44,13 +49,27 @@ object YouthWriteLogger
         return getLogger(name)
     }
 
-    fun getLogger(clazz: Class<*>): LoggerUtils = getLogger(clazz.kotlin)
+    fun getLogger(clazz: Class<*>): LoggerUtil = getLogger(clazz.kotlin)
 
     @JvmName("getLoggerInline")
-    inline fun <reified T> getLogger(): LoggerUtils = getLogger(T::class)
+    inline fun <reified T> getLogger(): LoggerUtil = getLogger(T::class)
 
     @CallerSensitive
-    fun getLogger(): LoggerUtils = getCallerClass()?.let(::getLogger) ?: globalLogger
+    @OptIn(KallerSensitive::class)
+    fun getLogger(): LoggerUtil = getCallerClass()?.let(::getLogger) ?: globalLogger
+
+    @CallerSensitive
+    @OptIn(KallerSensitive::class)
+    operator fun getValue(any: Any?, property: KProperty<*>): LoggerUtil
+    {
+        if (any != null) return getLogger(any::class)
+        val field = property.javaField
+        if (field != null) return getLogger(field.declaringClass)
+        val getter = property.javaGetter
+        if (getter != null) return getLogger(getter.declaringClass)
+        return getCallerClass()?.let { getLogger(it) } ?: globalLogger
+    }
+
     internal val nativeOut: PrintStream = System.out
     internal val nativeErr: PrintStream = System.err
 
@@ -125,6 +144,7 @@ object YouthWriteLogger
         val arrayOutputStream = ByteArrayOutputStream()
 
         @CallerSensitive
+        @OptIn(KallerSensitive::class)
         override fun write(b: Int) = safe()
         {
             if (b == '\n'.code)

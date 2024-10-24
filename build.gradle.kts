@@ -11,7 +11,7 @@ val schema_kenerator_version: String by project
 plugins {
     kotlin("jvm") version "2.0.20"
     kotlin("plugin.serialization") version "2.0.20"
-    id("io.ktor.plugin") version "2.3.12"
+    id("io.ktor.plugin") version "3.0.0"
 }
 
 group = "subit"
@@ -47,7 +47,7 @@ dependencies {
 
     // ktor client
     implementation("io.ktor:ktor-client-core-jvm") // core
-    implementation("io.ktor:ktor-client-java")
+    implementation("io.ktor:ktor-client-cio") // netty
     implementation("io.ktor:ktor-client-content-negotiation") // request/response时反序列化
 
     // ktor common
@@ -85,10 +85,10 @@ dependencies {
     implementation("io.insert-koin:koin-ktor")
     implementation("io.insert-koin:koin-logger-slf4j")
 
-    implementation("me.nullaqua:BluestarAPI-kotlin-reflect:4.1.0")
+    implementation("me.nullaqua:BluestarAPI-kotlin:4.3.3")
+    implementation("me.nullaqua:BluestarAPI-kotlin-reflect:4.3.3")
 
-
-    testImplementation("io.ktor:ktor-server-tests-jvm")
+//    testImplementation("io.ktor:ktor-server-tests-jvm")
     testImplementation("io.ktor:ktor-server-test-host")
     testImplementation("io.ktor:ktor-server-test-host-jvm")
     testImplementation(kotlin("test"))

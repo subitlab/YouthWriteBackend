@@ -1,11 +1,11 @@
 package subit.utils
 
-import io.ktor.client.HttpClient
-import io.ktor.client.call.body
-import io.ktor.client.engine.java.Java
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.*
+import io.ktor.client.call.*
+import io.ktor.client.engine.cio.*
+import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
-import io.ktor.serialization.kotlinx.json.json
+import io.ktor.serialization.kotlinx.json.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -20,12 +20,11 @@ import subit.plugin.contentNegotiation.contentNegotiationJson
 object SSO: KoinComponent
 {
     val users: Users by inject()
-    private val httpClient = HttpClient(Java)
+    private val httpClient = HttpClient(CIO)
     {
         engine()
         {
             pipelining = true
-            protocolVersion = java.net.http.HttpClient.Version.HTTP_2
         }
         install(ContentNegotiation)
         {

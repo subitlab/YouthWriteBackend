@@ -96,7 +96,7 @@ fun Route.terminal() = route("/terminal", {
 
     get("")
     {
-        val html = Loader.getResource("terminal.html")!!.readAllBytes().decodeToString().replace("\${root}", application.environment.rootPath)
+        val html = Loader.getResource("terminal.html")!!.readAllBytes().decodeToString().replace("\${root}", application.rootPath)
         call.respondBytes(html.toByteArray(), ContentType.Text.Html, HttpStatusCode.OK)
     }
 

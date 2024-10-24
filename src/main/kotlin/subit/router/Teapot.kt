@@ -13,7 +13,7 @@ import subit.utils.HttpStatus.Companion.ImATeapot
 
 fun Route.teapot() = route("/teapot", { hidden = true })
 {
-    val rootPath = this.application.environment.rootPath
+    val rootPath = this.application.rootPath
     get("")
     {
         val html =

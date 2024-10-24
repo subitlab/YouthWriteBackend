@@ -180,7 +180,7 @@ private data class NewBlock(
 private suspend fun Context.newBlock()
 {
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
-    val newBlock = receiveAndCheckBody<NewBlock>()
+    val newBlock = call.receiveAndCheckBody<NewBlock>()
     val blocks = get<Blocks>()
     if (newBlock.parent != null)
     {
@@ -217,7 +217,7 @@ private suspend fun Context.editBlockInfo()
 {
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     val id = call.parameters["id"]?.toBlockIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
-    val editBlockInfo = receiveAndCheckBody<EditBlockInfo>()
+    val editBlockInfo = call.receiveAndCheckBody<EditBlockInfo>()
     val block = get<Blocks>().getBlock(id) ?: return call.respond(HttpStatus.NotFound)
     val parent = editBlockInfo.parent?.let { get<Blocks>().getBlock(it) }
     withPermission {
@@ -275,7 +275,7 @@ private data class ChangePermission(
 private suspend fun Context.changePermission()
 {
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
-    val changePermission = receiveAndCheckBody<ChangePermission>()
+    val changePermission = call.receiveAndCheckBody<ChangePermission>()
     val block = get<Blocks>().getBlock(changePermission.block) ?: return call.respond(HttpStatus.NotFound)
     val user = SSO.getDbUser(changePermission.user) ?: return call.respond(HttpStatus.NotFound)
     withPermission { checkChangePermission(block, user, changePermission.permission) }

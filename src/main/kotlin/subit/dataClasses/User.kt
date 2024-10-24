@@ -94,7 +94,7 @@ data class UserFull(
     val mergeNotice: Boolean,
     val permission: PermissionLevel,
     val filePermission: PermissionLevel
-): Principal, UserInfo
+): UserInfo
 {
     fun toBasicUserInfo() = BasicUserInfo(id, username, registrationTime, email, introduction, showStars)
     fun toSsoUser() = SsoUserFull(id, username, registrationTime, phone, email, seiue)

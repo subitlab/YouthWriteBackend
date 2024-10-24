@@ -13,7 +13,6 @@ import org.koin.ktor.ext.inject
 import subit.config.systemConfig
 import subit.dataClasses.PermissionLevel
 import subit.database.Prohibits
-import subit.database.checkParameters
 import subit.router.admin.admin
 import subit.router.bannedWords.bannedWords
 import subit.router.block.block
@@ -28,16 +27,16 @@ import subit.router.report.report
 import subit.router.tags.tag
 import subit.router.teapot.teapot
 import subit.router.user.user
+import subit.router.utils.checkParameters
 import subit.router.utils.finishCall
 import subit.router.utils.getLoginUser
 import subit.router.wordMarkings.wordMarking
 import subit.utils.HttpStatus
-import subit.utils.respond
 import subit.utils.statuses
 
 fun Application.router() = routing()
 {
-    val rootPath = this.application.environment.rootPath
+    val rootPath = this.application.rootPath
 
     get("/", { hidden = true })
     {
@@ -59,24 +58,26 @@ fun Application.router() = routing()
     authenticate("auth", optional = true)
     {
         val prohibits: Prohibits by inject()
-        intercept(ApplicationCallPipeline.Call)
+        install(createRouteScopedPlugin("ProhibitPlugin", { })
         {
-            //检测是否在维护中
-            if (systemConfig.systemMaintaining)
-            {
-                call.respond(HttpStatus.Maintaining)
-                finish()
-            }
+            onCall {
+                //检测是否在维护中
+                if (systemConfig.systemMaintaining)
+                {
+                    finishCall(HttpStatus.Maintaining)
+                }
 
-            getLoginUser()?.apply()
-            {
-                if (this.permission < PermissionLevel.NORMAL || prohibits.isProhibited(this.id))
-                    finishCall(HttpStatus.Prohibit)
-            }
+                it.getLoginUser()?.apply()
+                {
+                    if (this.permission < PermissionLevel.NORMAL || prohibits.isProhibited(this.id))
+                        finishCall(HttpStatus.Prohibit)
+                }
 
-            // 检查参数是否包含违禁词
-            checkParameters()
-        }
+                // 检查参数是否包含违禁词
+                it.checkParameters()
+            }
+        })
+
         route("", {
             response {
                 statuses(HttpStatus.Maintaining, HttpStatus.Prohibit, HttpStatus.LoginSuccessButNotAuthorized)
