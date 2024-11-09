@@ -2,7 +2,7 @@ package subit.utils
 
 import io.ktor.client.*
 import io.ktor.client.call.*
-import io.ktor.client.engine.cio.*
+import io.ktor.client.engine.java.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
 import io.ktor.serialization.kotlinx.json.*
@@ -14,17 +14,21 @@ import org.koin.core.component.inject
 import subit.config.systemConfig
 import subit.dataClasses.*
 import subit.database.Users
+import subit.logger.YouthWriteLogger
 import subit.plugin.contentNegotiation.contentNegotiationJson
 
 @Suppress("MemberVisibilityCanBePrivate")
 object SSO: KoinComponent
 {
     val users: Users by inject()
-    private val httpClient = HttpClient(CIO)
+    private val logger by YouthWriteLogger
+    private val httpClient = HttpClient(Java)
     {
         engine()
         {
             pipelining = true
+            dispatcher = Dispatchers.IO
+            protocolVersion = java.net.http.HttpClient.Version.HTTP_2
         }
         install(ContentNegotiation)
         {
@@ -68,42 +72,63 @@ object SSO: KoinComponent
     suspend fun getUser(accessToken: String): SsoUserFull? = withContext(Dispatchers.IO)
     {
         runCatching {
-            val data = httpClient.get(systemConfig.ssoServer + "/serviceApi/info")
+            val url = systemConfig.ssoServer + "/serviceApi/info"
+            logger.finer("url: $url")
+            logger.finer("  accessToken: $accessToken")
+            val data = httpClient.get(url)
             {
                 bearerAuth(accessToken)
             }.body<Response<Information<SsoUserFull>>>().data
             if (data?.service?.id != systemConfig.ssoServerId) null else data.user
-        }.getOrNull()
+        }.getOrElse { logger.fine("error in sso", it); null }
     }
 
     suspend fun getAccessToken(id: UserId): String? = withContext(Dispatchers.IO)
     {
         runCatching {
-            httpClient.get(systemConfig.ssoServer + "/serviceApi/accessToken")
+            val url = systemConfig.ssoServer + "/serviceApi/accessToken"
+            logger.finer("url: $url")
+            logger.finer("  user: $id")
+            logger.finer("  time: $MAX_ACCESS_TOKEN_VALID_TIME")
+            httpClient.get(url)
             {
                 bearerAuth(systemConfig.ssoSecret)
                 parameter("user", id)
                 parameter("time", MAX_ACCESS_TOKEN_VALID_TIME)
             }.body<Response<AccessTokenResponse>>().data?.accessToken
-        }.getOrNull()
+        }.getOrElse { logger.fine("error in sso", it); null }
     }
 
     suspend fun getStatus(accessToken: String): AuthorizationStatus? = withContext(Dispatchers.IO)
     {
-        runCatching { httpClient.get(systemConfig.ssoServer + "/serviceApi/oauth/status") { bearerAuth(accessToken) }.body<Response<AuthorizationStatus>>().data }.getOrNull()
+        runCatching {
+            val url = systemConfig.ssoServer + "/serviceApi/oauth/status"
+            logger.finer("url: $url")
+            logger.finer("  accessToken: $accessToken")
+            httpClient.get(url)
+            {
+                bearerAuth(accessToken)
+            }.body<Response<AuthorizationStatus>>().data
+        }.getOrElse { logger.fine("error in sso", it); null }
     }
 
     suspend fun getAccessToken(code: String): String? = withContext(Dispatchers.IO)
     {
         runCatching {
-            httpClient.get(systemConfig.ssoServer + "/serviceApi/oauth/accessToken")
+            val url = systemConfig.ssoServer + "/serviceApi/oauth/accessToken"
+            logger.finer("url: $url")
+            logger.finer("  code: $code")
+            logger.finer("  time: $MAX_ACCESS_TOKEN_VALID_TIME")
+            httpClient.get(url)
             {
                 bearerAuth(systemConfig.ssoSecret)
                 header("Oauth-Code", "Bearer $code")
                 parameter("time", MAX_ACCESS_TOKEN_VALID_TIME)
             }.body<Response<AccessTokenResponse>>().data?.accessToken
-        }.getOrNull()
+        }.getOrElse { logger.fine("error in sso", it); null }
     }
+
+    suspend fun hasUser(id: UserId) = getAccessToken(id) != null
 
     suspend fun getUserFull(accessToken: String): UserFull?
     {

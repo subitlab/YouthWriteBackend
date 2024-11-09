@@ -4,14 +4,16 @@ package subit.router.oauth
 
 import io.github.smiley4.ktorswaggerui.dsl.routing.post
 import io.github.smiley4.ktorswaggerui.dsl.routing.route
-import io.ktor.server.application.*
 import io.ktor.server.request.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
+import subit.logger.YouthWriteLogger
 import subit.router.utils.finishCall
 import subit.utils.HttpStatus
 import subit.utils.SSO
 import subit.utils.statuses
+
+private val logger by YouthWriteLogger
 
 fun Route.oauth() = route("oauth", {
     tags("OAuth")
@@ -32,8 +34,18 @@ fun Route.oauth() = route("oauth", {
     })
     {
         val login = call.receive<Login>()
-        val accessToken = SSO.getAccessToken(login.code) ?: finishCall(HttpStatus.InvalidOAuthCode)
-        val status = SSO.getStatus(accessToken) ?: finishCall(HttpStatus.InvalidOAuthCode)
+        val accessToken = SSO.getAccessToken(login.code)
+        if (accessToken == null)
+        {
+            logger.config("accessToken is null")
+            finishCall(HttpStatus.InvalidOAuthCode)
+        }
+        val status = SSO.getStatus(accessToken)
+        if (status == null)
+        {
+            logger.config("status is null")
+            finishCall(HttpStatus.InvalidOAuthCode)
+        }
         if (status != SSO.AuthorizationStatus.AUTHORIZED) finishCall(HttpStatus.LoginSuccessButNotAuthorized, accessToken)
         finishCall(HttpStatus.OK, accessToken)
     }
