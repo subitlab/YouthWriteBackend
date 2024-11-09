@@ -544,13 +544,13 @@
                 // 拆分键值对
                 let key = item.split("=")[0].trim();
                 // 如果是token,返回未解码的token
-                console.log(key,"key",key === "__session", item);
-                if(key.includes("__session")){
+                console.log(key,"key",key === "__youthwrite", item);
+                if(key.includes("__youthwrite")){
                     console.log(item,"item");
                     // 返回未解码的token(等于号之后的部分)
                     return item.split("=")[1];
                 }
-            })[0];
+            }).find((item) => item !== undefined);
             // 如果解码成功
             if(encoded !== undefined){
                 // 去除token中无效部分(URL编码的等号片段)
@@ -580,7 +580,8 @@
             return new WebSocket(url, ['Bearer', token]);
         }
         catch (e) {
-            goToSSO()
+            console.log(e)
+            goToHome()
         }
     })();
 
@@ -754,7 +755,7 @@
     });
 
     // 显示一个提示信息, 连接失败并显示一个按钮，点击按钮后跳转到SSO登录页面
-    function goToSSO() {
+    function goToHome() {
         const container = document.getElementById('container');
         container.innerHTML = '连接失败，请点击下面的按钮重新登录';
         const button = document.createElement('button');
@@ -767,13 +768,13 @@
 
     socket.addEventListener('error', (error) => {
         console.error('WebSocket 错误:', error);
-        goToSSO();
+        goToHome();
     });
 
     // 关闭时打印关闭原因
     socket.addEventListener('close', (event) => {
         console.log('连接已关闭:', event.code, event.reason);
-        goToSSO();
+        goToHome();
     });
 </script>
 </body>
