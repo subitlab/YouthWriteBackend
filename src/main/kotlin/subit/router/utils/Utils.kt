@@ -8,6 +8,7 @@ import io.github.smiley4.ktorswaggerui.dsl.routes.OpenApiRequestParameter
 import io.github.smiley4.ktorswaggerui.dsl.routes.OpenApiSimpleBody
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
+import io.ktor.server.routing.*
 import io.ktor.util.pipeline.*
 import org.koin.core.parameter.ParametersDefinition
 import org.koin.core.qualifier.Qualifier
@@ -15,12 +16,12 @@ import org.koin.ktor.ext.get
 import subit.dataClasses.*
 import subit.utils.HttpStatus
 
-typealias Context = PipelineContext<*, out ApplicationCall>
+typealias Context = RoutingContext
 
 inline fun <reified T: Any> Context.get(
     qualifier: Qualifier? = null,
     noinline parameters: ParametersDefinition? = null
-) = context.application.get<T>(qualifier, parameters)
+) = call.application.get<T>(qualifier, parameters)
 
 /**
  * 辅助方法, 标记此方法返回需要传入begin和count, 用于分页
