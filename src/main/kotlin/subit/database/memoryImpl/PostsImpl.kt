@@ -131,10 +131,12 @@ class PostsImpl: Posts, KoinComponent
         return map[pid]
     }
 
-    override suspend fun getPostFull(pid: PostId): PostFull?
+    override suspend fun getPostFull(pid: PostId): PostFull? = getPostFull(pid, false)?.first
+
+    private suspend fun getPostFull(pid: PostId, containsDraft: Boolean): Pair<PostFull, PostVersionInfo?>?
     {
         val post = map[pid] ?: return null
-        val lastVersionId = postVersions.getLatestPostVersion(pid, false) ?: return null
+        val lastVersionId = postVersions.getLatestPostVersion(pid, containsDraft) ?: return null
         val lastVersion = postVersions.getPostVersion(lastVersionId) ?: return null
 
         return post.toPostFull(
@@ -147,7 +149,7 @@ class PostsImpl: Posts, KoinComponent
             comment = map.values.count { it.root == pid }.toLong(),
             lastVersionId = lastVersionId,
             hotScore = getHotScore(pid),
-        )
+        ) to lastVersion
     }
 
     override suspend fun getPostFullBasicInfo(pid: PostId): PostFullBasicInfo? = getPostFull(pid)?.toPostFullBasicInfo()
@@ -188,11 +190,20 @@ class PostsImpl: Posts, KoinComponent
                 && (comment == null || (it.parent != null) == comment)
             }
             .filter { canRead(it) }
-            .map { getPostFull(it.id)!! }
+            .mapNotNull { getPostFull(it.id, draft == true) }
+            .mapNotNull {
+                it.takeIf { _ ->
+                    when (draft)
+                    {
+                        true  -> it.second == null || it.second?.draft == true
+                        false -> it.second != null
+                        else  -> true
+                    }
+                }?.first
+            }
             .filter {
                 @Suppress("SimplifyBooleanWithConstants")
                 true
-                && (draft == null || ((it.lastVersionId == null) == draft))
                 && (createBefore == null || it.create!! <= createBefore.toEpochMilliseconds())
                 && (createAfter == null || it.create!! >= createAfter.toEpochMilliseconds())
                 && (lastModifiedBefore == null || it.lastModified!! <= lastModifiedBefore.toEpochMilliseconds())

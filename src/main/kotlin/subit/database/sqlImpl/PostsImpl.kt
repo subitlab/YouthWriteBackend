@@ -12,6 +12,7 @@ import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.Function
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.coalesce
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.div
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.minus
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.plus
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.times
@@ -513,20 +514,26 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
         val permissionTable = (permissions as PermissionsImpl).table
         val blockTable = (blocks as BlocksImpl).table
 
+        // 如果对时间有要求就无法限制是不是草稿
+        @Suppress("NAME_SHADOWING")
+        val draft =
+            if (createBefore != null || createAfter != null || lastModifiedBefore != null || lastModifiedAfter != null) false
+            else draft
+
         fun Query.checkLimits(): Query
         {
-            // 如果对时间有要求就无法限制是不是草稿
-            @Suppress("NAME_SHADOWING")
-            val draft =
-                if (createBefore != null || createAfter != null || lastModifiedBefore != null || lastModifiedAfter != null) false
-                else draft
+            val postVersionTable = (postVersions as PostVersionsImpl).table
 
             if (author != null) andWhere { table.author eq author }
             if (block != null) andWhere { table.block eq block }
             if (top != null) andWhere { table.top eq top }
             if (state != null) andWhere { table.state eq state }
             if (comment != null) andWhere { if (comment) table.parent.isNotNull() else table.parent.isNull() }
-            if (draft != null) andWhere { if (draft) lastVersionId.aliasOnlyExpression().isNull() else lastVersionId.aliasOnlyExpression().isNotNull() }
+            if (draft != null)
+            {
+                if (draft) andWhere { lastVersionId.aliasOnlyExpression().isNull() or postVersionTable.draft }
+                else andWhere { lastVersionId.aliasOnlyExpression().isNotNull() }
+            }
             if (createBefore != null) andWhere { create.aliasOnlyExpression() lessEq timestampParam(createBefore) }
             if (createAfter != null) andWhere { create.aliasOnlyExpression() greaterEq timestampParam(createAfter) }
             if (lastModifiedBefore != null) andWhere { lastModified.aliasOnlyExpression() lessEq timestampParam(lastModifiedBefore) }
@@ -552,7 +559,7 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
 
 
         PostsTable
-            .joinPostFull(false)
+            .joinPostFull(draft == true)
             .join(blockTable, JoinType.INNER, table.block, blockTable.id)
             .join(permissionTable, JoinType.LEFT, table.block, permissionTable.block) { permissionTable.user eq loginUser?.id }
             .select(postFullBasicInfoColumns)
@@ -563,6 +570,10 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
             .orderBy(*sortBy.order)
             .asSlice(begin, limit)
             .map { deserializePost<PostFullBasicInfo>(it) }
+            .let {
+                if (draft == true) it.map { p -> p.copy(create = null) }
+                else it
+            }
     }
 
     override suspend fun addView(pid: PostId): Unit = query()
@@ -614,7 +625,7 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
     {
         val time = duration?.let { Clock.System.now() - it } ?: 0L.toInstant()
         val res = table
-            .joinPostFull(true)
+            .joinPostFull(false)
             .select(state, id.count())
             .andWhere { if (comment) parent.isNotNull() else parent.isNull() }
             .andWhere { lastModified.aliasOnlyExpression() greaterEq timestampParam(time) }

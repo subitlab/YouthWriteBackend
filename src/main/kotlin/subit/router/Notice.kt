@@ -13,7 +13,6 @@ import subit.dataClasses.Notice.*
 import subit.dataClasses.NoticeId.Companion.toNoticeIdOrNull
 import subit.dataClasses.UserId.Companion.toUserIdOrNull
 import subit.database.Notices
-import subit.database.Users
 import subit.router.utils.*
 import subit.utils.*
 

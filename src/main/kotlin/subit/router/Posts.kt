@@ -3,7 +3,6 @@
 package subit.router.posts
 
 import io.github.smiley4.ktorswaggerui.dsl.routing.*
-import io.ktor.server.application.*
 import io.ktor.server.plugins.ratelimit.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
