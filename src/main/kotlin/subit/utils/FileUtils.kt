@@ -10,13 +10,11 @@ import subit.dataClasses.UserFull
 import subit.dataClasses.UserId
 import subit.dataDir
 import subit.plugin.contentNegotiation.dataJson
-import java.awt.image.BufferedImage
 import java.io.File
 import java.io.FileInputStream
 import java.io.InputStream
 import java.security.MessageDigest
 import java.util.*
-import javax.imageio.ImageIO
 import kotlin.math.min
 
 /**
@@ -213,20 +211,23 @@ object HomeFilesUtils
     fun init()
     {
         homeFolder.mkdirs()
-        homeMdFile.createNewFile()
-        announcementMdFile.createNewFile()
-        BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB).let { ImageIO.write(it, "png", homePngFile) }
     }
 
     var homeMd: String
-        get() = homeMdFile.readText()
+        get() = if (homeMdFile.exists()) homeMdFile.readText() else ""
         set(value) = homeMdFile.writeText(value)
 
     var announcementMd: String
-        get() = announcementMdFile.readText()
+        get() = if (announcementMdFile.exists()) announcementMdFile.readText() else ""
         set(value) = announcementMdFile.writeText(value)
 
-    var homePng: InputStream
-        get() = homePngFile.inputStream()
-        set(value) = homePngFile.outputStream().use { value.copyTo(it) }
+    var homeImage: InputStream?
+        get() =
+            if (homePngFile.exists()) homePngFile.inputStream()
+            else null
+        set(value)
+        {
+            if (value != null) homePngFile.outputStream().use { value.copyTo(it) }
+            else homePngFile.delete()
+        }
 }

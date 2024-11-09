@@ -6,7 +6,6 @@ import io.github.smiley4.ktorswaggerui.dsl.routing.get
 import io.github.smiley4.ktorswaggerui.dsl.routing.put
 import io.github.smiley4.ktorswaggerui.dsl.routing.route
 import io.ktor.http.*
-import io.ktor.server.application.*
 import io.ktor.server.plugins.ratelimit.*
 import io.ktor.server.request.*
 import io.ktor.server.routing.*
@@ -183,7 +182,8 @@ private suspend fun Context.putMessage()
 
 private fun getImage()
 {
-    finishCallWithBytes(HttpStatus.OK, ContentType.Image.PNG, HomeFilesUtils.homePng)
+    val png = HomeFilesUtils.homeImage ?: finishCall(HttpStatus.NotFound)
+    finishCallWithBytes(HttpStatus.OK, ContentType.Image.PNG, png)
 }
 
 private suspend fun Context.putImage()
@@ -195,7 +195,7 @@ private suspend fun Context.putImage()
     }
     withContext(Dispatchers.IO)
     {
-        HomeFilesUtils.homePng = call.receiveStream()
+        HomeFilesUtils.homeImage = call.receiveStream()
     }
     call.respond(HttpStatus.OK)
 }
