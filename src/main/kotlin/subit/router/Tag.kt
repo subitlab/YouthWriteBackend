@@ -46,7 +46,7 @@ fun Route.tag() = route("/tag", {
         }) { getPostTags() }
 
         post({
-            description = "为一个帖子添加标签"
+            description = "为一个帖子添加标签, 需要是作者或全局管理员"
             request {
                 body<Tag>()
                 {
@@ -60,7 +60,7 @@ fun Route.tag() = route("/tag", {
         }) { editPostTag(true) }
 
         delete({
-            description = "删除一个帖子的标签"
+            description = "删除一个帖子的标签, 需要是作者或全局管理员"
             request {
                 body<Tag>()
                 {

@@ -1,13 +1,26 @@
 package subit.dataClasses
 
-import io.ktor.server.auth.*
 import kotlinx.serialization.Serializable
 
 @Serializable
-sealed interface SsoUser
+sealed interface NamedUser
 {
     val id: UserId
     val username: String
+}
+
+@Serializable
+sealed interface PermissionUser
+{
+    val id: UserId
+    val permission: PermissionLevel
+}
+
+@Serializable
+sealed interface SsoUser: NamedUser
+{
+    override val id: UserId
+    override val username: String
     val registrationTime: Long
     val email: List<String>
 }
@@ -20,7 +33,7 @@ data class SsoUserFull(
     val phone: String,
     override val email: List<String>,
     val seiue: List<Seiue>,
-): SsoUser
+): SsoUser, NamedUser
 {
     @Serializable
     data class Seiue(
@@ -36,7 +49,7 @@ data class SsoUserInfo(
     override val username: String,
     override val registrationTime: Long,
     override val email: List<String>,
-): SsoUser
+): SsoUser, NamedUser
 
 /**
  * 用户数据库数据类
@@ -48,13 +61,12 @@ data class SsoUserInfo(
  */
 @Serializable
 data class DatabaseUser(
-    val id: UserId,
+    override val id: UserId,
     val introduction: String?,
     val showStars: Boolean,
-    val mergeNotice: Boolean,
-    val permission: PermissionLevel,
+    override val permission: PermissionLevel,
     val filePermission: PermissionLevel,
-)
+): PermissionUser
 {
     companion object
     {
@@ -62,19 +74,17 @@ data class DatabaseUser(
             UserId(1),
             "introduction",
             showStars = true,
-            mergeNotice = true,
             permission = PermissionLevel.NORMAL,
             filePermission = PermissionLevel.NORMAL
         )
     }
 }
-fun DatabaseUser?.hasGlobalAdmin() = this != null && (this.permission >= PermissionLevel.ADMIN)
-fun UserFull?.hasGlobalAdmin() = this != null && (this.permission >= PermissionLevel.ADMIN)
+fun PermissionUser?.hasGlobalAdmin() = this != null && (this.permission >= PermissionLevel.ADMIN)
 
-sealed interface UserInfo
+sealed interface UserInfo: NamedUser
 {
-    val id: UserId
-    val username: String
+    override val id: UserId
+    override val username: String
     val registrationTime: Long
     val email: List<String>
     val introduction: String?
@@ -91,14 +101,13 @@ data class UserFull(
     val seiue: List<SsoUserFull.Seiue>,
     override val introduction: String?,
     override val showStars: Boolean,
-    val mergeNotice: Boolean,
-    val permission: PermissionLevel,
+    override val permission: PermissionLevel,
     val filePermission: PermissionLevel
-): UserInfo
+): UserInfo, NamedUser, PermissionUser
 {
     fun toBasicUserInfo() = BasicUserInfo(id, username, registrationTime, email, introduction, showStars)
     fun toSsoUser() = SsoUserFull(id, username, registrationTime, phone, email, seiue)
-    fun toDatabaseUser() = DatabaseUser(id, introduction, showStars, mergeNotice, permission, filePermission)
+    fun toDatabaseUser() = DatabaseUser(id, introduction, showStars, permission, filePermission)
     companion object
     {
         fun from(ssoUser: SsoUserFull, dbUser: DatabaseUser) = UserFull(
@@ -110,7 +119,6 @@ data class UserFull(
             ssoUser.seiue,
             dbUser.introduction,
             dbUser.showStars,
-            dbUser.mergeNotice,
             dbUser.permission,
             dbUser.filePermission
         )
@@ -123,7 +131,6 @@ data class UserFull(
             listOf(SsoUserFull.Seiue("studentId", "realName", false)),
             "introduction",
             showStars = true,
-            mergeNotice = true,
             permission = PermissionLevel.NORMAL,
             filePermission = PermissionLevel.NORMAL
         )
@@ -141,7 +148,7 @@ data class BasicUserInfo(
     override val email: List<String>,
     override val introduction: String?,
     override val showStars: Boolean
-): UserInfo
+): UserInfo, NamedUser
 {
     companion object
     {

@@ -4,11 +4,14 @@ package subit.router.utils
 
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.get
+import org.koin.core.component.inject
+import subit.config.systemConfig
 import subit.dataClasses.*
 import subit.dataClasses.State.*
 import subit.database.Blocks
 import subit.database.Permissions
 import subit.database.Posts
+import subit.database.Prohibits
 import subit.utils.HttpStatus
 
 inline fun <reified T> Context.withPermission(
@@ -25,9 +28,10 @@ inline fun <reified T> withPermission(
 
 open class CheckPermissionScope @PublishedApi internal constructor(val user: DatabaseUser?, val ssoUser: SsoUserFull?): KoinComponent
 {
-    protected val permissions = get<Permissions>()
-    protected val blocks = get<Blocks>()
-    protected val posts = get<Posts>()
+    protected val permissions by inject<Permissions>()
+    protected val blocks by inject<Blocks>()
+    protected val posts by inject<Posts>()
+    protected val prohibits by inject<Prohibits>()
 
     /**
      * 获取用户在某一个板块的权限等级
@@ -56,9 +60,22 @@ open class CheckPermissionScope @PublishedApi internal constructor(val user: Dat
     val hasRealName: Boolean
         get() = (ssoUser?.seiue?.size ?: 0) > 0
 
+    private var isProhibit0: Boolean? = null
+
+    suspend fun isProhibit(): Boolean
+    {
+        var isProhibit = isProhibit0
+        if (isProhibit != null) return isProhibit
+        isProhibit =
+            if (user == null) false
+            else user.permission < PermissionLevel.NORMAL || prohibits.isProhibited(user.id)
+        isProhibit0 = isProhibit
+        return isProhibit
+    }
+
     /// 可以看 ///
 
-    suspend fun canRead(block: Block): Boolean = when (block.state)
+    suspend fun canRead(block: Block): Boolean = !isProhibit() && when (block.state)
     {
         NORMAL  -> getPermission(block.id) >= block.reading
         else -> hasGlobalAdmin
@@ -66,6 +83,7 @@ open class CheckPermissionScope @PublishedApi internal constructor(val user: Dat
 
     suspend fun canRead(post: PostInfo): Boolean
     {
+        if (isProhibit()) return false
         val blockInfo = blocks.getBlock(post.block) ?: return false
         if (!canRead(blockInfo)) return false
         val root = post.root?.let { posts.getPostInfo(it) }
@@ -80,6 +98,7 @@ open class CheckPermissionScope @PublishedApi internal constructor(val user: Dat
 
     suspend fun canRead(version: PostVersionBasicInfo): Boolean
     {
+        if (isProhibit()) return false
         val post = posts.getPostInfo(version.post) ?: return false
         if (!canRead(post)) return false
         if (!version.draft) return true
@@ -88,27 +107,29 @@ open class CheckPermissionScope @PublishedApi internal constructor(val user: Dat
 
     /// 可以删除 ///
 
-    suspend fun canChangeState(post: PostInfo, newState: State): Boolean = canRead(post) && hasRealName && when (post.state)
-    {
-        NORMAL ->
-            when (newState)
-            {
-                DELETED -> post.author == user?.id || hasAdminIn(post.block)
-                PRIVATE -> post.author == user?.id
-                NORMAL -> true
-            }
-        PRIVATE ->
-            when (newState)
-            {
-                NORMAL -> post.author == user?.id
-                DELETED -> post.author == user?.id || hasGlobalAdmin
-                PRIVATE -> true
-            }
-        DELETED -> if (newState != DELETED) hasGlobalAdmin else true
-    }
+    suspend fun canChangeState(post: PostInfo, newState: State): Boolean =
+        !isProhibit() && canRead(post) && hasRealName && when (post.state)
+        {
+            NORMAL ->
+                when (newState)
+                {
+                    DELETED -> post.author == user?.id || hasAdminIn(post.block)
+                    PRIVATE -> post.author == user?.id
+                    NORMAL -> true
+                }
+            PRIVATE ->
+                when (newState)
+                {
+                    NORMAL -> post.author == user?.id
+                    DELETED -> post.author == user?.id || hasGlobalAdmin
+                    PRIVATE -> true
+                }
+            DELETED -> if (newState != DELETED) hasGlobalAdmin else true
+        }
 
     suspend fun canChangeState(block: Block, newState: State): Boolean
     {
+        if (isProhibit()) return false
         if (!hasRealName) return false
         // 板块不能有私密状态
         if (newState == PRIVATE) return false
@@ -123,7 +144,7 @@ open class CheckPermissionScope @PublishedApi internal constructor(val user: Dat
 
     /// 可以评论 ///
 
-    suspend fun canComment(post: PostInfo): Boolean = canRead(post) && hasRealName && when (post.state)
+    suspend fun canComment(post: PostInfo): Boolean = !isProhibit() && canRead(post) && hasRealName && when (post.state)
     {
         NORMAL, PRIVATE -> blocks.getBlock(post.block)?.let { getPermission(post.block) >= it.commenting } ?: false
         else            -> false
@@ -131,7 +152,7 @@ open class CheckPermissionScope @PublishedApi internal constructor(val user: Dat
 
     /// 可以发贴 ///
 
-    suspend fun canPost(block: Block): Boolean = hasRealName && when (block.state)
+    suspend fun canPost(block: Block): Boolean = !isProhibit() && hasRealName && when (block.state)
     {
         NORMAL  -> getPermission(block.id) >= block.posting && getPermission(block.id) >= block.reading
         else -> false
@@ -139,6 +160,7 @@ open class CheckPermissionScope @PublishedApi internal constructor(val user: Dat
 
     suspend fun canEdit(version: PostVersionBasicInfo): Boolean
     {
+        if (isProhibit()) return false
         val post = posts.getPostInfo(version.post) ?: return false
         if (!canRead(post)) return false
         if (!hasRealName) return false
@@ -148,7 +170,7 @@ open class CheckPermissionScope @PublishedApi internal constructor(val user: Dat
 
     /// 可以匿名 ///
 
-    suspend fun canAnonymous(block: Block): Boolean = hasRealName && when (block.state)
+    suspend fun canAnonymous(block: Block): Boolean = !isProhibit() && hasRealName && when (block.state)
     {
         NORMAL  -> getPermission(block.id) >= block.anonymous
         else -> false
@@ -164,6 +186,7 @@ open class CheckPermissionScope @PublishedApi internal constructor(val user: Dat
      */
     suspend fun canChangePermission(block: Block?, other: DatabaseUser, permission: PermissionLevel): Boolean
     {
+        if (isProhibit()) return false
         // 如果在尝试修改自己的权限
         if (other.id == user?.id)
         {
@@ -193,8 +216,9 @@ open class CheckPermissionScope @PublishedApi internal constructor(val user: Dat
         return selfPermission > otherPermission && selfPermission > permission
     }
 
-    fun canChangeFilePermission(other: DatabaseUser, permission: PermissionLevel): Boolean
+    suspend fun canChangeFilePermission(other: DatabaseUser, permission: PermissionLevel): Boolean
     {
+        if (isProhibit()) return false
         if (other.id == user?.id)
             return user.filePermission >= permission
         return filePermission > permission && hasFileAdmin
@@ -212,17 +236,24 @@ class CheckPermissionInContextScope @PublishedApi internal constructor(val conte
 
     fun checkRealName() = if (!hasRealName) finishCall(HttpStatus.NotRealName) else Unit
 
+    suspend fun checkProhibit() = if (isProhibit()) finishCall(HttpStatus.Prohibit) else Unit
+
     /// 可以看 ///
 
-    suspend fun checkRead(block: Block) = when (block.state)
+    suspend fun checkRead(block: Block)
     {
-        NORMAL  -> checkOrFinish(getPermission(block.id) >= block.reading, HttpStatus.Forbidden)
-        DELETED -> checkOrFinish(hasGlobalAdmin, HttpStatus.NotFound)
-        PRIVATE -> checkOrFinish(hasGlobalAdmin, HttpStatus.Forbidden)
+        checkProhibit()
+        when (block.state)
+        {
+            NORMAL  -> checkOrFinish(getPermission(block.id) >= block.reading, HttpStatus.Forbidden)
+            DELETED -> checkOrFinish(hasGlobalAdmin, HttpStatus.NotFound)
+            PRIVATE -> checkOrFinish(hasGlobalAdmin, HttpStatus.Forbidden)
+        }
     }
 
     suspend fun checkRead(post: PostInfo)
     {
+        checkProhibit()
         val blockInfo = blocks.getBlock(post.block) ?: finishCall(HttpStatus.NotFound)
         checkRead(blockInfo)
         val root = post.root?.let { posts.getPostInfo(it) }
@@ -237,6 +268,7 @@ class CheckPermissionInContextScope @PublishedApi internal constructor(val conte
 
     suspend fun checkRead(version: PostVersionBasicInfo)
     {
+        checkProhibit()
         val post = posts.getPostInfo(version.post) ?: finishCall(HttpStatus.NotFound)
         checkRead(post)
         checkRealName()
@@ -247,6 +279,7 @@ class CheckPermissionInContextScope @PublishedApi internal constructor(val conte
 
     suspend fun checkChangeState(post: PostInfo, newState: State)
     {
+        checkProhibit()
         checkRealName()
         checkRead(post)
         when (post.state)
@@ -271,6 +304,7 @@ class CheckPermissionInContextScope @PublishedApi internal constructor(val conte
 
     suspend fun checkChangeState(block: Block, newState: State)
     {
+        checkProhibit()
         checkRealName()
         checkOrFinish(hasRealName, HttpStatus.NotRealName)
         // 板块不能有私密状态
@@ -288,6 +322,7 @@ class CheckPermissionInContextScope @PublishedApi internal constructor(val conte
 
     suspend fun checkComment(post: PostInfo)
     {
+        checkProhibit()
         checkRealName()
         checkRead(post)
         checkOrFinish(canComment(post), HttpStatus.Forbidden)
@@ -297,6 +332,7 @@ class CheckPermissionInContextScope @PublishedApi internal constructor(val conte
 
     suspend fun checkPost(block: Block)
     {
+        checkProhibit()
         checkRealName()
         checkOrFinish(canPost(block), HttpStatus.Forbidden)
     }
@@ -305,6 +341,7 @@ class CheckPermissionInContextScope @PublishedApi internal constructor(val conte
 
     suspend fun checkEdit(version: PostVersionBasicInfo)
     {
+        checkProhibit()
         val post = posts.getPostInfo(version.post) ?: finishCall(HttpStatus.NotFound)
         checkRead(post)
         checkRealName()
@@ -316,6 +353,7 @@ class CheckPermissionInContextScope @PublishedApi internal constructor(val conte
 
     suspend fun checkAnonymous(block: Block)
     {
+        checkProhibit()
         checkRealName()
         checkOrFinish(canAnonymous(block), HttpStatus.Forbidden)
     }
@@ -324,6 +362,7 @@ class CheckPermissionInContextScope @PublishedApi internal constructor(val conte
 
     suspend fun checkChangePermission(block: Block?, other: DatabaseUser, permission: PermissionLevel)
     {
+        checkProhibit()
         /**
          * 详见[CheckPermissionScope.canChangePermission]
          *
@@ -392,8 +431,9 @@ class CheckPermissionInContextScope @PublishedApi internal constructor(val conte
         )
     }
 
-    fun checkChangeFilePermission(other: DatabaseUser, permission: PermissionLevel)
+    suspend fun checkChangeFilePermission(other: DatabaseUser, permission: PermissionLevel)
     {
+        checkProhibit()
         if (other.id == user?.id)
         {
             if (user.filePermission >= permission) return

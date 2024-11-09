@@ -9,7 +9,6 @@ import io.github.smiley4.ktorswaggerui.dsl.routes.OpenApiSimpleBody
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.routing.*
-import io.ktor.util.pipeline.*
 import org.koin.core.parameter.ParametersDefinition
 import org.koin.core.qualifier.Qualifier
 import org.koin.ktor.ext.get

@@ -30,6 +30,7 @@ import subit.router.user.user
 import subit.router.utils.checkParameters
 import subit.router.utils.finishCall
 import subit.router.utils.getLoginUser
+import subit.router.utils.withPermission
 import subit.router.wordMarkings.wordMarking
 import subit.utils.HttpStatus
 import subit.utils.statuses
@@ -67,10 +68,11 @@ fun Application.router() = routing()
                     finishCall(HttpStatus.Maintaining)
                 }
 
-                it.getLoginUser()?.apply()
+                val loginUser = it.getLoginUser()
+
+                withPermission(loginUser?.toDatabaseUser(), loginUser?.toSsoUser())
                 {
-                    if (this.permission < PermissionLevel.NORMAL || prohibits.isProhibited(this.id))
-                        finishCall(HttpStatus.Prohibit)
+                    if (isProhibit()) finishCall(HttpStatus.Prohibit)
                 }
 
                 // 检查参数是否包含违禁词

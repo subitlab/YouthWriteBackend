@@ -5,7 +5,6 @@ package subit.router.report
 import io.github.smiley4.ktorswaggerui.dsl.routing.get
 import io.github.smiley4.ktorswaggerui.dsl.routing.post
 import io.github.smiley4.ktorswaggerui.dsl.routing.route
-import io.ktor.server.application.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
 import subit.dataClasses.*
@@ -47,7 +46,7 @@ fun Route.report() = route("/report", {
     }) { newReport() }
 
     get("/list", {
-        description = "获取举报列表"
+        description = "获取举报列表, 需要全局管理员"
         request {
             queryParameter<String>("filter")
             {
@@ -64,7 +63,7 @@ fun Route.report() = route("/report", {
     }) { getReports() }
 
     get("/{id}", {
-        description = "获取一个举报"
+        description = "获取一个举报, 需要全局管理员"
         request {
             pathParameter<ReportId>("id")
             {
@@ -79,7 +78,7 @@ fun Route.report() = route("/report", {
     }) { getReport() }
 
     post("/handled/{id}", {
-        description = "处理一个举报"
+        description = "处理一个举报, 需要全局管理员"
         request {
             pathParameter<ReportId>("id")
             {
@@ -102,7 +101,7 @@ private suspend fun Context.newReport()
     val id = call.parameters["id"]?.toLongOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val type = call.parameters["type"]?.runCatching { ReportObject.valueOf(this) }?.getOrNull()
                ?: return call.respond(HttpStatus.BadRequest)
-    val content =call.receiveAndCheckBody<ReportContent>().content
+    val content = call.receiveAndCheckBody<ReportContent>().content
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     get<Reports>().addReport(type, id, loginUser.id, content)
     call.respond(HttpStatus.OK)

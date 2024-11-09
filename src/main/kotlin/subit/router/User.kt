@@ -28,7 +28,9 @@ fun Route.user() = route("/user", {
     get("/info/{id}", {
         description = """
                 获取用户信息, id为0时获取当前登陆用户的信息。
-                获取当前登陆用户的信息或当前登陆的用户的user权限不低于ADMIN时可以获取完整用户信息, 否则只能获取基础信息
+                获取当前登陆用户的信息或当前登陆的用户的user权限不低于ADMIN时可以获取完整用户信息, 否则只能获取基础信息.
+                
+                若该用户被封禁且当前用户不是全局管理员则用户名为"该用户已被封禁", 个性签名为null, 其他信息正常返回
                 """.trimIndent()
         request {
             pathParameter<UserId>("id")
@@ -40,22 +42,8 @@ fun Route.user() = route("/user", {
         response {
             statuses<UserFull>(
                 HttpStatus.OK.subStatus(message = "获取完整用户信息成功"),
-                bodyDescription = "当id为0时",
+                bodyDescription = "当id为0时或当前用户拥有全局管理员",
                 example = UserFull.example
-            )
-            statuses<UserProfile>(
-                HttpStatus.OK.subStatus(message = "获取用户信息成功"),
-                bodyDescription = "当id不为0即获取其他用户的信息且user权限低于ADMIN时返回",
-                example = UserProfile(
-                    UserId(1),
-                    "username",
-                    System.currentTimeMillis(),
-                    listOf("email"),
-                    "introduction",
-                    true,
-                    PermissionLevel.NORMAL,
-                    PermissionLevel.NORMAL
-                )
             )
             statuses<BasicUserInfo>(
                 HttpStatus.OK.subStatus(message = "获取基础用户的信息成功"),
@@ -67,7 +55,7 @@ fun Route.user() = route("/user", {
     }) { getUserInfo() }
 
     post("/introduce/{id}", {
-        description = "修改个人简介, 修改自己的需要user权限在NORMAL以上, 修改他人需要在ADMIN以上"
+        description = "修改/删除个人简介, 删除他人个人简介需要全局管理员, 不能修改他人简介"
         request {
             pathParameter<UserId>("id")
             {
@@ -79,7 +67,7 @@ fun Route.user() = route("/user", {
             body<ChangeIntroduction>
             {
                 required = true
-                description = "个人简介"
+                description = "个人简介, null为删除"
                 example("example", ChangeIntroduction("个人简介"))
             }
         }
@@ -90,15 +78,19 @@ fun Route.user() = route("/user", {
     }) { changeIntroduction() }
 
     get("/stars/{id}", {
-        description = "获取用户收藏的帖子"
+        description = """
+                获取用户收藏的帖子
+                
+                若目标用户不是当前用户, 且当前登陆用户不是管理员, 则目标用户需要展示收藏, 否则返回Forbidden
+                
+                若目标用户被封禁且当前用户不是全局管理员则返回空列表
+            """.trimIndent()
         request {
             pathParameter<UserId>("id")
             {
                 required = true
                 description = """
                         要获取的用户ID, 0为当前登陆用户
-                        
-                        若目标用户ID不是0, 且当前登陆用户不是管理员, 则目标用户需要展示收藏, 否则返回Forbidden
                     """.trimIndent()
             }
             paged()
@@ -110,7 +102,13 @@ fun Route.user() = route("/user", {
     }) { getStars(true) }
 
     get("/likes/{id}", {
-        description = "获取用户点赞的帖子"
+        description = """
+                获取用户点赞的帖子
+                
+                若目标用户不是当前用户, 且当前登陆用户不是管理员, 则目标用户需要展示收藏, 否则返回Forbidden
+                
+                若目标用户被封禁且当前用户不是全局管理员则返回空列表
+            """.trimIndent()
         request {
             pathParameter<UserId>("id")
             {
@@ -144,39 +142,8 @@ fun Route.user() = route("/user", {
                 statuses(HttpStatus.Unauthorized)
             }
         }) { switchStars() }
-
-        post("/mergeNotice", {
-            description = "切换通知是否合并"
-            request {
-                body<BooleanSetting>
-                {
-                    required = true
-                    description = "是否合并通知"
-                    example("example", BooleanSetting(true))
-                }
-            }
-            response {
-                statuses(HttpStatus.OK)
-                statuses(HttpStatus.NotFound, HttpStatus.Forbidden)
-            }
-        }) { mergeNotice() }
     }
 }
-
-@Serializable
-/**
- * 全局管理员能获取到信息是[UserFull]的子集, [BasicUserInfo]的超集
- */
-private data class UserProfile(
-    val id: UserId,
-    val username: String,
-    val registrationTime: Long,
-    val email: List<String>,
-    val introduction: String?,
-    val showStars: Boolean,
-    val permission: PermissionLevel,
-    val filePermission: PermissionLevel
-)
 
 private suspend fun Context.getUserInfo()
 {
@@ -190,46 +157,42 @@ private suspend fun Context.getUserInfo()
     }
     else
     {
-        val user = SSO.getUserAndDbUser(id) ?: return call.respond(HttpStatus.NotFound)
-        if (loginUser.hasGlobalAdmin())
-        {
-            call.respond(
-                HttpStatus.OK,
-                UserProfile(
-                    user.first.id,
-                    user.first.username,
-                    user.first.registrationTime,
-                    user.first.email,
-                    user.second.introduction,
-                    user.second.showStars,
-                    user.second.permission,
-                    user.second.filePermission
-                )
+        val token = SSO.getAccessToken(id) ?: return call.respond(HttpStatus.NotFound)
+        val user = SSO.getUserFull(token) ?: return call.respond(HttpStatus.NotFound)
+        if (loginUser.hasGlobalAdmin()) finishCall(HttpStatus.OK, user)
+        if (withPermission(user.toDatabaseUser()) { isProhibit() }) finishCall(
+            HttpStatus.OK,
+            BasicUserInfo(
+                user.id,
+                "该用户已被封禁",
+                user.registrationTime,
+                user.email,
+                null,
+                false,
             )
-        }
-        call.respond(HttpStatus.OK, BasicUserInfo.from(user.first, user.second))
+        )
+        else finishCall(HttpStatus.OK, user.toBasicUserInfo())
     }
 }
 
 @Serializable
-private data class ChangeIntroduction(val introduction: String)
+private data class ChangeIntroduction(val introduction: String?)
 
 private suspend fun Context.changeIntroduction()
 {
     val id = call.parameters["id"]?.toUserIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     withPermission { checkRealName() }
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
-    val changeIntroduction =call.receiveAndCheckBody<ChangeIntroduction>()
+    val changeIntroduction = call.receiveAndCheckBody<ChangeIntroduction>()
     if (id == UserId(0))
     {
         get<Users>().changeIntroduction(loginUser.id, changeIntroduction.introduction)
         return call.respond(HttpStatus.OK)
     }
-    else
+    else if (changeIntroduction.introduction == null)
     {
         withPermission { checkHasGlobalAdmin() }
-        println(call.response.responseType)
-        if (get<Users>().changeIntroduction(id, changeIntroduction.introduction))
+        if (get<Users>().changeIntroduction(id, null))
         {
             get<Operations>().addOperation(loginUser.id, changeIntroduction)
             return call.respond(HttpStatus.OK)
@@ -237,6 +200,7 @@ private suspend fun Context.changeIntroduction()
         else
             return call.respond(HttpStatus.NotFound)
     }
+    else finishCall(HttpStatus.Forbidden.subStatus("只能删除他人的个性签名不能修改"))
 }
 
 private suspend fun Context.getStars(isStar: Boolean)
@@ -285,13 +249,5 @@ private suspend fun Context.switchStars()
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     val switchStars =call.receiveAndCheckBody<BooleanSetting>()
     get<Users>().changeShowStars(loginUser.id, switchStars.showStars)
-    call.respond(HttpStatus.OK)
-}
-
-private suspend fun Context.mergeNotice()
-{
-    val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
-    val mergeNotice =call.receiveAndCheckBody<BooleanSetting>()
-    get<Users>().changeMergeNotice(loginUser.id, mergeNotice.showStars)
     call.respond(HttpStatus.OK)
 }
