@@ -75,7 +75,7 @@ object CommandSet: TreeCommand(
             val words = DefaultParser().parse(line, 0, Parser.ParseContext.ACCEPT_LINE).words()
             if (words.isEmpty() || (words.size == 1 && words.first().isEmpty())) return
             val command = CommandSet.getCommand(words[0])
-            if (command == null || command.log) logger.info("${sender.name} is used command: $line")
+            if (command != null && command.log) logger.info("${sender.name} is used command: $line")
             success = false
             if (command == null)
             {
