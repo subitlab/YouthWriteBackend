@@ -21,12 +21,12 @@ fun Route.block() = route("/block", {
 })
 {
     post("/new", {
-        description = "创建板块"
+        description = "创建板块, 创建根板块需要全局管理员权限, 其他情况需要在父板块中有管理员权限."
         request {
             body<NewBlock>
             {
                 required = true
-                description = "新板块信息, parent为null表示创建根板块. 创建根板块需要全局管理员权限, 其他情况需要在父板块中有管理员权限"
+                description = "新板块信息, parent为null表示创建根板块."
                 example(
                     "example", NewBlock(
                         "板块名称",
@@ -259,8 +259,7 @@ private suspend fun Context.deleteBlock()
         Notice.SystemNotice(
             user = block.creator,
             content = "您的板块 ${block.name} 已被删除"
-        ),
-        false
+        )
     )
     call.respond(HttpStatus.OK)
 }
@@ -288,9 +287,8 @@ private suspend fun Context.changePermission()
     get<Notices>().createNotice(
         Notice.SystemNotice(
             user = changePermission.user,
-            content = "您在板块 ${get<Blocks>().getBlock(changePermission.block)?.name} 的权限已被修改"
-        ),
-        false
+            content = "您在板块 ${block.name} 的权限已被修改"
+        )
     )
     call.respond(HttpStatus.OK)
 }

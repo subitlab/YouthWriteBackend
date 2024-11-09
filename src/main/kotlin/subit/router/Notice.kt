@@ -2,19 +2,20 @@
 
 package subit.router.notice
 
-import io.github.smiley4.ktorswaggerui.dsl.routing.*
-import io.ktor.server.application.*
+import io.github.smiley4.ktorswaggerui.dsl.routing.delete
+import io.github.smiley4.ktorswaggerui.dsl.routing.get
+import io.github.smiley4.ktorswaggerui.dsl.routing.post
+import io.github.smiley4.ktorswaggerui.dsl.routing.route
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
 import subit.dataClasses.*
 import subit.dataClasses.Notice.*
 import subit.dataClasses.NoticeId.Companion.toNoticeIdOrNull
+import subit.dataClasses.UserId.Companion.toUserIdOrNull
 import subit.database.Notices
+import subit.database.Users
 import subit.router.utils.*
-import subit.utils.HttpStatus
-import subit.utils.respond
-import subit.utils.statuses
-import subit.utils.toEnumOrNull
+import subit.utils.*
 
 fun Route.notice() = route("/notice", {
     tags = listOf("通知")
@@ -41,7 +42,7 @@ fun Route.notice() = route("/notice", {
             }
         }
         response {
-            statuses<Slice<NoticeResponse>>(HttpStatus.OK, example = NoticeResponse.example)
+            statuses<Slice<Notice>>(HttpStatus.OK, example = sliceOf(PostNotice.example, SystemNotice.example))
             statuses(HttpStatus.Unauthorized)
         }
     }) { getList() }
@@ -68,7 +69,7 @@ fun Route.notice() = route("/notice", {
             }
         }
         response {
-            statuses<NoticeResponse>(HttpStatus.OK, examples = NoticeResponse.example.list)
+            statuses<Notice>(HttpStatus.OK, examples = listOf(PostNotice.example, SystemNotice.example))
             statuses(HttpStatus.Unauthorized, HttpStatus.NotFound, HttpStatus.BadRequest)
         }
     }) { getNotice() }
@@ -116,42 +117,26 @@ fun Route.notice() = route("/notice", {
             statuses(HttpStatus.Unauthorized)
         }
     }) { deleteAll() }
-}
 
-/**
- * 注意由于[Notice.type]不在构造函数中等问题, 无法序列化, 故手动转为[NoticeResponse]
- */
-@Serializable
-private data class NoticeResponse(
-    val id: NoticeId,
-    val time: Long,
-    val user: UserId,
-    val type: Type,
-    val read: Boolean,
-    val post: PostId?,
-    val content: String?,
-)
-{
-    companion object
-    {
-        fun fromNotice(notice: Notice): NoticeResponse
-        {
-            return NoticeResponse(
-                notice.id,
-                notice.time,
-                notice.user,
-                notice.type,
-                notice.read,
-                (notice as? PostNotice)?.post,
-                notice.content
-            )
+    post("/send/{id}", {
+        description = "向某位用户发送一条系统通知, 需要全局管理员"
+        request {
+            pathParameter<UserId>("id")
+            {
+                required = true
+                description = "用户ID"
+            }
+            body<SendNotice>()
+            {
+                required = true
+                description = "通知内容"
+                example("example", SendNotice("通知内容"))
+            }
         }
-
-        val example = sliceOf(
-            fromNotice(SystemNotice.example),
-            fromNotice(PostNotice.example)
-        )
-    }
+        response {
+            statuses(HttpStatus.OK, HttpStatus.Unauthorized, HttpStatus.NotFound, HttpStatus.BadRequest, HttpStatus.Forbidden)
+        }
+    }) { sendNotice() }
 }
 
 private suspend fun Context.getList()
@@ -163,7 +148,6 @@ private suspend fun Context.getList()
     val notices = get<Notices>()
     notices
         .getNotices(loginUser.id, type, read, begin, count)
-        .map { NoticeResponse.fromNotice(it) }
         .let { call.respond(HttpStatus.OK, it) }
 }
 
@@ -173,7 +157,7 @@ private suspend fun Context.getNotice()
     val notices = get<Notices>()
     val user = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     val notice = notices.getNotice(id)?.takeIf { it.user == user.id } ?: return call.respond(HttpStatus.NotFound)
-    call.respond(HttpStatus.OK, NoticeResponse.fromNotice(notice))
+    call.respond(HttpStatus.OK, notice)
 }
 
 private suspend fun Context.readNotice()
@@ -210,4 +194,17 @@ private suspend fun Context.deleteAll()
     val notices = get<Notices>()
     notices.deleteNotices(user.id)
     call.respond(HttpStatus.OK)
+}
+
+@Serializable
+private data class SendNotice(val content: String)
+
+private suspend fun Context.sendNotice()
+{
+    withPermission { checkHasGlobalAdmin() }
+    val id = call.parameters["id"]?.toUserIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
+    if (!SSO.hasUser(id)) finishCall(HttpStatus.NotFound)
+    val content = call.receiveAndCheckBody<SendNotice>().content
+    get<Notices>().createNotice(SystemNotice(user = id, content = content))
+    finishCall(HttpStatus.OK)
 }

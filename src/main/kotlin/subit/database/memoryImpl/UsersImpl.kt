@@ -9,7 +9,7 @@ class UsersImpl: Users
     private val map = Collections.synchronizedMap(hashMapOf<UserId, DatabaseUser>())
 
 
-    override suspend fun changeIntroduction(id: UserId, introduction: String): Boolean =
+    override suspend fun changeIntroduction(id: UserId, introduction: String?): Boolean =
         map[id]?.let {
             map[id] = it.copy(introduction = introduction)
             true
@@ -33,12 +33,6 @@ class UsersImpl: Users
             true
         } ?: false
 
-    override suspend fun changeMergeNotice(id: UserId, mergeNotice: Boolean): Boolean =
-        map[id]?.let {
-            map[id] = it.copy(mergeNotice = mergeNotice)
-            true
-        } ?: false
-
     override suspend fun getOrCreateUser(id: UserId): DatabaseUser
     {
         if (id in map) return map[id]!!
@@ -46,7 +40,6 @@ class UsersImpl: Users
             id = id,
             introduction = null,
             showStars = true,
-            mergeNotice = true,
             permission = PermissionLevel.NORMAL,
             filePermission = PermissionLevel.NORMAL
         )

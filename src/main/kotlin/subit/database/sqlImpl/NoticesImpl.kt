@@ -23,6 +23,7 @@ class NoticesImpl: DaoSqlImpl<NoticesImpl.NoticesTable>(NoticesTable), Notices, 
         val time = timestamp("time").defaultExpression(CurrentTimestamp)
         val type = enumerationByName<Type>("type", 20).index()
         val post = reference("post", PostsImpl.PostsTable).nullable().index()
+        val operator = reference("operator", UsersImpl.UsersTable).nullable()
         val content = text("content")
         val read = bool("read").default(false)
         override val primaryKey: PrimaryKey = PrimaryKey(id)
@@ -35,62 +36,33 @@ class NoticesImpl: DaoSqlImpl<NoticesImpl.NoticesTable>(NoticesTable), Notices, 
         val time = row[time].toEpochMilliseconds()
         val type = row[type]
         val read = row[read]
-        if (type == SYSTEM) SystemNotice(id, time, row[user].value, read, row[content])
-        else
-        {
-            val content = row[content]
-            val count = content.toLongOrNull()
-            if (count != null) PostNotice.brief(id, type, time, row[user].value, obj, count)
-            else PostNotice(id, time, type, row[user].value, read, obj, content = content)
-        }
+        val user = row[user].value
+        val content = row[content]
+        val operator = row[operator]?.value ?: UserId(0)
+        if (type == SYSTEM) SystemNotice(id, time, user, read, content)
+        else PostNotice(id = id, time = time, type = type, user = user, read = read, post = obj, operator = operator, content = content)
     }
 
-    override suspend fun createNotice(notice: Notice, merge: Boolean): Unit = query()
+    override suspend fun createNotice(notice: Notice): Unit = query()
     {
-        // 如果是系统通知，直接插入一条新消息
-        if (notice is SystemNotice) insert()
+        when (notice)
         {
-            it[user] = notice.user
-            it[type] = notice.type
-            it[post] = null
-            it[content] = notice.content
-        }
-        else if (notice is PostNotice && !merge)
-        {
-            insert()
+            is SystemNotice -> insert()
+            {
+                it[user] = notice.user
+                it[type] = notice.type
+                it[post] = null
+                it[content] = notice.content
+            }
+            is PostNotice -> insert()
             {
                 it[user] = notice.user
                 it[type] = notice.type
                 it[post] = notice.post
+                it[operator] = notice.operator
                 it[content] = notice.content
             }
         }
-        // 否则需要考虑同类型消息的合并
-        else if (notice is PostNotice)
-        {
-            val result = select(id, content)
-                .andWhere { user eq notice.user }
-                .andWhere { type eq notice.type }
-                .andWhere { table.post eq notice.post }
-                .andWhere { read eq false }
-                .singleOrNull()
-
-            val count0 = result?.get(table.content)?.toLongOrNull()
-
-            if (count0 == null) insert {
-                it[user] = notice.user
-                it[type] = notice.type
-                it[post] = notice.post
-                it[content] = notice.count.toString()
-            }
-            else
-            {
-                val id = result[table.id].value
-                val count = (result[table.content].toLongOrNull() ?: 1) + notice.count
-                update({ table.id eq id }) { it[content] = count.toString() }
-            }
-        }
-        else error("Unknown notice type: $notice")
     }
 
     override suspend fun getNotice(id: NoticeId): Notice? = query()

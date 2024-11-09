@@ -147,20 +147,15 @@ private suspend fun Context.commentPost()
     {
         val notices = get<Notices>()
         val notice =
-            if (loginUser.mergeNotice) Notice.PostNotice.brief(
+            Notice.PostNotice.build(
                 user = parent.author,
                 type = if (parent.parent == null) Notice.Type.POST_COMMENT else Notice.Type.COMMENT_REPLY,
                 post = parent.id,
-                count = 1
+                postTitle = parent.title,
+                operator = loginUser,
+                comment = getContentText(newComment.content, SUB_CONTENT_LENGTH),
             )
-            else Notice.PostNotice.detail(
-                user = parent.author,
-                type = if (parent.parent == null) Notice.Type.POST_COMMENT else Notice.Type.COMMENT_REPLY,
-                post = parent,
-                operatorName = loginUser.username,
-                content = getContentText(newComment.content, SUB_CONTENT_LENGTH)
-            )
-        notices.createNotice(notice, loginUser.mergeNotice)
+        notices.createNotice(notice)
     }
 
     call.respond(HttpStatus.OK)

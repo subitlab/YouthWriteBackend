@@ -26,7 +26,7 @@ fun Route.posts() = route("/post", {
     rateLimit(RateLimit.Post.rateLimitName)
     {
         post("/new", {
-            description = "新建帖子, 新建评论见/comment/{postId}"
+            description = "新建帖子, 新建评论见/comment/{postId}, 设置置顶需要板块管理员"
             request {
                 body<NewPost>
                 {
@@ -202,7 +202,7 @@ private fun Route.id() = route("/{id}", {
     }
 
     post("/setTop/{top}", {
-        description = "设置帖子是否在板块中置顶, 该接口不适用于评论"
+        description = "设置帖子是否在板块中置顶, 该接口不适用于评论, 需要板块管理员"
         request {
             pathParameter<Boolean>("top")
             {
@@ -383,8 +383,7 @@ private suspend fun Context.changeState()
         Notice.SystemNotice(
             user = post.author,
             content = "您的帖子 ${post.id} 已被管理员修改状态为 $state",
-        ),
-        false
+        )
     )
     call.respond(HttpStatus.OK)
 }
@@ -418,20 +417,14 @@ private suspend fun Context.likePost()
     if (loginUser.id != post.author && (type == LikeType.LIKE || type == LikeType.STAR))
     {
         val notice =
-            if (loginUser.mergeNotice) Notice.PostNotice.brief(
+            Notice.PostNotice.build(
                 type = if (type == LikeType.LIKE) Notice.Type.LIKE else Notice.Type.STAR,
                 user = post.author,
-                post = id,
-                count = 1
+                post = post.id,
+                postTitle = post.title,
+                operator = loginUser,
             )
-            else Notice.PostNotice.detail(
-                type = if (type == LikeType.LIKE) Notice.Type.LIKE else Notice.Type.STAR,
-                user = post.author,
-                post = post,
-                operatorName = loginUser.username,
-                content = post.subContent
-            )
-        get<Notices>().createNotice(notice, loginUser.mergeNotice)
+        get<Notices>().createNotice(notice)
     }
     call.respond(HttpStatus.OK)
 }

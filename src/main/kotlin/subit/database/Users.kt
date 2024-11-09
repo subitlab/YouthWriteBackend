@@ -11,7 +11,7 @@ interface Users
     /**
      * 若用户不存在返回false
      */
-    suspend fun changeIntroduction(id: UserId, introduction: String): Boolean
+    suspend fun changeIntroduction(id: UserId, introduction: String?): Boolean
 
     /**
      * 若用户不存在返回false
@@ -27,9 +27,4 @@ interface Users
      * 若用户不存在返回false
      */
     suspend fun changeFilePermission(id: UserId, permission: PermissionLevel): Boolean
-
-    /**
-     * 设置同类型消息是否合并
-     */
-    suspend fun changeMergeNotice(id: UserId, mergeNotice: Boolean): Boolean
 }

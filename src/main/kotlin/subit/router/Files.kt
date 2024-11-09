@@ -8,7 +8,6 @@ import io.github.smiley4.ktorswaggerui.dsl.routing.post
 import io.github.smiley4.ktorswaggerui.dsl.routing.route
 import io.ktor.http.*
 import io.ktor.http.content.*
-import io.ktor.server.application.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
@@ -16,12 +15,14 @@ import io.ktor.util.*
 import io.ktor.utils.io.core.*
 import io.ktor.utils.io.jvm.javaio.*
 import io.ktor.utils.io.streams.*
-import kotlinx.io.asByteChannel
 import kotlinx.serialization.Serializable
 import subit.dataClasses.*
 import subit.dataClasses.Slice.Companion.asSlice
 import subit.dataClasses.UserId.Companion.toUserIdOrNull
-import subit.database.*
+import subit.database.Notices
+import subit.database.Operations
+import subit.database.Users
+import subit.database.addOperation
 import subit.plugin.contentNegotiation.contentNegotiationJson
 import subit.router.utils.*
 import subit.utils.*
@@ -296,8 +297,7 @@ private suspend fun Context.changePermission()
         Notice.SystemNotice(
             user = changePermission.id,
             content = "您的文件权限被修改为${changePermission.filePermission}"
-        ),
-        false
+        )
     )
     call.respond(HttpStatus.OK)
 }

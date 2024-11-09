@@ -6,6 +6,7 @@ import subit.utils.SUB_CONTENT_LENGTH
 /**
  * 通知
  */
+@Serializable
 sealed interface Notice
 {
     /**
@@ -68,33 +69,18 @@ sealed interface Notice
         override val user: UserId,
         override val read: Boolean = false,
         val post: PostId,
-        val count: Long = 1,
-        override val content: String = "您收到了${count}条${type.description()}",
+        val operator: UserId,
+        override val content: String,
     ): Notice
     {
         init
         {
-            require(count > 0) { "count must be positive" }
             require(type != Type.SYSTEM) { "type must not be SYSTEM" }
         }
 
         companion object
         {
-            val example = PostNotice(NoticeId(1), System.currentTimeMillis(), Type.POST_COMMENT, UserId(1), false, PostId(1), 1)
-
-            /**
-             * 简要, 即只提示有多少条通知
-             * @param id 通知ID
-             * @param type 通知类型
-             * @param time 时间
-             * @param user 用户ID
-             * @param post 帖子ID
-             * @param count 通知数量
-             */
-            fun brief(id: NoticeId = NoticeId(1), type: Type, time: Long = System.currentTimeMillis(), user: UserId, post: PostId, count: Long): PostNotice
-            {
-                return PostNotice(id, time, type, user, false, post, count)
-            }
+            val example = PostNotice(NoticeId(1), System.currentTimeMillis(), Type.POST_COMMENT, UserId(1), false, PostId(1), UserId(1), "通知内容")
 
             /**
              * 详细, 只表示一条通知, 且会显示内容
@@ -102,16 +88,26 @@ sealed interface Notice
              * @param type 通知类型
              * @param time 时间
              * @param user 用户ID
-             * @param post 帖子ID
-             * @param operatorName 操作者(评论/点赞/收藏的用户)
-             * @param content 内容, 仅在评论时有效
+             * @param post 被操作的帖子ID
+             * @param postTitle 被操作的帖子标题
+             * @param operator 操作者(评论/点赞/收藏的用户)
+             * @param comment 评论内容, 仅在type为COMMENT_REPLY或POST_COMMENT时有效
              */
-            fun detail(id: NoticeId = NoticeId(1), type: Type, time: Long = System.currentTimeMillis(), user: UserId, post: PostFullBasicInfo, operatorName: String, content: String?): PostNotice
+            fun build(
+                id: NoticeId = NoticeId(1),
+                type: Type,
+                time: Long = System.currentTimeMillis(),
+                user: UserId,
+                post: PostId,
+                postTitle: String?,
+                operator: NamedUser,
+                comment: String? = null,
+            ): PostNotice
             {
                 val tail =
-                    if (content == null) ""
-                    else if (content.length > SUB_CONTENT_LENGTH) "：${content.substring(0, SUB_CONTENT_LENGTH)}..."
-                    else "：$content"
+                    if (comment == null) ""
+                    else if (comment.length > SUB_CONTENT_LENGTH) "：${comment.substring(0, SUB_CONTENT_LENGTH)}..."
+                    else "：$comment"
                 val op = when(type)
                 {
                     Type.POST_COMMENT  -> "评论了"
@@ -120,8 +116,9 @@ sealed interface Notice
                     Type.STAR          -> "收藏了"
                     else               -> ""
                 }
-                val message = "${operatorName}${op}您的帖子${post.title}$tail"
-                return PostNotice(id, time, type, user, false, post.id, 1, message)
+                val title = postTitle ?: "无标题"
+                val message = "${operator.username}${op}您的帖子${title}$tail"
+                return PostNotice(id, time, type, user, false, post, operator.id, message)
             }
         }
     }
@@ -137,9 +134,13 @@ sealed interface Notice
         override val user: UserId,
         override val read: Boolean = false,
         override val content: String,
+        override val type: Type = Type.SYSTEM,
     ): Notice
     {
-        override val type: Type get() = Type.SYSTEM
+        init
+        {
+            require(type == Type.SYSTEM) { "type must be SYSTEM" }
+        }
 
         companion object
         {
@@ -157,6 +158,6 @@ sealed interface Notice
         // 使用判断类型使用data class的copy方法
         // 设置content和count是为了保证调用data class的copy方法而不是该接口的copy方法
         is SystemNotice -> this.copy(id = id, time = time, user = user, read = read, content = content)
-        is PostNotice   -> this.copy(id = id, time = time, user = user, read = read, count = count)
+        is PostNotice   -> this.copy(id = id, time = time, user = user, read = read, content = content)
     }
 }
