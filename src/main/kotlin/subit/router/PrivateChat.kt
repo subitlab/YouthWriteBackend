@@ -2,13 +2,17 @@
 
 package subit.router.privateChat
 
-import io.github.smiley4.ktorswaggerui.dsl.routing.*
-import io.ktor.server.application.*
+import io.github.smiley4.ktorswaggerui.dsl.routing.get
+import io.github.smiley4.ktorswaggerui.dsl.routing.post
+import io.github.smiley4.ktorswaggerui.dsl.routing.route
 import io.ktor.server.routing.*
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
-import subit.dataClasses.*
+import subit.dataClasses.PrivateChat
+import subit.dataClasses.Slice
+import subit.dataClasses.UserId
 import subit.dataClasses.UserId.Companion.toUserIdOrNull
+import subit.dataClasses.sliceOf
 import subit.database.PrivateChats
 import subit.router.utils.*
 import subit.utils.HttpStatus

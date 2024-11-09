@@ -4,7 +4,6 @@ package subit.router.wordMarkings
 
 import io.github.smiley4.ktorswaggerui.dsl.routing.get
 import io.github.smiley4.ktorswaggerui.dsl.routing.route
-import io.ktor.server.application.*
 import io.ktor.server.routing.*
 import subit.dataClasses.PostId
 import subit.dataClasses.PostId.Companion.toPostIdOrNull

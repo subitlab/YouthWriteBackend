@@ -9,10 +9,7 @@ import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import org.koin.ktor.ext.inject
 import subit.config.systemConfig
-import subit.dataClasses.PermissionLevel
-import subit.database.Prohibits
 import subit.router.admin.admin
 import subit.router.bannedWords.bannedWords
 import subit.router.block.block
@@ -58,7 +55,6 @@ fun Application.router() = routing()
 
     authenticate("auth", optional = true)
     {
-        val prohibits: Prohibits by inject()
         install(createRouteScopedPlugin("ProhibitPlugin", { })
         {
             onCall {

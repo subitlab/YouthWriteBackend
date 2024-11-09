@@ -7,7 +7,6 @@ import io.ktor.server.application.*
 import io.ktor.server.websocket.*
 import subit.plugin.contentNegotiation.contentNegotiationJson
 import kotlin.time.Duration.Companion.seconds
-import kotlin.time.toJavaDuration
 
 fun Application.installWebSockets() = install(WebSockets)
 {

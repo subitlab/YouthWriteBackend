@@ -44,6 +44,7 @@ data class SsoUserFull(
 }
 
 @Serializable
+@Suppress("unused") // 该类作为SsoUser的默认实现, 在反序列化时使用, 故不应被标记为unused
 data class SsoUserInfo(
     override val id: UserId,
     override val username: String,

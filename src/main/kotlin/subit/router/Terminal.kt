@@ -5,7 +5,6 @@ package cn.org.subit.route.terminal
 import cn.org.subit.route.terminal.Type.*
 import io.github.smiley4.ktorswaggerui.dsl.routing.route
 import io.ktor.http.*
-import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
@@ -21,8 +20,8 @@ import subit.config.loggerConfig
 import subit.console.command.CommandSet
 import subit.dataClasses.PermissionLevel
 import subit.dataClasses.UserFull
-import subit.logger.YouthWriteLogger
 import subit.logger.ToConsoleHandler
+import subit.logger.YouthWriteLogger
 import java.util.logging.Handler
 import java.util.logging.LogRecord
 

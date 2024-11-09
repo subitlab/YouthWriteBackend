@@ -3,6 +3,7 @@ package subit.utils
 import kotlinx.serialization.json.*
 import subit.dataClasses.WordMarkingId
 import subit.dataClasses.WordMarkingInfo
+import subit.dataClasses.WordMarkingState
 
 const val SUB_CONTENT_LENGTH = 100
 
@@ -335,6 +336,8 @@ fun mapWordMarkings(oldContent: JsonElement, newContent: JsonElement, wordMarkin
     val old = getContentWithIdAndIndex(splitContentNode(oldContent)).associateBy { it.index }
     val new = getContentWithIdAndIndex(newContent).associateBy { it.subId }
 
+    fun WordMarkingInfo.disable() = copy(start = -1, end = -1, state = WordMarkingState.DELETED)
+
     return wordMarkings.map()
     {
         var newStart: Int = -1
@@ -342,11 +345,11 @@ fun mapWordMarkings(oldContent: JsonElement, newContent: JsonElement, wordMarkin
         var lastIndex: Int? = null
         for (i in it.start..it.end)
         {
-            val oldInfo = old[i] ?: return@map it.copy(start = -1, end = -1)
-            val newInfo = new[oldInfo.subId] ?: return@map it.copy(start = -1, end = -1)
-            if (oldInfo.content != newInfo.content) return@map it.copy(start = -1, end = -1)
+            val oldInfo = old[i] ?: return@map it.disable()
+            val newInfo = new[oldInfo.subId] ?: return@map it.disable()
+            if (oldInfo.content != newInfo.content) return@map it.disable()
             if (lastIndex != null && lastIndex + 1 != newInfo.index)
-                return@map it.copy(start = -1, end = -1)
+                return@map it.disable()
             if (i == it.start) newStart = newInfo.index
             if (i == it.end) newEnd = newInfo.index
             lastIndex = newInfo.index

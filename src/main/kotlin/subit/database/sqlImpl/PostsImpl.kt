@@ -12,12 +12,13 @@ import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.Function
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.coalesce
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.div
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.minus
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.plus
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.times
 import org.jetbrains.exposed.sql.functions.math.PowerFunction
-import org.jetbrains.exposed.sql.kotlin.datetime.*
+import org.jetbrains.exposed.sql.kotlin.datetime.CurrentTimestamp
+import org.jetbrains.exposed.sql.kotlin.datetime.KotlinInstantColumnType
+import org.jetbrains.exposed.sql.kotlin.datetime.timestampParam
 import org.jetbrains.exposed.sql.statements.Statement
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
