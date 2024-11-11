@@ -2,14 +2,20 @@ package subit.database.sqlImpl
 
 import org.jetbrains.exposed.dao.id.IdTable
 import org.jetbrains.exposed.sql.*
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.greaterEq
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import subit.dataClasses.*
 import subit.dataClasses.Slice
 import subit.database.Blocks
 import subit.database.Permissions
+import subit.database.sqlImpl.BlocksImpl.BlocksTable.id
 import subit.database.sqlImpl.utils.asSlice
 import subit.database.sqlImpl.utils.singleOrNull
+import subit.router.utils.PermissionGroup
+import subit.router.utils.permissionGroup
+import subit.router.utils.withPermission
 
 /**
  * 板块数据库交互类
@@ -47,6 +53,43 @@ class BlocksImpl: DaoSqlImpl<BlocksImpl.BlocksTable>(BlocksTable), Blocks, KoinC
         anonymous = row[BlocksTable.anonymous],
         state = row[BlocksTable.state]
     )
+
+    private suspend fun Query.checkPermission(loginUser: UserFull?, permissionGroup: PermissionGroup, editable: Boolean): Query?
+    {
+        val permissionsTable = (permissions as PermissionsImpl).table
+        // 如果全局管理员就没任何限制
+        if (permissionGroup.hasGlobalAdmin) return this
+        // 如果被封禁或没有实名认证且尝试编辑, 则返回null
+        if (editable && (permissionGroup.isProhibit() || !permissionGroup.hasRealName)) return null
+
+        if (loginUser != null)
+        {
+            groupBy(*(table.columns + permissionsTable.block).toTypedArray())
+            if (editable) andHaving { permissionsTable.permission.max() greaterEq table.posting }
+            else andHaving { permissionsTable.permission.max() greaterEq table.reading }
+        }
+        else
+        {
+            if (editable) andHaving { Op.FALSE }
+            else andHaving { table.reading lessEq PermissionLevel.NORMAL }
+        }
+        andWhere { table.state eq State.NORMAL }
+        return this
+    }
+
+    private suspend fun Join.joinPermission(loginUser: UserFull?, permissionGroup: PermissionGroup, editable: Boolean): Join?
+    {
+        val permissionsTable = (permissions as PermissionsImpl).table
+        return (
+            // 如果是全局管理员, 则不需要权限表
+            if (permissionGroup.hasGlobalAdmin) this
+            // 如果被封禁或没有实名认证且尝试编辑, 则返回null
+            else if (editable && (permissionGroup.isProhibit() || !permissionGroup.hasRealName)) null
+            // 如果登录用户不为空, 则尝试连接权限表
+            else if (loginUser != null) this.join(permissionsTable, JoinType.LEFT, id, permissionsTable.block) { permissionsTable.user eq loginUser.id }
+            else this
+        )
+    }
 
     override suspend fun createBlock(
         name: String,
@@ -101,68 +144,37 @@ class BlocksImpl: DaoSqlImpl<BlocksImpl.BlocksTable>(BlocksTable), Blocks, KoinC
         }
     }
 
-    override suspend fun getChildren(loginUser: UserId?, parent: BlockId?, begin: Long, count: Int): Slice<Block> = query()
+    override suspend fun getChildren(loginUser: UserFull?, parent: BlockId?, begin: Long, count: Int): Slice<Block> = query()
     {
-        val permissionTable = (permissions as PermissionsImpl).table
-        val additionalConstraint: (SqlExpressionBuilder.()->Op<Boolean>)? =
-            if (loginUser != null) ({ permissionTable.user eq loginUser })
-            else null
-        BlocksTable.join(permissionTable, JoinType.LEFT, id, permissionTable.block, additionalConstraint = additionalConstraint)
-            .select(BlocksTable.columns)
-            .where { BlocksTable.parent eq parent }
-            .andWhere { state eq State.NORMAL }
-            .groupBy(id, reading)
-            .having { (permissionTable.permission.max() greaterEq reading) or (reading lessEq PermissionLevel.NORMAL) }
-            .orderBy(id, SortOrder.DESC)
-            .asSlice(begin, count)
-            .map(::deserializeBlock)
+        val permissionGroup = loginUser.permissionGroup()
+        Join(table)
+            .joinPermission(loginUser, permissionGroup, editable = false)
+            ?.select(BlocksTable.columns)
+            ?.where { BlocksTable.parent eq parent }
+            ?.checkPermission(loginUser, permissionGroup, editable = false)
+            ?.orderBy(id, SortOrder.DESC)
+            ?.asSlice(begin, count)
+            ?.map(::deserializeBlock)
+        ?: Slice.empty()
     }
 
-    override suspend fun searchBlock(loginUser: UserId?, key: String, begin: Long, count: Int): Slice<Block> = query()
-    {
-        val permissionTable = (permissions as PermissionsImpl).table
-        val additionalConstraint: (SqlExpressionBuilder.()->Op<Boolean>)? =
-            if (loginUser != null) ({ permissionTable.user eq loginUser })
-            else null
-        BlocksTable.join(permissionTable, JoinType.LEFT, id, permissionTable.block, additionalConstraint = additionalConstraint)
-            .select(BlocksTable.columns)
-            .where { (name like "%$key%") or (description like "%$key%") }
-            .andWhere { state eq State.NORMAL }
-            .groupBy(id, reading)
-            .having { (permissionTable.permission.max() greaterEq reading) or (reading lessEq PermissionLevel.NORMAL) }
-            .orderBy(id, SortOrder.DESC)
-            .asSlice(begin, count)
-            .map(::deserializeBlock)
-    }
-
-    override suspend fun getAllBlocks(
-        loginUser: DatabaseUser?,
+    override suspend fun getBlocks(
+        loginUser: UserFull?,
         editable: Boolean,
+        key: String?,
         begin: Long,
         count: Int
     ): Slice<Block> = query()
     {
-        val permissionsTable = (permissions as PermissionsImpl).table
-
-        fun Query.checkPermission(): Query
-        {
-            if (loginUser.hasGlobalAdmin()) return this
-            if (editable)
-                andHaving { permissionsTable.permission.max() greaterEq table.posting }
-            else
-                andHaving { (permissionsTable.permission.max() greaterEq table.reading).or(table.reading lessEq PermissionLevel.NORMAL) }
-            andWhere { table.state eq State.NORMAL }
-            return this
-        }
-
-        table
-            .join(permissionsTable, JoinType.LEFT, table.id, permissionsTable.block) { permissionsTable.user eq loginUser?.id }
-            .select(table.columns)
-            .checkPermission()
-            .orderBy(table.id, SortOrder.ASC)
-            .groupBy(*(table.columns + permissionsTable.block).toTypedArray())
-            .asSlice(begin, count)
-            .map(::deserializeBlock)
-
+        val permissionGroup = loginUser.permissionGroup()
+        Join(table)
+            .joinPermission(loginUser, permissionGroup, editable)
+            ?.select(table.columns)
+            ?.apply { if (key != null) this.andWhere { table.name like "%$key%" } }
+            ?.checkPermission(loginUser, permissionGroup, editable)
+            ?.orderBy(table.id, SortOrder.ASC)
+            ?.asSlice(begin, count)
+            ?.map(::deserializeBlock)
+        ?: Slice.empty()
     }
 }

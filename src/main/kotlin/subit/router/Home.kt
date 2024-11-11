@@ -6,16 +6,15 @@ import io.github.smiley4.ktorswaggerui.dsl.routing.get
 import io.github.smiley4.ktorswaggerui.dsl.routing.put
 import io.github.smiley4.ktorswaggerui.dsl.routing.route
 import io.ktor.http.*
-import io.ktor.server.plugins.ratelimit.*
 import io.ktor.server.request.*
 import io.ktor.server.routing.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
-import subit.dataClasses.*
-import subit.database.Blocks
+import subit.dataClasses.PostFullBasicInfo
+import subit.dataClasses.Slice
+import subit.dataClasses.sliceOf
 import subit.database.Posts
-import subit.plugin.rateLimit.RateLimit
 import subit.router.utils.*
 import subit.utils.HomeFilesUtils
 import subit.utils.HttpStatus
@@ -27,33 +26,6 @@ fun Route.home() = route("/home", {
     tags = listOf("首页")
 })
 {
-    rateLimit(RateLimit.Search.rateLimitName)
-    {
-        route("/search", {
-            request {
-                queryParameter<String>("key")
-                {
-                    required = true
-                    description = "关键字"
-                    example("关键字")
-                }
-                paged()
-            }
-            response {
-                statuses(HttpStatus.TooManyRequests)
-            }
-        })
-        {
-
-            get("/block", {
-                description = "搜索板块, 会返回板块名称或介绍包含关键词的板块"
-                response {
-                    statuses<Slice<Block>>(HttpStatus.OK, example = sliceOf(Block.example))
-                }
-            }) { searchBlock() }
-        }
-    }
-
     get("/monthly", {
         description = "最近一个月内的点赞数量排行榜"
         request {
@@ -145,18 +117,10 @@ fun Route.home() = route("/home", {
     }
 }
 
-private suspend fun Context.searchBlock()
-{
-    val key = call.parameters["key"] ?: return call.respond(HttpStatus.BadRequest)
-    val (begin, count) = call.getPage()
-    val blocks = get<Blocks>().searchBlock(getLoginUser()?.id, key, begin, count)
-    call.respond(HttpStatus.OK, blocks)
-}
-
 private suspend fun Context.getMonthly()
 {
     val (begin, count) = call.getPage()
-    val posts = get<Posts>().monthly(getLoginUser()?.toDatabaseUser(), begin, count)
+    val posts = get<Posts>().monthly(getLoginUser(), begin, count)
     call.respond(HttpStatus.OK, checkAnonymous(posts))
 }
 
@@ -170,7 +134,7 @@ private suspend fun Context.getMessage()
 
 private suspend fun Context.putMessage()
 {
-    withPermission()
+    checkPermission()
     {
         checkHasGlobalAdmin()
         checkRealName()
@@ -188,7 +152,7 @@ private fun getImage()
 
 private suspend fun Context.putImage()
 {
-    withPermission()
+    checkPermission()
     {
         checkHasGlobalAdmin()
         checkRealName()
@@ -207,7 +171,7 @@ private suspend fun Context.getAnnouncement()
 
 private suspend fun Context.putAnnouncement()
 {
-    withPermission()
+    checkPermission()
     {
         checkHasGlobalAdmin()
         checkRealName()

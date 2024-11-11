@@ -89,6 +89,11 @@ fun Route.block() = route("/block", {
                 description = "是否只获取当前用户有权限编辑的板块, 不填视为false"
                 required = false
             }
+            queryParameter<String>("key")
+            {
+                description = "要求包含某一关键字"
+                required = false
+            }
         }
         response {
             statuses<Slice<Block>>(HttpStatus.OK, example = sliceOf(Block.example))
@@ -183,10 +188,10 @@ private suspend fun Context.newBlock()
     val blocks = get<Blocks>()
     if (newBlock.parent != null)
     {
-        withPermission { checkHasAdminIn(newBlock.parent) }
+        checkPermission { checkHasAdminIn(newBlock.parent) }
         blocks.getBlock(newBlock.parent) ?: return call.respond(HttpStatus.BadRequest)
     }
-    else withPermission { checkHasGlobalAdmin() }
+    else checkPermission { checkHasGlobalAdmin() }
     val id = blocks.createBlock(
         name = newBlock.name,
         description = newBlock.description,
@@ -219,7 +224,7 @@ private suspend fun Context.editBlockInfo()
     val editBlockInfo = call.receiveAndCheckBody<EditBlockInfo>()
     val block = get<Blocks>().getBlock(id) ?: return call.respond(HttpStatus.NotFound)
     val parent = editBlockInfo.parent?.let { get<Blocks>().getBlock(it) }
-    withPermission {
+    checkPermission {
         checkRead(block)
         checkHasAdminIn(id)
     }
@@ -241,7 +246,7 @@ private suspend fun Context.getBlockInfo()
 {
     val id = call.parameters["id"]?.toBlockIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val block = get<Blocks>().getBlock(id) ?: return call.respond(HttpStatus.NotFound)
-    withPermission { checkRead(block) }
+    checkPermission { checkRead(block) }
     call.respond(HttpStatus.OK, block)
 }
 
@@ -251,7 +256,7 @@ private suspend fun Context.deleteBlock()
     val id = call.parameters["id"]?.toBlockIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val blocks = get<Blocks>()
     val block = blocks.getBlock(id) ?: return call.respond(HttpStatus.NotFound)
-    withPermission { checkChangeState(block, State.DELETED) }
+    checkPermission { checkChangeState(block, State.DELETED) }
     blocks.setState(id, State.DELETED)
     get<Operations>().addOperation(loginUser.id, id)
     if (loginUser.id != block.creator) get<Notices>().createNotice(
@@ -276,7 +281,7 @@ private suspend fun Context.changePermission()
     val changePermission = call.receiveAndCheckBody<ChangePermission>()
     val block = get<Blocks>().getBlock(changePermission.block) ?: return call.respond(HttpStatus.NotFound)
     val user = SSO.getDbUser(changePermission.user) ?: return call.respond(HttpStatus.NotFound)
-    withPermission { checkChangePermission(block, user, changePermission.permission) }
+    checkPermission { checkChangePermission(block, user, changePermission.permission) }
     get<Permissions>().setPermission(
         bid = changePermission.block,
         uid = changePermission.user,
@@ -298,7 +303,7 @@ private suspend fun Context.getPermission()
     val bid = call.parameters["id"]?.toBlockIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val uid = call.parameters["user"]?.toUserIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val blocks = get<Blocks>()
-    withPermission()
+    checkPermission()
     {
         checkRead(blocks.getBlock(bid) ?: return call.respond(HttpStatus.NotFound))
         if (uid != UserId(0)) checkHasAdminIn(bid)
@@ -306,7 +311,7 @@ private suspend fun Context.getPermission()
     val user =
         if (uid == UserId(0)) getLoginUser()?.toDatabaseUser()
         else SSO.getDbUser(uid)
-    call.respond(HttpStatus.OK, withPermission(user) { getPermission(bid) })
+    call.respond(HttpStatus.OK, checkPermission(user) { getPermission(bid) })
 }
 
 private suspend fun Context.getChildren()
@@ -316,20 +321,21 @@ private suspend fun Context.getChildren()
     val (begin, count) = call.getPage()
     val blocks = get<Blocks>()
 
-    withPermission()
+    checkPermission()
     {
         val block = id?.let { blocks.getBlock(it) }
         if (block != null) checkRead(block)
     }
 
-    blocks.getChildren(getLoginUser()?.id, id, begin, count).let { call.respond(HttpStatus.OK, it) }
+    blocks.getChildren(getLoginUser(), id, begin, count).let { call.respond(HttpStatus.OK, it) }
 }
 
 private suspend fun Context.getAllBlocks()
 {
     val (begin, count) = call.getPage()
     val editable = call.parameters["editable"].toBoolean()
-    val res = get<Blocks>().getAllBlocks(getLoginUser()?.toDatabaseUser(), editable, begin, count)
+    val key = call.parameters["key"]
+    val res = get<Blocks>().getBlocks(getLoginUser(), editable, key, begin, count)
     finishCall(HttpStatus.OK, res)
 }
 
@@ -348,16 +354,13 @@ private fun MutableSet<Block>.toBlockTree(root: Block? = null): Set<BlockTree>
     return this
         .filter { it.parent == root?.id }
         .also { this.removeAll(it.toSet()) }
-        .map {
-            val children = this.toBlockTree(it)
-            BlockTree(it, children)
-        }
+        .map { BlockTree(it, this.toBlockTree(it)) }
         .toSet()
 }
 
 private suspend fun Context.getBlockTree()
 {
     val editable = call.parameters["editable"].toBoolean()
-    val allBlocks = get<Blocks>().getAllBlocks(getLoginUser()?.toDatabaseUser(), editable, 0, Int.MAX_VALUE).list.toMutableSet()
+    val allBlocks = get<Blocks>().getBlocks(getLoginUser(), editable, null, 0, Int.MAX_VALUE).list.toMutableSet()
     call.respond(HttpStatus.OK, allBlocks.toBlockTree())
 }

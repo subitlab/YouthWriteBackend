@@ -81,7 +81,8 @@ fun Route.user() = route("/user", {
                 
                 若目标用户不是当前用户, 且当前登陆用户不是管理员, 则目标用户需要展示收藏, 否则返回Forbidden
                 
-                若目标用户被封禁且当前用户不是全局管理员则返回空列表
+                若目标用户被封禁且当前用户不是全局管理员则返回空列表, 
+                若收藏夹中的某篇帖子当前用户无权查看(可能因权限修改或者帖子被删除)则返回的post为null
             """.trimIndent()
         request {
             pathParameter<UserId>("id")
@@ -95,7 +96,7 @@ fun Route.user() = route("/user", {
         }
         response {
             statuses(HttpStatus.BadRequest, HttpStatus.Unauthorized, HttpStatus.NotFound, HttpStatus.Forbidden)
-            statuses<Slice<PostId>>(HttpStatus.OK, example = sliceOf(PostId(0)))
+            statuses<Slice<StarPost>>(HttpStatus.OK, example = sliceOf(StarPost.example))
         }
     }) { getStars(true) }
 
@@ -105,7 +106,8 @@ fun Route.user() = route("/user", {
                 
                 若目标用户不是当前用户, 且当前登陆用户不是管理员, 则目标用户需要展示收藏, 否则返回Forbidden
                 
-                若目标用户被封禁且当前用户不是全局管理员则返回空列表
+                若目标用户被封禁且当前用户不是全局管理员则返回空列表,
+                若收藏夹中的某篇帖子当前用户无权查看(可能因权限修改或者帖子被删除)则返回的post为null
             """.trimIndent()
         request {
             pathParameter<UserId>("id")
@@ -119,7 +121,7 @@ fun Route.user() = route("/user", {
         }
         response {
             statuses(HttpStatus.BadRequest, HttpStatus.Unauthorized, HttpStatus.NotFound)
-            statuses<Slice<PostId>>(HttpStatus.OK, example = sliceOf(PostId(0)))
+            statuses<Slice<StarPost>>(HttpStatus.OK, example = sliceOf(StarPost.example))
         }
     }) { getStars(false) }
 
@@ -158,7 +160,7 @@ private suspend fun Context.getUserInfo()
         val token = SSO.getAccessToken(id) ?: return call.respond(HttpStatus.NotFound)
         val user = SSO.getUserFull(token) ?: return call.respond(HttpStatus.NotFound)
         if (loginUser.hasGlobalAdmin()) finishCall(HttpStatus.OK, user)
-        if (withPermission(user.toDatabaseUser()) { isProhibit() }) finishCall(
+        if (checkPermission(user.toDatabaseUser()) { isProhibit() }) finishCall(
             HttpStatus.OK,
             BasicUserInfo(
                 user.id,
@@ -179,7 +181,7 @@ private data class ChangeIntroduction(val introduction: String?)
 private suspend fun Context.changeIntroduction()
 {
     val id = call.parameters["id"]?.toUserIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
-    withPermission { checkRealName() }
+    checkPermission { checkRealName() }
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     val changeIntroduction = call.receiveAndCheckBody<ChangeIntroduction>()
     if (id == UserId(0))
@@ -189,7 +191,7 @@ private suspend fun Context.changeIntroduction()
     }
     else if (changeIntroduction.introduction == null)
     {
-        withPermission { checkHasGlobalAdmin() }
+        checkPermission { checkHasGlobalAdmin() }
         if (get<Users>().changeIntroduction(id, null))
         {
             get<Operations>().addOperation(loginUser.id, changeIntroduction)
@@ -199,6 +201,15 @@ private suspend fun Context.changeIntroduction()
             return call.respond(HttpStatus.NotFound)
     }
     else finishCall(HttpStatus.Forbidden.subStatus("只能删除他人的个性签名不能修改"))
+}
+
+@Serializable
+private data class StarPost(val time: Long, val post: PostFullBasicInfo?)
+{
+    companion object
+    {
+        val example = StarPost(System.currentTimeMillis(), PostFullBasicInfo.example)
+    }
 }
 
 private suspend fun Context.getStars(isStar: Boolean)
@@ -227,16 +238,17 @@ private suspend fun Context.getStars(isStar: Boolean)
     // 若对方不展示收藏, 而当前用户未登录或不是管理员, 返回Forbidden
     if (!user.showStars && (loginUser == null || loginUser.permission < PermissionLevel.ADMIN))
         return call.respond(HttpStatus.Forbidden)
-    if (isStar)
-    {
-        val stars = get<Stars>().getStars(user = user.id, begin = begin, limit = count).map { it.post }
-        call.respond(HttpStatus.OK, stars)
-    }
-    else
-    {
-        val likes = get<Likes>().getLikes(user = user.id, begin = begin, limit = count).map { it.post }
-        call.respond(HttpStatus.OK, likes)
-    }
+    val likes =
+        if (isStar) get<Stars>().getStars(user = user.id, begin = begin, limit = count)
+        else get<Likes>().getLikes(user = user.id, begin = begin, limit = count)
+
+
+    val posts = get<Posts>()
+        .mapToPostFullBasicInfo(loginUser, likes.list.map { it.post })
+        .filterNotNull()
+        .map { checkAnonymous(it) }
+        .associateBy(PostFullBasicInfo::id)
+    call.respond(HttpStatus.OK, likes.map { StarPost(it.time, posts[it.post]) })
 }
 
 @Serializable
@@ -245,7 +257,7 @@ private data class BooleanSetting(val showStars: Boolean)
 private suspend fun Context.switchStars()
 {
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
-    val switchStars =call.receiveAndCheckBody<BooleanSetting>()
+    val switchStars = call.receiveAndCheckBody<BooleanSetting>()
     get<Users>().changeShowStars(loginUser.id, switchStars.showStars)
     call.respond(HttpStatus.OK)
 }

@@ -12,8 +12,12 @@ import java.io.PrintStream
 import java.util.*
 
 inline fun String?.toUUIDOrNull(): UUID? = runCatching { UUID.fromString(this) }.getOrNull()
-inline fun <reified T: Enum<T>> String?.toEnumOrNull(): T? =
-    this?.runCatching { contentNegotiationJson.decodeFromString<T>(this) }?.getOrNull()
+inline fun <reified R> String?.decodeOrElse(block: () -> R): R
+{
+    if (this == null) return block()
+    return this.runCatching { contentNegotiationJson.decodeFromString<R>(this) }.getOrElse { block() }
+}
+inline fun <reified R> String?.decodeOrNull(): R? = decodeOrElse { null }
 
 fun Long.toInstant(): Instant =
     Instant.fromEpochMilliseconds(this)

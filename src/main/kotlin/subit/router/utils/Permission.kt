@@ -11,44 +11,76 @@ import subit.database.Permissions
 import subit.database.Posts
 import subit.database.Prohibits
 import subit.utils.HttpStatus
+import subit.utils.respond
+
+inline fun <reified T> UserFull?.withPermission(
+    body: PermissionGroup.()->T
+): T = withPermission(this?.toDatabaseUser(), this?.toSsoUser(), body)
+
+inline fun <reified T> UserFull?.checkPermission(
+    body: PermissionChecker.()->T
+): T = checkPermission(this?.toDatabaseUser(), this?.toSsoUser(), body)
 
 inline fun <reified T> Context.withPermission(
     user: DatabaseUser? = getLoginUser()?.toDatabaseUser(),
     ssoUser: SsoUserFull? = getLoginUser()?.toSsoUser(),
-    body: CheckPermissionInContextScope.()->T
-): T = CheckPermissionInContextScope(this, user, ssoUser).body()
+    body: PermissionGroup.()->T
+): T = PermissionGroup(user, ssoUser).body()
+
+inline fun <reified T> Context.checkPermission(
+    user: DatabaseUser? = getLoginUser()?.toDatabaseUser(),
+    ssoUser: SsoUserFull? = getLoginUser()?.toSsoUser(),
+    body: PermissionChecker.()->T
+): T = PermissionChecker(user, ssoUser).body()
 
 inline fun <reified T> withPermission(
     user: DatabaseUser?,
     ssoUser: SsoUserFull?,
-    body: CheckPermissionScope.()->T
-): T = CheckPermissionScope(user, ssoUser).body()
+    body: PermissionGroup.()->T
+): T = PermissionGroup(user, ssoUser).body()
 
-open class CheckPermissionScope @PublishedApi internal constructor(val user: DatabaseUser?, val ssoUser: SsoUserFull?): KoinComponent
+inline fun <reified T> checkPermission(
+    user: DatabaseUser?,
+    ssoUser: SsoUserFull?,
+    body: PermissionChecker.()->T
+): T = PermissionChecker(user, ssoUser).body()
+
+fun UserFull?.permissionGroup(): PermissionGroup = PermissionGroup(this?.toDatabaseUser(), this?.toSsoUser())
+fun UserFull?.permissionChecker(): PermissionChecker = PermissionChecker(this?.toDatabaseUser(), this?.toSsoUser())
+fun Pair<DatabaseUser?, SsoUserFull?>.permissionGroup(): PermissionGroup = PermissionGroup(first, second)
+fun Pair<DatabaseUser?, SsoUserFull?>.permissionChecker(): PermissionChecker = PermissionChecker(first, second)
+
+open class PermissionGroup(val dbUser: DatabaseUser?, val ssoUser: SsoUserFull?): KoinComponent
 {
+    init
+    {
+        require(dbUser == null || ssoUser == null || dbUser.id == ssoUser.id)
+    }
     protected val permissions by inject<Permissions>()
     protected val blocks by inject<Blocks>()
     protected val posts by inject<Posts>()
     protected val prohibits by inject<Prohibits>()
+
+    val user get() = dbUser?.id ?: ssoUser?.id
 
     /**
      * 获取用户在某一个板块的权限等级
      */
     suspend fun getPermission(bid: BlockId): PermissionLevel =
         if (hasGlobalAdmin) PermissionLevel.ROOT
-        else user?.let { permissions.getPermission(bid, it.id) } ?: PermissionLevel.NORMAL
+        else dbUser?.let { permissions.getPermission(bid, it.id) } ?: PermissionLevel.NORMAL
 
     val globalPermission: PermissionLevel
-        get() = user?.permission ?: PermissionLevel.NORMAL
+        get() = dbUser?.permission ?: PermissionLevel.NORMAL
 
     val filePermission: PermissionLevel
-        get() = user?.filePermission ?: PermissionLevel.BANNED
+        get() = dbUser?.filePermission ?: PermissionLevel.BANNED
 
     suspend fun hasAdminIn(block: BlockId): Boolean =
-        user != null && (getPermission(block) >= PermissionLevel.ADMIN)
+        dbUser != null && (getPermission(block) >= PermissionLevel.ADMIN)
 
     val hasGlobalAdmin: Boolean
-        get() = user.hasGlobalAdmin()
+        get() = dbUser.hasGlobalAdmin()
     val hasFileAdmin: Boolean
         get() = filePermission >= PermissionLevel.ADMIN
 
@@ -65,8 +97,8 @@ open class CheckPermissionScope @PublishedApi internal constructor(val user: Dat
         var isProhibit = isProhibit0
         if (isProhibit != null) return isProhibit
         isProhibit =
-            if (user == null) false
-            else user.permission < PermissionLevel.NORMAL || prohibits.isProhibited(user.id)
+            if (dbUser == null) false
+            else dbUser.permission < PermissionLevel.NORMAL || prohibits.isProhibited(dbUser.id)
         isProhibit0 = isProhibit
         return isProhibit
     }
@@ -89,7 +121,7 @@ open class CheckPermissionScope @PublishedApi internal constructor(val user: Dat
         return when (post.state)
         {
             NORMAL  -> true
-            PRIVATE -> post.author == user?.id || hasGlobalAdmin
+            PRIVATE -> post.author == dbUser?.id || hasGlobalAdmin
             else -> hasGlobalAdmin
         }
     }
@@ -100,7 +132,7 @@ open class CheckPermissionScope @PublishedApi internal constructor(val user: Dat
         val post = posts.getPostInfo(version.post) ?: return false
         if (!canRead(post)) return false
         if (!version.draft) return true
-        return post.author == user?.id || hasGlobalAdmin
+        return post.author == dbUser?.id || hasGlobalAdmin
     }
 
     /// 可以删除 ///
@@ -111,15 +143,15 @@ open class CheckPermissionScope @PublishedApi internal constructor(val user: Dat
             NORMAL ->
                 when (newState)
                 {
-                    DELETED -> post.author == user?.id || hasAdminIn(post.block)
-                    PRIVATE -> post.author == user?.id
+                    DELETED -> post.author == dbUser?.id || hasAdminIn(post.block)
+                    PRIVATE -> post.author == dbUser?.id
                     NORMAL -> true
                 }
             PRIVATE ->
                 when (newState)
                 {
-                    NORMAL -> post.author == user?.id
-                    DELETED -> post.author == user?.id || hasGlobalAdmin
+                    NORMAL -> post.author == dbUser?.id
+                    DELETED -> post.author == dbUser?.id || hasGlobalAdmin
                     PRIVATE -> true
                 }
             DELETED -> if (newState != DELETED) hasGlobalAdmin else true
@@ -163,7 +195,7 @@ open class CheckPermissionScope @PublishedApi internal constructor(val user: Dat
         if (!canRead(post)) return false
         if (!hasRealName) return false
         if (post.state != NORMAL) return false
-        return post.author == user?.id
+        return post.author == dbUser?.id
     }
 
     /// 可以匿名 ///
@@ -186,7 +218,7 @@ open class CheckPermissionScope @PublishedApi internal constructor(val user: Dat
     {
         if (isProhibit()) return false
         // 如果在尝试修改自己的权限
-        if (other.id == user?.id)
+        if (other.id == dbUser?.id)
         {
             // 如果尝试修改自己的全局权限, 要有全局管理员且目标权限比当前权限低
             if (block == null)
@@ -217,24 +249,30 @@ open class CheckPermissionScope @PublishedApi internal constructor(val user: Dat
     suspend fun canChangeFilePermission(other: DatabaseUser, permission: PermissionLevel): Boolean
     {
         if (isProhibit()) return false
-        if (other.id == user?.id)
-            return user.filePermission >= permission
+        if (other.id == dbUser?.id)
+            return dbUser.filePermission >= permission
         return filePermission > permission && hasFileAdmin
     }
 }
 
-class CheckPermissionInContextScope @PublishedApi internal constructor(val context: Context, user: DatabaseUser?, ssoUser: SsoUserFull?):
-    CheckPermissionScope(user, ssoUser)
+class PermissionChecker(dbUser: DatabaseUser?, ssoUser: SsoUserFull?): PermissionGroup(dbUser, ssoUser)
 {
+    class CheckPermissionFailedException(val status: HttpStatus): CallFinish({ respond(status) })
+    private fun checkFailed(status: HttpStatus): Nothing = throw CheckPermissionFailedException(status)
+    private fun checkOrFailed(condition: Boolean, status: HttpStatus = HttpStatus.Forbidden) =
+        if (!condition) checkFailed(status) else Unit
 
-    suspend fun checkHasAdminIn(block: BlockId) = if (!hasAdminIn(block)) finishCall(HttpStatus.Forbidden) else Unit
-    private fun checkOrFinish(condition: Boolean, status: HttpStatus) = if (!condition) finishCall(status) else Unit
+    suspend fun checkHasAdminIn(block: BlockId) =
+        checkOrFailed(hasAdminIn(block), HttpStatus.Forbidden)
 
-    fun checkHasGlobalAdmin() = if (!hasGlobalAdmin) finishCall(HttpStatus.Forbidden) else Unit
+    fun checkHasGlobalAdmin() =
+        checkOrFailed(hasGlobalAdmin, HttpStatus.Forbidden)
 
-    fun checkRealName() = if (!hasRealName) finishCall(HttpStatus.NotRealName) else Unit
+    fun checkRealName() =
+        checkOrFailed(hasRealName, HttpStatus.NotRealName)
 
-    suspend fun checkProhibit() = if (isProhibit()) finishCall(HttpStatus.Prohibit) else Unit
+    suspend fun checkProhibit() =
+        checkOrFailed(!isProhibit(), HttpStatus.Prohibit)
 
     /// 可以看 ///
 
@@ -243,34 +281,34 @@ class CheckPermissionInContextScope @PublishedApi internal constructor(val conte
         checkProhibit()
         when (block.state)
         {
-            NORMAL  -> checkOrFinish(getPermission(block.id) >= block.reading, HttpStatus.Forbidden)
-            DELETED -> checkOrFinish(hasGlobalAdmin, HttpStatus.NotFound)
-            PRIVATE -> checkOrFinish(hasGlobalAdmin, HttpStatus.Forbidden)
+            NORMAL  -> checkOrFailed(getPermission(block.id) >= block.reading, HttpStatus.Forbidden)
+            DELETED -> checkOrFailed(hasGlobalAdmin, HttpStatus.NotFound)
+            PRIVATE -> checkOrFailed(hasGlobalAdmin, HttpStatus.Forbidden)
         }
     }
 
     suspend fun checkRead(post: PostInfo)
     {
         checkProhibit()
-        val blockInfo = blocks.getBlock(post.block) ?: finishCall(HttpStatus.NotFound)
+        val blockInfo = blocks.getBlock(post.block) ?: checkFailed(HttpStatus.NotFound)
         checkRead(blockInfo)
         val root = post.root?.let { posts.getPostInfo(it) }
         if (root != null) checkRead(root)
         return when (post.state)
         {
             NORMAL  -> Unit
-            PRIVATE -> checkOrFinish(post.author == user?.id || hasGlobalAdmin, HttpStatus.Forbidden)
-            DELETED -> checkOrFinish(hasGlobalAdmin, HttpStatus.NotFound)
+            PRIVATE -> checkOrFailed(post.author == dbUser?.id || hasGlobalAdmin, HttpStatus.Forbidden)
+            DELETED -> checkOrFailed(hasGlobalAdmin, HttpStatus.NotFound)
         }
     }
 
     suspend fun checkRead(version: PostVersionBasicInfo)
     {
         checkProhibit()
-        val post = posts.getPostInfo(version.post) ?: finishCall(HttpStatus.NotFound)
+        val post = posts.getPostInfo(version.post) ?: checkFailed(HttpStatus.NotFound)
         checkRead(post)
         checkRealName()
-        checkOrFinish(post.author == user?.id || hasGlobalAdmin, HttpStatus.Forbidden)
+        checkOrFailed(post.author == dbUser?.id || hasGlobalAdmin, HttpStatus.Forbidden)
     }
 
     /// 可以删除 ///
@@ -285,18 +323,18 @@ class CheckPermissionInContextScope @PublishedApi internal constructor(val conte
             NORMAL ->
                 when (newState)
                 {
-                    DELETED -> checkOrFinish(post.author == user?.id || hasAdminIn(post.block), HttpStatus.Forbidden)
-                    PRIVATE -> checkOrFinish(post.author == user?.id, HttpStatus.Forbidden)
+                    DELETED -> checkOrFailed(post.author == dbUser?.id || hasAdminIn(post.block), HttpStatus.Forbidden)
+                    PRIVATE -> checkOrFailed(post.author == dbUser?.id, HttpStatus.Forbidden)
                     NORMAL -> Unit
                 }
             PRIVATE ->
                 when (newState)
                 {
-                    NORMAL -> checkOrFinish(post.author == user?.id, HttpStatus.Forbidden)
-                    DELETED -> checkOrFinish(post.author == user?.id || hasGlobalAdmin, HttpStatus.Forbidden)
+                    NORMAL -> checkOrFailed(post.author == dbUser?.id, HttpStatus.Forbidden)
+                    DELETED -> checkOrFailed(post.author == dbUser?.id || hasGlobalAdmin, HttpStatus.Forbidden)
                     PRIVATE -> Unit
                 }
-            DELETED -> checkOrFinish(newState != DELETED, HttpStatus.Forbidden)
+            DELETED -> checkOrFailed(newState != DELETED, HttpStatus.Forbidden)
         }
     }
 
@@ -304,15 +342,15 @@ class CheckPermissionInContextScope @PublishedApi internal constructor(val conte
     {
         checkProhibit()
         checkRealName()
-        checkOrFinish(hasRealName, HttpStatus.NotRealName)
+        checkOrFailed(hasRealName, HttpStatus.NotRealName)
         // 板块不能有私密状态
-        checkOrFinish(newState != PRIVATE, HttpStatus.BadRequest.subStatus("板块不能有私密状态"))
+        checkOrFailed(newState != PRIVATE, HttpStatus.BadRequest.subStatus("板块不能有私密状态"))
         checkRead(block)
         if (block.state == newState) return
         return when (block.state)
         {
-            NORMAL -> checkOrFinish(hasAdminIn(block.id), HttpStatus.Forbidden)
-            else -> checkOrFinish(hasGlobalAdmin, HttpStatus.Forbidden)
+            NORMAL -> checkOrFailed(hasAdminIn(block.id), HttpStatus.Forbidden)
+            else -> checkOrFailed(hasGlobalAdmin, HttpStatus.Forbidden)
         }
     }
 
@@ -323,7 +361,7 @@ class CheckPermissionInContextScope @PublishedApi internal constructor(val conte
         checkProhibit()
         checkRealName()
         checkRead(post)
-        checkOrFinish(canComment(post), HttpStatus.Forbidden)
+        checkOrFailed(canComment(post), HttpStatus.Forbidden)
     }
 
     /// 可以发贴 ///
@@ -332,7 +370,7 @@ class CheckPermissionInContextScope @PublishedApi internal constructor(val conte
     {
         checkProhibit()
         checkRealName()
-        checkOrFinish(canPost(block), HttpStatus.Forbidden)
+        checkOrFailed(canPost(block), HttpStatus.Forbidden)
     }
 
     /// 可以编辑 ///
@@ -340,11 +378,11 @@ class CheckPermissionInContextScope @PublishedApi internal constructor(val conte
     suspend fun checkEdit(version: PostVersionBasicInfo)
     {
         checkProhibit()
-        val post = posts.getPostInfo(version.post) ?: finishCall(HttpStatus.NotFound)
+        val post = posts.getPostInfo(version.post) ?: checkFailed(HttpStatus.NotFound)
         checkRead(post)
         checkRealName()
-        if (post.state != NORMAL) finishCall(HttpStatus.NotAcceptable.subStatus("当前帖子状态不允许编辑"))
-        checkOrFinish(post.author == user?.id, HttpStatus.Forbidden)
+        if (post.state != NORMAL) checkFailed(HttpStatus.NotAcceptable.subStatus("当前帖子状态不允许编辑"))
+        checkOrFailed(post.author == dbUser?.id, HttpStatus.Forbidden)
     }
 
     /// 可以匿名 ///
@@ -353,7 +391,7 @@ class CheckPermissionInContextScope @PublishedApi internal constructor(val conte
     {
         checkProhibit()
         checkRealName()
-        checkOrFinish(canAnonymous(block), HttpStatus.Forbidden)
+        checkOrFailed(canAnonymous(block), HttpStatus.Forbidden)
     }
 
     /// 修改他人权限 ///
@@ -362,17 +400,17 @@ class CheckPermissionInContextScope @PublishedApi internal constructor(val conte
     {
         checkProhibit()
         /**
-         * 详见[CheckPermissionScope.canChangePermission]
+         * 详见[PermissionGroup.canChangePermission]
          *
          * 这里在其基础上将返回true改为不做任何操作, 返回false改为结束请求, 并返回403及详细说明
          */
-        if (other.id == user?.id)
+        if (other.id == dbUser?.id)
         {
             // 如果尝试修改自己的全局权限, 要有全局管理员且目标权限比当前权限低
             if (block == null)
             {
                 if (globalPermission >= maxOf(permission, PermissionLevel.ADMIN)) return
-                else finishCall(
+                else checkFailed(
                     HttpStatus.Forbidden.subStatus(
                         message = "修改自己的全局权限要求拥有全局管理员权限, 且目标权限不得高于当前权限"
                     )
@@ -392,12 +430,12 @@ class CheckPermissionInContextScope @PublishedApi internal constructor(val conte
             if (hasGlobalAdmin) return
 
             // 返回消息, 根据有没有父板块返回不同的消息
-            if (block.parent != null) finishCall(
+            if (block.parent != null) checkFailed(
                 HttpStatus.Forbidden.subStatus(
                     message = "修改自己在板块${block.name}的权限要求在此板块的权限或在父板块的权限不低于目标权限, 或拥有全局管理员权限"
                 )
             )
-            else finishCall(
+            else checkFailed(
                 HttpStatus.Forbidden.subStatus(
                     message = "修改自己在板块${block.name}的权限要求在此板块的权限不低于目标权限, 或拥有全局管理员权限"
                 )
@@ -407,14 +445,14 @@ class CheckPermissionInContextScope @PublishedApi internal constructor(val conte
         {
             if (hasGlobalAdmin && other.permission < globalPermission && permission < globalPermission)
                 return
-            else finishCall(
+            else checkFailed(
                 HttpStatus.Forbidden.subStatus(
                     message = "修改他人的全局权限要求拥有全局管理员权限, 且目标用户修改前后的权限都低于自己的全局权限"
                 )
             )
         }
         val selfPermission = getPermission(block.id)
-        if (selfPermission < PermissionLevel.ADMIN) finishCall(
+        if (selfPermission < PermissionLevel.ADMIN) checkFailed(
             HttpStatus.Forbidden.subStatus(
                 message = "修改他人在板块${block.name}的权限要求拥有该板块管理员权限"
             )
@@ -422,7 +460,7 @@ class CheckPermissionInContextScope @PublishedApi internal constructor(val conte
         val otherPermission = withPermission(other, null) { getPermission(block.id) }
         if (selfPermission > otherPermission && selfPermission > permission)
             return
-        else finishCall(
+        else checkFailed(
             HttpStatus.Forbidden.subStatus(
                 message = "修改他人在板块${block.name}的权限要求拥有该板块管理员权限, 且目标用户修改前后的权限都低于自己的权限"
             )
@@ -432,17 +470,17 @@ class CheckPermissionInContextScope @PublishedApi internal constructor(val conte
     suspend fun checkChangeFilePermission(other: DatabaseUser, permission: PermissionLevel)
     {
         checkProhibit()
-        if (other.id == user?.id)
+        if (other.id == dbUser?.id)
         {
-            if (user.filePermission >= permission) return
-            else finishCall(
+            if (dbUser.filePermission >= permission) return
+            else checkFailed(
                 HttpStatus.Forbidden.subStatus(
                     message = "修改自己的文件权限要求目标权限不高于当前权限"
                 )
             )
         }
         if (filePermission > permission && hasFileAdmin) return
-        else finishCall(
+        else checkFailed(
             HttpStatus.Forbidden.subStatus(
                 message = "修改他人的文件权限要求拥有文件管理员权限, 且目标用户修改前后的权限都低于自己的权限"
             )

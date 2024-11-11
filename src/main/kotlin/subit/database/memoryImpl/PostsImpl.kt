@@ -5,6 +5,7 @@ package subit.database.memoryImpl
 import kotlinx.coroutines.runBlocking
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
+import me.nullaqua.api.kotlin.lock
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import subit.dataClasses.*
@@ -156,7 +157,7 @@ class PostsImpl: Posts, KoinComponent
 
     @Suppress("ConvertCallChainIntoSequence")
     override suspend fun getPosts(
-        loginUser: DatabaseUser?,
+        loginUser: UserFull?,
         author: UserId?,
         block: BlockId?,
         top: Boolean?,
@@ -172,7 +173,7 @@ class PostsImpl: Posts, KoinComponent
         sortBy: Posts.PostListSort,
         begin: Long,
         limit: Int
-    ): Slice<PostFullBasicInfo> = withPermission(loginUser, null)
+    ): Slice<PostFullBasicInfo> = loginUser.withPermission()
     {
         @Suppress("NAME_SHADOWING")
         val draft =
@@ -217,6 +218,16 @@ class PostsImpl: Posts, KoinComponent
             .map { it.toPostFullBasicInfo() }
     }
 
+    override suspend fun mapToPostFullBasicInfo(
+        loginUser: UserFull?,
+        posts: List<PostId?>
+    ): List<PostFullBasicInfo?> = loginUser.withPermission()
+    {
+        posts
+            .map { if (it == null) null else getPostFullBasicInfo(it) }
+            .map { it?.takeIf { canRead(it.toPostInfo()) } }
+    }
+
     override suspend fun addView(pid: PostId)
     {
         val post = map[pid] ?: return
@@ -234,7 +245,11 @@ class PostsImpl: Posts, KoinComponent
         return (post.view + likesCount * 3 + starsCount * 5 + commentsCount * 2) / time.pow(1.8)
     }
 
-    override suspend fun monthly(loginUser: DatabaseUser?, begin: Long, count: Int): Slice<PostFullBasicInfo> = withPermission(loginUser, null)
+    override suspend fun monthly(
+        loginUser: UserFull?,
+        begin: Long,
+        count: Int
+    ): Slice<PostFullBasicInfo> = loginUser.withPermission()
     {
         val likes = likes as LikesImpl
         val after = Clock.System.now() - 30.days

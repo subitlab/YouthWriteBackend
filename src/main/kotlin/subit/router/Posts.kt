@@ -322,7 +322,7 @@ private suspend fun Context.getPost()
 {
     val id = call.parameters["id"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val postFull = get<Posts>().getPostFull(id) ?: return call.respond(HttpStatus.NotFound)
-    withPermission { checkRead(postFull.toPostInfo()) }
+    checkPermission { checkRead(postFull.toPostInfo()) }
     val wordMarkings = postFull.lastVersionId?.let { get<WordMarkings>().getWordMarkings(it) }
     val resContent = postFull.content?.let { withWordMarkings(it, wordMarkings!!) }
     call.respond(HttpStatus.OK, checkAnonymous(postFull.copy(content = resContent)))
@@ -370,10 +370,10 @@ private suspend fun Context.editPost() = editPostLock.tryWithLock(
 private suspend fun Context.changeState()
 {
     val id = call.parameters["id"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
-    val state = call.parameters["state"]?.toEnumOrNull<State>() ?: return call.respond(HttpStatus.BadRequest)
+    val state = call.parameters["state"].decodeOrElse<State> { return call.respond(HttpStatus.BadRequest) }
     val post = get<Posts>().getPostInfo(id) ?: return call.respond(HttpStatus.NotFound)
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
-    withPermission { checkChangeState(post, state) }
+    checkPermission { checkChangeState(post, state) }
 
     if (post.state == state) return call.respond(HttpStatus.OK)
 
@@ -405,7 +405,7 @@ private suspend fun Context.likePost()
     val post = get<Posts>().getPostFullBasicInfo(id) ?: return call.respond(HttpStatus.NotFound)
     val type = call.receiveAndCheckBody<LikePost>().type
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
-    withPermission { checkRead(post.toPostInfo()) }
+    checkPermission { checkRead(post.toPostInfo()) }
     when (type)
     {
         LikeType.LIKE -> get<Likes>().addLike(loginUser.id, id)
@@ -446,12 +446,12 @@ private suspend fun Context.getLikeList()
     val star = call.parameters["star"]?.toBooleanStrictOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val (begin, count) = call.getPage()
     val post = get<Posts>().getPostInfo(id) ?: return call.respond(HttpStatus.NotFound)
-    withPermission { checkRead(post) }
+    checkPermission { checkRead(post) }
     val list =
         if (star) get<Stars>().getStars(post = id, begin = begin, limit = count).map { it.user to it.time }
         else get<Likes>().getLikes(post = id, begin = begin, limit = count).map { it.user to it.time }
 
-    val res = withPermission {
+    val res = checkPermission {
         list.map {
             val (sso, dbUser) = SSO.getUserAndDbUser(it.first) ?: return@map LikeListResponse(null, it.second)
             if (!hasGlobalAdmin && !dbUser.showStars) return@map LikeListResponse(null, it.second)
@@ -469,7 +469,7 @@ private suspend fun Context.getLikeStatus()
     val id = call.parameters["id"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val post = get<Posts>().getPostInfo(id) ?: return call.respond(HttpStatus.NotFound)
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
-    withPermission { checkRead(post) }
+    checkPermission { checkRead(post) }
     val like = get<Likes>().getLike(loginUser.id, id)
     val star = get<Stars>().getStar(loginUser.id, id)
     call.respond(HttpStatus.OK, LikeStatus(like, star))
@@ -494,7 +494,7 @@ private suspend fun Context.newPost()
 
     val block = get<Blocks>().getBlock(newPost.block) ?: return call.respond(HttpStatus.NotFound)
 
-    withPermission()
+    checkPermission()
     {
         checkPost(block)
         if (newPost.anonymous) checkAnonymous(block)
@@ -526,7 +526,7 @@ private suspend fun Context.getPosts()
     val author = call.parameters["author"]?.toUserIdOrNull()
     val block = call.parameters["block"]?.toBlockIdOrNull()
     val top = call.parameters["top"]?.lowercase()?.toBooleanStrictOrNull()
-    val state = call.parameters["state"]?.toEnumOrNull<State>()
+    val state = call.parameters["state"].decodeOrNull<State>()
     val tag = call.parameters["tag"]
     val comment = call.parameters["comment"]?.toBooleanStrictOrNull()
     val draft = call.parameters["draft"]?.toBooleanStrictOrNull()
@@ -535,12 +535,11 @@ private suspend fun Context.getPosts()
     val lastModifiedBefore = call.parameters["lastModifiedBefore"]?.toLongOrNull()
     val lastModifiedAfter = call.parameters["lastModifiedAfter"]?.toLongOrNull()
     val containsKeyWord = call.parameters["containsKeyWord"]
-    val sort = call.parameters["sort"].toEnumOrNull<Posts.PostListSort>()
-               ?: return call.respond(HttpStatus.BadRequest.subStatus("sort参数错误"))
+    val sort = call.parameters["sort"].decodeOrElse<Posts.PostListSort> { return call.respond(HttpStatus.BadRequest.subStatus("sort参数错误")) }
     val (begin, count) = call.getPage()
 
     val posts = get<Posts>().getPosts(
-        loginUser = loginUser?.toDatabaseUser(),
+        loginUser = loginUser,
         author = if (author == UserId(0)) loginUser?.id else author,
         block = block,
         top = top,
@@ -566,7 +565,7 @@ private suspend fun Context.setBlockTopPosts()
     val top = call.parameters["top"]?.toBooleanStrictOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val postInfo = get<Posts>().getPostInfo(pid) ?: return call.respond(HttpStatus.NotFound)
     if (postInfo.parent != null) return call.respond(HttpStatus.BadRequest.subStatus("评论不允许置顶"))
-    withPermission {
+    checkPermission {
         checkRead(postInfo)
         checkHasAdminIn(postInfo.block)
     }
@@ -582,7 +581,7 @@ private suspend fun Context.getLatestVersion()
     val versions = get<PostVersions>()
     val version = versions.getLatestPostVersion(id, forEdit || containsDraft)?.let { versions.getPostVersion(it) }
                   ?: return call.respond(HttpStatus.NotFound.subStatus("未找到帖子版本"))
-    withPermission { checkEdit(version.toPostVersionBasicInfo()) }
+    checkPermission { checkEdit(version.toPostVersionBasicInfo()) }
     if (forEdit) finishCall(HttpStatus.OK, version.copy(content = splitContentNode(version.content)))
     call.respond(HttpStatus.OK, version)
 }
@@ -614,9 +613,9 @@ private suspend fun Context.getVersion()
     val versionId = call.parameters["versionId"]?.toPostVersionIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val version = get<PostVersions>().getPostVersion(versionId) ?: return call.respond(HttpStatus.NotFound)
     val post = get<Posts>().getPostInfo(version.post) ?: return call.respond(HttpStatus.NotFound)
-    withPermission {
+    checkPermission {
         checkRead(post)
-        if (version.draft && post.author != user?.id && !hasGlobalAdmin) return call.respond(HttpStatus.Forbidden)
+        if (version.draft && post.author != dbUser?.id && !hasGlobalAdmin) return call.respond(HttpStatus.Forbidden)
     }
     call.respond(HttpStatus.OK, version)
 }

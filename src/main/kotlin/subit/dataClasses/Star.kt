@@ -3,6 +3,17 @@ package subit.dataClasses
 import kotlinx.serialization.Serializable
 
 /**
+ * 表示一个用户的收藏或点赞
+ */
+@Serializable
+sealed interface UserAction
+{
+    val user: UserId
+    val post: PostId
+    val time: Long
+}
+
+/**
  * 收藏信息
  * @property user 收藏用户
  * @property post 收藏帖子
@@ -10,10 +21,10 @@ import kotlinx.serialization.Serializable
  */
 @Serializable
 data class Star(
-    val user: UserId,
-    val post: PostId,
-    val time: Long
-)
+    override val user: UserId,
+    override val post: PostId,
+    override val time: Long
+): UserAction
 {
     companion object
     {
@@ -27,10 +38,10 @@ data class Star(
 
 @Serializable
 data class Like(
-    val user: UserId,
-    val post: PostId,
-    val time: Long
-)
+    override val user: UserId,
+    override val post: PostId,
+    override val time: Long
+): UserAction
 {
     companion object
     {

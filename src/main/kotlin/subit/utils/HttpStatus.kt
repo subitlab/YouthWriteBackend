@@ -55,7 +55,7 @@ data class HttpStatus(val code: HttpStatusCode, val message: String)
         // 云文件存储空间已满 406
         val NotEnoughSpace = HttpStatus(HttpStatusCode.NotAcceptable, "云文件存储空间不足")
         // 账户被封禁
-        val Prohibit = HttpStatus(HttpStatusCode.Unauthorized, "账户被封禁")
+        val Prohibit = HttpStatus(HttpStatusCode.Forbidden, "该账户被封禁, 如有疑问请联系管理员")
         // 包含违禁词汇
         val ContainsBannedWords = HttpStatus(HttpStatusCode.NotAcceptable, "包含违禁词汇")
         // 已拉黑

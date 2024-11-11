@@ -32,6 +32,8 @@ import subit.database.sqlImpl.utils.asSlice
 import subit.database.sqlImpl.utils.single
 import subit.database.sqlImpl.utils.singleOrNull
 import subit.database.sqlImpl.utils.withColumnType
+import subit.router.utils.PermissionGroup
+import subit.router.utils.permissionGroup
 import subit.utils.SUB_CONTENT_LENGTH
 import subit.utils.toInstant
 import java.sql.ResultSet
@@ -66,6 +68,10 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
         val rootPost = reference("rootPost", this).nullable().index()
         override val primaryKey = PrimaryKey(id)
     }
+
+    /////////////////// start ////////////////////
+    ////////////// basic components //////////////
+    //////////////////////////////////////////////
 
     /**
      * 创建时间, 为最早的版本的时间, 若没有版本为null
@@ -245,7 +251,24 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
      */
     private val postFullColumns = postFullBasicInfoColumns - content100 + PostVersionTable.content
 
-    private fun Join.joinPostFull(containsDraft: Boolean): Join
+    /**
+     * join其他表以获得完整的帖子信息(包括点赞数, 收藏数, 评论数, 热度, 最后修改时间, 最后版本id, 创建时间, 标签)
+     *
+     * 该函数会进行以下join:
+     * - subquery1: 将关联最后修改时间[lastModified], 最后版本id[lastVersionId], 创建时间[create] 另见[containsDraft]
+     * - subquery2: 用于获取点赞数[rawLikeCount], (在select时应select[likeCount], 以避免出现null)
+     * - subquery3: 用于获取收藏数[rawStarCount], (在select时应select[starCount], 以避免出现null)
+     * - subquery4: 用于获取评论数[rawCommentCount], (在select时应select[commentCount], 以避免出现null)
+     * - postVersions: 用于获取最新版本的版本内容, 最新版本即subquery1中的[lastVersionId]
+     * - tags(可选 见[joinTags]): 用于获取标签
+     *
+     * @param containsDraft 是否包含草稿, 若该参数为false则[lastVersionId]一定不是草稿版本
+     * @param joinTags 是否join标签
+     */
+    private fun Join.joinPostFull(
+        containsDraft: Boolean,
+        joinTags: Boolean = false,
+    ): Join
     {
         val likesTable = (likes as LikesImpl).table
         val starsTable = (stars as StarsImpl).table
@@ -253,7 +276,7 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
         val postVersionsTable = (postVersions as PostVersionsImpl).table
         val tagsTable = (tags as TagsImpl).table
 
-        return this
+        var j = this
             .joinQuery(
                 on = { (it[postVersionsTable.post] as Expression<*>) eq PostsTable.id },
                 joinType = JoinType.LEFT,
@@ -281,29 +304,91 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
                 joinPart = { commentsTable.select(commentsTable[PostsTable.rootPost], rawCommentCount).groupBy(commentsTable[PostsTable.rootPost]) }
             )
             .join(postVersionsTable, JoinType.LEFT, postVersionsTable.id, lastVersionId.aliasOnlyExpression())
-            .join(tagsTable, JoinType.LEFT, PostsTable.id, tagsTable.post)
+        if (joinTags)
+            j = j.join(tagsTable, JoinType.LEFT, PostsTable.id, tagsTable.post)
+        return j
     }
 
-    private fun Query.groupPostFull() = groupBy(
-        *(
-            postFullColumns
-            + setOf(
-                rawCommentCount.aliasOnlyExpression(),
-                rawLikeCount.aliasOnlyExpression(),
-                rawStarCount.aliasOnlyExpression(),
-                TagsImpl.TagsTable.tag,
-                PostVersionTable.textContent,
-            )
-            - setOf(
-                hotScore,
-                likeCount,
-                starCount,
-                commentCount,
-            )
-         ).toTypedArray()
-    )
+    /**
+     * @see joinPostFull
+     */
+    private fun Table.joinPostFull(
+        containsDraft: Boolean,
+        joinTags: Boolean = false,
+    ) = Join(this).joinPostFull(containsDraft, joinTags)
 
-    private fun Table.joinPostFull(containsDraft: Boolean) = Join(this).joinPostFull(containsDraft)
+    /**
+     * 对已经[joinPostFull]后的查询进行group
+     */
+    private fun Query.groupPostFull(joinTags: Boolean = false): Query
+    {
+        val list = (
+            postFullColumns
+            + rawCommentCount.aliasOnlyExpression()
+            + rawLikeCount.aliasOnlyExpression()
+            + rawStarCount.aliasOnlyExpression()
+            + PostVersionTable.textContent
+            - hotScore
+            - likeCount
+            - starCount
+            - commentCount
+        )
+        if (joinTags) list + TagsImpl.TagsTable.tag
+        return groupBy(*list.toTypedArray())
+    }
+
+    /**
+     * join板块表和权限表, 以获取权限信息, 从而检查是否有权限查看帖子
+     *
+     * 注意:
+     * 若loginUser一定有权所有帖子或一定无权阅读所有帖子, 该函数都不会进行join操作.
+     * 若loginUser为null则不会join权限表, 但会join板块表.
+     * [havingPermission]也会采取对应操作以提升性能
+     * @see havingPermission 用于对已经joinPermission后的查询进行having, 判断是否有权限查看帖子
+     */
+    private suspend fun Join?.joinPermission(permissionGroup: PermissionGroup): Join?
+    {
+        if (this == null) return null
+        if (permissionGroup.hasGlobalAdmin) return this
+        if (permissionGroup.isProhibit()) return null
+
+        val blockTable = (blocks as BlocksImpl).table
+        val permissionTable = (permissions as PermissionsImpl).table
+        var j = this.join(blockTable, JoinType.INNER, PostsTable.block, blockTable.id)
+        if (permissionGroup.user != null)
+            j = j.join(permissionTable, JoinType.INNER, permissionTable.block, blockTable.id)
+        return j
+    }
+
+    /**
+     * 对已经[joinPermission]后的查询进行having, 判断是否有权限查看帖子
+     * @see joinPermission 用于join板块表和权限表, 以获取权限信息, 从而检查是否有权限查看帖子
+     */
+    private suspend fun Query?.havingPermission(permissionGroup: PermissionGroup): Query?
+    {
+        if (this == null) return null
+        // 如果是全局管理员就不需要权限限制
+        if (permissionGroup.hasGlobalAdmin) return this
+        // 如果该用户被封禁则不允许查看帖子
+        if (permissionGroup.isProhibit()) return null
+
+        val blockTable = (blocks as BlocksImpl).table
+        val permissionTable = (permissions as PermissionsImpl).table
+
+        groupBy(PostsTable.id, blockTable.id, blockTable.reading)
+
+        // 对于板块的权限限制
+        if (permissionGroup.user != null)
+            andHaving { permissionTable.permission.max() greaterEq blockTable.reading }
+        else
+            andHaving { blockTable.reading lessEq PermissionLevel.NORMAL }
+
+        // 帖子状态限制: 只能看到正常状态的帖子和自己的私密帖子
+        andWhere { (table.state eq State.NORMAL) or (table.author eq permissionGroup.user) }
+        // 板块状态限制: 只能看到正常状态的板块
+        andWhere { blockTable.state eq State.NORMAL }
+        return this
+    }
 
     private val Posts.PostListSort.order: Array<Pair<Expression<*>, SortOrder>>
         get() = when (this)
@@ -319,6 +404,10 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
             HOT          -> arrayOf(hotScore.delegate to SortOrder.DESC)
             RANDOM_HOT   -> arrayOf(randomHotScore to SortOrder.DESC)
         }
+
+    /////////////////// start ////////////////////
+    ////////// interface implementation //////////
+    //////////////////////////////////////////////
 
     override suspend fun createPost(
         author: UserId,
@@ -493,7 +582,7 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
      * 获取帖子列表
      */
     override suspend fun getPosts(
-        loginUser: DatabaseUser?,
+        loginUser: UserFull?,
         author: UserId?,
         block: BlockId?,
         top: Boolean?,
@@ -511,10 +600,6 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
         limit: Int
     ): Slice<PostFullBasicInfo> = query()
     {
-        // 构建查询，联结 PostsTable, BlocksTable 和 PermissionsTable
-        val permissionTable = (permissions as PermissionsImpl).table
-        val blockTable = (blocks as BlocksImpl).table
-
         // 如果对时间有要求就无法限制是不是草稿
         @Suppress("NAME_SHADOWING")
         val draft =
@@ -544,37 +629,40 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
             return this
         }
 
-        fun Query.checkPermission(): Query
-        {
-            // 如果是全局管理员就不需要权限限制
-            if (loginUser.hasGlobalAdmin()) return this
-            // 对于板块的权限限制
-            andHaving { (permissionTable.permission.max() greaterEq blockTable.reading).or(blockTable.reading lessEq PermissionLevel.NORMAL) }
-
-            // 帖子状态限制: 只能看到正常状态的帖子和自己的私密帖子
-            andWhere { (table.state eq State.NORMAL) or ((table.state eq State.PRIVATE) and (table.author eq loginUser?.id)) }
-            // 板块状态限制: 只能看到正常状态的板块
-            andWhere { blockTable.state eq State.NORMAL }
-            return this
-        }
-
+        val permissionGroup = loginUser.permissionGroup()
 
         PostsTable
-            .joinPostFull(draft == true)
-            .join(blockTable, JoinType.INNER, table.block, blockTable.id)
-            .join(permissionTable, JoinType.LEFT, table.block, permissionTable.block) { permissionTable.user eq loginUser?.id }
-            .select(postFullBasicInfoColumns)
-            .checkLimits()
-            .groupBy(id, create, blockTable.id, blockTable.reading)
-            .groupPostFull()
-            .checkPermission()
-            .orderBy(*sortBy.order)
-            .asSlice(begin, limit)
-            .map { deserializePost<PostFullBasicInfo>(it) }
-            .let {
+            .joinPostFull(draft == true, !tag.isNullOrBlank())
+            .joinPermission(permissionGroup)
+            ?.select(postFullBasicInfoColumns)
+            ?.checkLimits()
+            ?.groupPostFull(!tag.isNullOrBlank())
+            ?.havingPermission(permissionGroup)
+            ?.orderBy(*sortBy.order)
+            ?.asSlice(begin, limit)
+            ?.map { deserializePost<PostFullBasicInfo>(it) }
+            ?.let {
                 if (draft == true) it.map { p -> p.copy(create = null) }
                 else it
-            }
+            } ?: Slice.empty()
+    }
+
+    override suspend fun mapToPostFullBasicInfo(
+        loginUser: UserFull?,
+        posts: List<PostId?>,
+    ): List<PostFullBasicInfo?> = query()
+    {
+        val permissionGroup = loginUser.permissionGroup()
+        val res = table
+            .joinPostFull(false)
+            .joinPermission(permissionGroup)
+            ?.select(postFullBasicInfoColumns)
+            ?.andWhere { PostsTable.id inList posts.filterNotNull() }
+            ?.groupPostFull()
+            ?.havingPermission(permissionGroup)
+            ?.map { deserializePost<PostFullBasicInfo>(it) }
+            ?.associateBy(PostFullBasicInfo::id)
+        posts.map((res ?: emptyMap())::get)
     }
 
     override suspend fun addView(pid: PostId): Unit = query()
@@ -582,44 +670,31 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
         PostsTable.update({ id eq pid }) { it[view] = view + 1 }
     }
 
-    override suspend fun monthly(loginUser: DatabaseUser?, begin: Long, count: Int): Slice<PostFullBasicInfo> = query()
+    override suspend fun monthly(
+        loginUser: UserFull?,
+        begin: Long,
+        count: Int
+    ): Slice<PostFullBasicInfo> = query()
     {
-        // 构建查询，联结 PostsTable, BlocksTable 和 PermissionsTable
-        val permissionTable = (permissions as PermissionsImpl).table
-        val blockTable = (blocks as BlocksImpl).table
         val likeTable = (likes as LikesImpl).table
 
-        fun Query.checkPermission(): Query
-        {
-            // 如果是全局管理员就不需要权限限制
-            if (loginUser.hasGlobalAdmin()) return this
-            // 对于板块的权限限制
-            andHaving { (permissionTable.permission.max() greaterEq blockTable.reading).or(blockTable.reading lessEq PermissionLevel.NORMAL) }
-
-            // 帖子状态限制: 只能看到正常状态的帖子和自己的私密帖子
-            andWhere { (table.state eq State.NORMAL) or ((table.state eq State.PRIVATE) and (table.author eq loginUser?.id)) }
-            // 板块状态限制: 只能看到正常状态的板块
-            andWhere { blockTable.state eq State.NORMAL }
-            return this
-        }
-
+        val permissionGroup = loginUser.permissionGroup()
         val aMonthAgo = Clock.System.now() - 30.days
 
         PostsTable
             .joinPostFull(false)
-            .join(blockTable, JoinType.INNER, table.block, blockTable.id)
-            .join(permissionTable, JoinType.LEFT, table.block, permissionTable.block) { permissionTable.user eq loginUser?.id }
-            .join(likeTable, JoinType.LEFT, table.id, likeTable.post) { likeTable.time greaterEq aMonthAgo }
-            .select(postFullBasicInfoColumns)
-            .checkPermission()
-            .andWhere { parent.isNull() }
-            .andWhere { table.state eq State.NORMAL }
-            .andWhere { lastVersionId.aliasOnlyExpression().isNotNull() }
-            .groupBy(id, create, blockTable.id, blockTable.reading)
-            .groupPostFull()
-            .orderBy(likeTable.post.count() to SortOrder.DESC)
-            .asSlice(begin, count)
-            .map { deserializePost<PostFullBasicInfo>(it) }
+            .joinPermission(permissionGroup)
+            ?.join(likeTable, JoinType.LEFT, table.id, likeTable.post) { likeTable.time greaterEq aMonthAgo }
+            ?.select(postFullBasicInfoColumns)
+            ?.havingPermission(permissionGroup)
+            ?.andWhere { parent.isNull() }
+            ?.andWhere { table.state eq State.NORMAL }
+            ?.andWhere { lastVersionId.aliasOnlyExpression().isNotNull() }
+            ?.groupPostFull()
+            ?.orderBy(likeTable.post.count() to SortOrder.DESC)
+            ?.asSlice(begin, count)
+            ?.map { deserializePost<PostFullBasicInfo>(it) }
+        ?: Slice.empty()
     }
 
     override suspend fun totalPostCount(comment: Boolean, duration: Duration?): Map<State, Long> = query()

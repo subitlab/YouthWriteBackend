@@ -15,13 +15,14 @@ import subit.config.systemConfig
 import subit.dataClasses.*
 import subit.database.Users
 import subit.logger.YouthWriteLogger
+import subit.logger.YouthWriteLogger.getLogger
 import subit.plugin.contentNegotiation.contentNegotiationJson
 
 @Suppress("MemberVisibilityCanBePrivate")
 object SSO: KoinComponent
 {
     val users: Users by inject()
-    private val logger by YouthWriteLogger
+    private val logger = getLogger()
     private val httpClient = HttpClient(Java)
     {
         engine()

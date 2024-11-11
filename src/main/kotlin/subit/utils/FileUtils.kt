@@ -25,7 +25,8 @@ import kotlin.math.min
  *     home.png         #首页图片
  *     home.md          #首页配文
  *     announcement.md  #公告
- *   index/ ${id}.index #文件的info
+ *   index/
+ *     ${id}.index #文件的info
  *   raw/
  *     ${user}/
  *       user.index

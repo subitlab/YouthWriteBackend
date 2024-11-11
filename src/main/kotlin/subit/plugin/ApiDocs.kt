@@ -26,7 +26,11 @@ fun Application.installApiDoc() = install(SwaggerUI)
     {
         title = "创意写作官网后端API文档"
         version = subit.version
-        description = "SubIT创意写作官网后端API文档"
+        description = """
+            SubIT创意写作官网后端API文档
+            
+            [进入终端](${this@installApiDoc.rootPath}/terminal)
+        """.trimIndent()
     }
     this.ignoredRouteSelectors += RateLimitRouteSelector::class
 

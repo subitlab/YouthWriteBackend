@@ -104,7 +104,7 @@ private suspend fun Context.getPostTags(): Nothing
 {
     val pid = call.parameters["id"]?.toPostIdOrNull() ?: finishCall(HttpStatus.BadRequest)
     val post = get<Posts>().getPostInfo(pid) ?: finishCall(HttpStatus.NotFound)
-    withPermission { checkRead(post) }
+    checkPermission { checkRead(post) }
     val tags = get<Tags>().getPostTags(pid)
     finishCall(HttpStatus.OK, tags)
 }

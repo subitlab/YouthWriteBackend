@@ -16,7 +16,7 @@ import subit.database.Posts
 import subit.database.WordMarkings
 import subit.router.utils.Context
 import subit.router.utils.get
-import subit.router.utils.withPermission
+import subit.router.utils.checkPermission
 import subit.utils.HttpStatus
 import subit.utils.respond
 import subit.utils.statuses
@@ -82,7 +82,7 @@ suspend fun Context.getWordMarkings()
     val postVersions = get<PostVersions>()
     val postVersion = postVersions.getPostVersion(postVersionId) ?: return call.respond(HttpStatus.NotFound)
     val post = get<Posts>().getPostInfo(postVersion.post) ?: return call.respond(HttpStatus.NotFound)
-    withPermission { checkRead(post) }
+    checkPermission { checkRead(post) }
     val wordMarkings = get<WordMarkings>().getWordMarkings(postVersionId)
     return call.respond(HttpStatus.OK, wordMarkings)
 }
@@ -94,7 +94,7 @@ suspend fun Context.getWordMarking()
     val postVersions = get<PostVersions>()
     val postVersion = postVersions.getPostVersion(postVersionId) ?: return call.respond(HttpStatus.NotFound)
     val post = get<Posts>().getPostInfo(postVersion.post) ?: return call.respond(HttpStatus.NotFound)
-    withPermission { checkRead(post) }
+    checkPermission { checkRead(post) }
     val wordMarking = get<WordMarkings>().getWordMarking(postVersionId, commentId) ?: return call.respond(HttpStatus.NotFound)
     return call.respond(HttpStatus.OK, wordMarking)
 }
@@ -105,6 +105,6 @@ suspend fun Context.getWordMarkingById()
     val wordMarking = get<WordMarkings>().getWordMarking(WordMarkingId(id)) ?: return call.respond(HttpStatus.NotFound)
     val postVersion = get<PostVersions>().getPostVersion(wordMarking.postVersion) ?: return call.respond(HttpStatus.NotFound)
     val post = get<Posts>().getPostInfo(postVersion.post) ?: return call.respond(HttpStatus.NotFound)
-    withPermission { checkRead(post) }
+    checkPermission { checkRead(post) }
     return call.respond(HttpStatus.OK, wordMarking)
 }

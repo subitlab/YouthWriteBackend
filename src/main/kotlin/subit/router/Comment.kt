@@ -107,7 +107,7 @@ private suspend fun Context.commentPost()
 
     val markingPost = newComment.wordMarking?.let { posts.getPostFullBasicInfo(it.postId) }
     val markingPostVersion = markingPost?.lastVersionId
-    withPermission {
+    checkPermission {
         checkComment(parent.toPostInfo())
         if (markingPost != null) checkComment(markingPost.toPostInfo())
         if (newComment.anonymous) checkAnonymous(block)
@@ -163,11 +163,11 @@ private suspend fun Context.commentPost()
 private suspend fun Context.getComments(all: Boolean)
 {
     val postId = call.parameters["postId"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
-    val type = call.parameters["sort"]?.toEnumOrNull<Posts.PostListSort>() ?: Posts.PostListSort.NEW
+    val type = call.parameters["sort"].decodeOrElse { Posts.PostListSort.NEW }
     val (begin, count) = call.getPage()
     val posts = get<Posts>()
     val post = posts.getPostInfo(postId) ?: return call.respond(HttpStatus.NotFound)
-    withPermission { checkRead(post) }
+    checkPermission { checkRead(post) }
     val comments =
         if (all) posts.getDescendants(postId, type, begin, count)
         else posts.getChildPosts(postId, type, begin, count)

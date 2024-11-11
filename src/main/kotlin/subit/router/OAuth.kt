@@ -13,7 +13,7 @@ import subit.utils.HttpStatus
 import subit.utils.SSO
 import subit.utils.statuses
 
-private val logger by YouthWriteLogger
+private val logger = YouthWriteLogger.getLogger()
 
 fun Route.oauth() = route("oauth", {
     tags("OAuth")

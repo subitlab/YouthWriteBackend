@@ -82,7 +82,7 @@ private suspend fun Context.getBannedWords()
 {
     val (begin, count) = call.getPage()
     val bannedWords = get<BannedWords>()
-    withPermission { checkHasGlobalAdmin() }
+    checkPermission { checkHasGlobalAdmin() }
     call.respond(HttpStatus.OK, bannedWords.getBannedWords(begin, count))
 }
 
@@ -93,7 +93,7 @@ private suspend fun Context.newBannedWord()
 {
     val newBannedWord = call.receiveAndCheckBody<NewBannedWord>()
     val bannedWords = get<BannedWords>()
-    withPermission { checkHasGlobalAdmin() }
+    checkPermission { checkHasGlobalAdmin() }
     bannedWords.addBannedWord(newBannedWord.word)
     call.respond(HttpStatus.OK)
 }
@@ -102,7 +102,7 @@ private suspend fun Context.deleteBannedWord()
 {
     val word = call.parameters["word"] ?: return call.respond(HttpStatus.BadRequest)
     val bannedWords = get<BannedWords>()
-    withPermission { checkHasGlobalAdmin() }
+    checkPermission { checkHasGlobalAdmin() }
     bannedWords.removeBannedWord(word)
     call.respond(HttpStatus.OK)
 }
@@ -112,7 +112,7 @@ private suspend fun Context.editBannedWord()
     val word = call.parameters["word"] ?: return call.respond(HttpStatus.BadRequest)
     val newBannedWord = call.receiveAndCheckBody<NewBannedWord>()
     val bannedWords = get<BannedWords>()
-    withPermission { checkHasGlobalAdmin() }
+    checkPermission { checkHasGlobalAdmin() }
     bannedWords.updateBannedWord(word, newBannedWord.word)
     call.respond(HttpStatus.OK)
 }

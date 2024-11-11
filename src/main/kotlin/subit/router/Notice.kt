@@ -141,7 +141,7 @@ fun Route.notice() = route("/notice", {
 private suspend fun Context.getList()
 {
     val (begin, count) = call.getPage()
-    val type = call.parameters["type"].toEnumOrNull<Type>()
+    val type: Type? = call.parameters["type"].decodeOrNull()
     val read = call.parameters["read"]?.toBooleanStrictOrNull()
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     val notices = get<Notices>()
@@ -200,7 +200,7 @@ private data class SendNotice(val content: String)
 
 private suspend fun Context.sendNotice()
 {
-    withPermission { checkHasGlobalAdmin() }
+    checkPermission { checkHasGlobalAdmin() }
     val id = call.parameters["id"]?.toUserIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     if (!SSO.hasUser(id)) finishCall(HttpStatus.NotFound)
     val content = call.receiveAndCheckBody<SendNotice>().content

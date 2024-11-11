@@ -101,7 +101,7 @@ private suspend fun Context.prohibitUser()
 
 private suspend fun Context.prohibitList()
 {
-    withPermission { checkHasGlobalAdmin() }
+    checkPermission { checkHasGlobalAdmin() }
     val (begin, count) = call.getPage()
     finishCall(HttpStatus.OK, get<Prohibits>().getProhibitList(begin, count))
 }
@@ -115,7 +115,7 @@ private suspend fun Context.changePermission()
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     val changePermission = call.receiveAndCheckBody<ChangePermission>()
     val user = SSO.getDbUser(changePermission.id) ?: return call.respond(HttpStatus.NotFound)
-    withPermission { checkChangePermission(null, user, changePermission.permission) }
+    checkPermission { checkChangePermission(null, user, changePermission.permission) }
     users.changePermission(changePermission.id, changePermission.permission)
     get<Operations>().addOperation(loginUser.id, changePermission)
     if (loginUser.id != changePermission.id) get<Notices>().createNotice(
@@ -164,7 +164,7 @@ private data class GlobalInfo(
 
 private suspend fun Context.globalInfo()
 {
-    withPermission { checkHasGlobalAdmin() }
+    checkPermission { checkHasGlobalAdmin() }
     val posts = get<Posts>()
     val dayPost = posts.totalPostCount(false, 1.days)
     val monthPost = posts.totalPostCount(false, 30.days)

@@ -24,9 +24,6 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import kotlin.jvm.optionals.getOrDefault
 import kotlin.reflect.KClass
-import kotlin.reflect.KProperty
-import kotlin.reflect.jvm.javaField
-import kotlin.reflect.jvm.javaGetter
 import kotlin.reflect.jvm.jvmName
 import kotlin.time.Duration
 
@@ -54,21 +51,11 @@ object YouthWriteLogger
     @JvmName("getLoggerInline")
     inline fun <reified T> getLogger(): LoggerUtil = getLogger(T::class)
 
-    @CallerSensitive
-    @OptIn(KallerSensitive::class)
-    fun getLogger(): LoggerUtil = getCallerClass()?.let(::getLogger) ?: globalLogger
+    inline fun <reified T> T.getLogger(): LoggerUtil = getLogger(T::class)
 
     @CallerSensitive
     @OptIn(KallerSensitive::class)
-    operator fun getValue(any: Any?, property: KProperty<*>): LoggerUtil
-    {
-        if (any != null) return getLogger(any::class)
-        val field = property.javaField
-        if (field != null) return getLogger(field.declaringClass)
-        val getter = property.javaGetter
-        if (getter != null) return getLogger(getter.declaringClass)
-        return getCallerClass()?.let { getLogger(it) } ?: globalLogger
-    }
+    fun getLogger(): LoggerUtil = getCallerClass()?.let(::getLogger) ?: globalLogger
 
     internal val nativeOut: PrintStream = System.out
     internal val nativeErr: PrintStream = System.err

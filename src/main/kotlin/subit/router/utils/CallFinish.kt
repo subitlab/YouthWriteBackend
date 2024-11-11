@@ -10,7 +10,7 @@ import subit.utils.respond
 import java.io.File
 import java.io.InputStream
 
-class CallFinish(val block: suspend ApplicationCall.() -> Unit): RuntimeException()
+open class CallFinish(val block: suspend ApplicationCall.() -> Unit): RuntimeException()
 {
     companion object
 }

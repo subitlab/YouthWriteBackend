@@ -97,10 +97,19 @@ interface Posts
      * @param author 作者, null表示所有作者
      * @param block 板块, null表示所有板块
      * @param top 是否置顶, null表示所有
+     * @param state 帖子状态, null表示所有状态
+     * @param tag 标签, 过滤带有该标签的帖子, null表示所有
+     * @param comment 是否是评论, null表示所有
+     * @param draft 是否是草稿, null表示所有
+     * @param createBefore 创建时间在该时间之前, null表示不限制
+     * @param createAfter 创建时间在该时间之后, null表示不限制
+     * @param lastModifiedBefore 最后编辑时间在该时间之前, null表示不限制
+     * @param lastModifiedAfter 最后编辑时间在该时间之后, null表示不限制
+     * @param containsKeyWord 包含关键字, null表示不限制
      * @param sortBy 排序方式
      */
     suspend fun getPosts(
-        loginUser: DatabaseUser? = null,
+        loginUser: UserFull? = null,
         author: UserId? = null,
         block: BlockId? = null,
         top: Boolean? = null,
@@ -118,12 +127,22 @@ interface Posts
         limit: Int
     ): Slice<PostFullBasicInfo>
 
+    /**
+     * 获得若干帖子的基本信息, 用于展示列表
+     * @param loginUser 当前操作用户, null表示未登录, 返回的帖子应是该用户可见的.
+     * @param posts 帖子ID列表
+     */
+    suspend fun mapToPostFullBasicInfo(
+        loginUser: UserFull? = null,
+        posts: List<PostId?>,
+    ): List<PostFullBasicInfo?>
+
     suspend fun addView(pid: PostId)
 
     /**
      * 获得***最近一个月***点赞数最多的帖子
      */
-    suspend fun monthly(loginUser: DatabaseUser?, begin: Long, count: Int): Slice<PostFullBasicInfo>
+    suspend fun monthly(loginUser: UserFull?, begin: Long, count: Int): Slice<PostFullBasicInfo>
 
     suspend fun totalPostCount(comment: Boolean, duration: Duration?): Map<State, Long>
     suspend fun totalReadCount(): Long
