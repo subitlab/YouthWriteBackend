@@ -63,6 +63,11 @@ open class PermissionGroup(val dbUser: DatabaseUser?, val ssoUser: SsoUserFull?)
 
     val user get() = dbUser?.id ?: ssoUser?.id
 
+    val hasGlobalAdmin: Boolean
+        get() = dbUser.hasGlobalAdmin()
+    val hasFileAdmin: Boolean
+        get() = filePermission >= PermissionLevel.ADMIN
+
     /**
      * 获取用户在某一个板块的权限等级
      */
@@ -78,11 +83,6 @@ open class PermissionGroup(val dbUser: DatabaseUser?, val ssoUser: SsoUserFull?)
 
     suspend fun hasAdminIn(block: BlockId): Boolean =
         dbUser != null && (getPermission(block) >= PermissionLevel.ADMIN)
-
-    val hasGlobalAdmin: Boolean
-        get() = dbUser.hasGlobalAdmin()
-    val hasFileAdmin: Boolean
-        get() = filePermission >= PermissionLevel.ADMIN
 
     /**
      * 是否已经实名
@@ -228,13 +228,15 @@ open class PermissionGroup(val dbUser: DatabaseUser?, val ssoUser: SsoUserFull?)
             // 如果目标权限比现在低, 直接通过
             if (permission < getPermission(block.id)) return true
 
+            if (hasGlobalAdmin) return true
+
             // 如果目标权限比现在高
             // 要么其父板块权限高于目标权限
             block.parent?.let { parent ->
-                if (getPermission(parent) > permission) return true
+                if (getPermission(parent) >= maxOf(permission, PermissionLevel.ADMIN)) return true
             }
             // 要么其拥有全局管理员
-            return hasGlobalAdmin
+            return false
         }
         if (block == null)
         {
@@ -422,12 +424,12 @@ class PermissionChecker(dbUser: DatabaseUser?, ssoUser: SsoUserFull?): Permissio
             if (permission <= getPermission(block.id)) return
 
             // 如果目标权限比现在高
-            // 要么其父板块权限高于目标权限
-            block.parent?.let { parent ->
-                if (getPermission(parent) >= permission) return
-            }
             // 要么其拥有全局管理员
             if (hasGlobalAdmin) return
+            // 要么其父板块拥有管理员且权限高于目标权限
+            block.parent?.let { parent ->
+                if (getPermission(parent) >= maxOf(permission, PermissionLevel.ADMIN)) return
+            }
 
             // 返回消息, 根据有没有父板块返回不同的消息
             if (block.parent != null) checkFailed(
