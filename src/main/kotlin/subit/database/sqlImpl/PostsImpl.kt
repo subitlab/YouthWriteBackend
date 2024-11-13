@@ -332,8 +332,8 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
             - likeCount
             - starCount
             - commentCount
-        )
-        if (joinTags) list + TagsImpl.TagsTable.tag
+        ).toMutableList()
+        if (joinTags) list += TagsImpl.TagsTable.tag
         return groupBy(*list.toTypedArray())
     }
 
@@ -703,6 +703,7 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
         val res = table
             .joinPostFull(false)
             .select(state, id.count())
+            .groupPostFull()
             .andWhere { if (comment) parent.isNotNull() else parent.isNull() }
             .andWhere { lastModified.aliasOnlyExpression() greaterEq timestampParam(time) }
             .groupBy(state)
