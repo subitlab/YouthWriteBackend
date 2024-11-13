@@ -2,8 +2,6 @@ package subit.database.sqlImpl
 
 import org.jetbrains.exposed.dao.id.IdTable
 import org.jetbrains.exposed.sql.*
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.greaterEq
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import subit.dataClasses.*
@@ -15,7 +13,6 @@ import subit.database.sqlImpl.utils.asSlice
 import subit.database.sqlImpl.utils.singleOrNull
 import subit.router.utils.PermissionGroup
 import subit.router.utils.permissionGroup
-import subit.router.utils.withPermission
 
 /**
  * 板块数据库交互类
@@ -54,6 +51,20 @@ class BlocksImpl: DaoSqlImpl<BlocksImpl.BlocksTable>(BlocksTable), Blocks, KoinC
         state = row[BlocksTable.state]
     )
 
+    private suspend fun Join.joinPermission(loginUser: UserFull?, permissionGroup: PermissionGroup, editable: Boolean): Join?
+    {
+        val permissionsTable = (permissions as PermissionsImpl).table
+        return (
+                // 如果是全局管理员, 则不需要权限表
+                if (permissionGroup.hasGlobalAdmin) this
+                // 如果被封禁或没有实名认证且尝试编辑, 则返回null
+                else if (editable && (permissionGroup.isProhibit() || !permissionGroup.hasRealName)) null
+                // 如果登录用户不为空, 则尝试连接权限表
+                else if (loginUser != null) this.join(permissionsTable, JoinType.LEFT, id, permissionsTable.block) { permissionsTable.user eq loginUser.id }
+                else this
+               )
+    }
+
     private suspend fun Query.checkPermission(loginUser: UserFull?, permissionGroup: PermissionGroup, editable: Boolean): Query?
     {
         val permissionsTable = (permissions as PermissionsImpl).table
@@ -62,9 +73,10 @@ class BlocksImpl: DaoSqlImpl<BlocksImpl.BlocksTable>(BlocksTable), Blocks, KoinC
         // 如果被封禁或没有实名认证且尝试编辑, 则返回null
         if (editable && (permissionGroup.isProhibit() || !permissionGroup.hasRealName)) return null
 
+        groupBy(*(table.columns).toTypedArray())
         if (loginUser != null)
         {
-            groupBy(*(table.columns + permissionsTable.block).toTypedArray())
+            groupBy(permissionsTable.block)
             if (editable) andHaving { permissionsTable.permission.max() greaterEq table.posting }
             else andHaving { permissionsTable.permission.max() greaterEq table.reading }
         }
@@ -75,20 +87,6 @@ class BlocksImpl: DaoSqlImpl<BlocksImpl.BlocksTable>(BlocksTable), Blocks, KoinC
         }
         andWhere { table.state eq State.NORMAL }
         return this
-    }
-
-    private suspend fun Join.joinPermission(loginUser: UserFull?, permissionGroup: PermissionGroup, editable: Boolean): Join?
-    {
-        val permissionsTable = (permissions as PermissionsImpl).table
-        return (
-            // 如果是全局管理员, 则不需要权限表
-            if (permissionGroup.hasGlobalAdmin) this
-            // 如果被封禁或没有实名认证且尝试编辑, 则返回null
-            else if (editable && (permissionGroup.isProhibit() || !permissionGroup.hasRealName)) null
-            // 如果登录用户不为空, 则尝试连接权限表
-            else if (loginUser != null) this.join(permissionsTable, JoinType.LEFT, id, permissionsTable.block) { permissionsTable.user eq loginUser.id }
-            else this
-        )
     }
 
     override suspend fun createBlock(
@@ -114,16 +112,23 @@ class BlocksImpl: DaoSqlImpl<BlocksImpl.BlocksTable>(BlocksTable), Blocks, KoinC
         }.value
     }
 
-    override suspend fun setPermission(
+    override suspend fun changeInfo(
         block: BlockId,
+        name: String?,
+        description: String?,
+        parent: BlockId?,
         posting: PermissionLevel?,
         commenting: PermissionLevel?,
         reading: PermissionLevel?,
         anonymous: PermissionLevel?
     ): Unit = query()
     {
+        if (name == null && description == null && parent == null && posting == null && commenting == null && reading == null && anonymous == null) return@query
         update({ id eq block })
         {
+            if (name != null) it[BlocksTable.name] = name
+            if (description != null) it[BlocksTable.description] = description
+            if (parent != null) it[BlocksTable.parent] = parent
             if (posting != null) it[BlocksTable.posting] = posting
             if (commenting != null) it[BlocksTable.commenting] = commenting
             if (reading != null) it[BlocksTable.reading] = reading

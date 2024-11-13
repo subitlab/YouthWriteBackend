@@ -37,8 +37,11 @@ class BlocksImpl: Blocks
         return id
     }
 
-    override suspend fun setPermission(
+    override suspend fun changeInfo(
         block: BlockId,
+        name: String?,
+        description: String?,
+        parent: BlockId?,
         posting: PermissionLevel?,
         commenting: PermissionLevel?,
         reading: PermissionLevel?,
@@ -47,6 +50,9 @@ class BlocksImpl: Blocks
     {
         val b = map[block] ?: return
         map[block] = b.copy(
+            name = name ?: b.name,
+            description = description ?: b.description,
+            parent = parent ?: b.parent,
             posting = posting ?: b.posting,
             commenting = commenting ?: b.commenting,
             reading = reading ?: b.reading,

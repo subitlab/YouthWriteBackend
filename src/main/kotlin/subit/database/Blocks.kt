@@ -15,8 +15,11 @@ interface Blocks
         anonymousPermission: PermissionLevel = PermissionLevel.NORMAL
     ): BlockId
 
-    suspend fun setPermission(
+    suspend fun changeInfo(
         block: BlockId,
+        name: String?,
+        description: String?,
+        parent: BlockId?,
         posting: PermissionLevel?,
         commenting: PermissionLevel?,
         reading: PermissionLevel?,

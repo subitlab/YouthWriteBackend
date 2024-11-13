@@ -231,8 +231,12 @@ private suspend fun Context.editBlockInfo()
     if (parent != null && editBlockInfo.readingPermission != null && editBlockInfo.readingPermission < parent.reading)
         finishCall(HttpStatus.BadRequest.subStatus("读取权限不能低于父板块"))
 
-    get<Blocks>().setPermission(
+    val blocks = get<Blocks>()
+    blocks.changeInfo(
         block = id,
+        name = editBlockInfo.name,
+        description = editBlockInfo.description,
+        parent = editBlockInfo.parent,
         posting = editBlockInfo.postingPermission,
         commenting = editBlockInfo.commentingPermission,
         reading = editBlockInfo.readingPermission,
