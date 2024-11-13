@@ -160,7 +160,7 @@ private suspend fun Context.getUserInfo()
         val token = SSO.getAccessToken(id) ?: return call.respond(HttpStatus.NotFound)
         val user = SSO.getUserFull(token) ?: return call.respond(HttpStatus.NotFound)
         if (loginUser.hasGlobalAdmin()) finishCall(HttpStatus.OK, user)
-        if (checkPermission(user.toDatabaseUser()) { isProhibit() }) finishCall(
+        if (user.checkPermission { isProhibit() }) finishCall(
             HttpStatus.OK,
             BasicUserInfo(
                 user.id,
