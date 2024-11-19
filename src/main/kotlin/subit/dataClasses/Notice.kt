@@ -89,7 +89,6 @@ sealed interface Notice
              * @param time 时间
              * @param user 用户ID
              * @param post 被操作的帖子ID
-             * @param postTitle 被操作的帖子标题
              * @param operator 操作者(评论/点赞/收藏的用户)
              * @param comment 评论内容, 仅在type为COMMENT_REPLY或POST_COMMENT时有效
              */
@@ -99,26 +98,15 @@ sealed interface Notice
                 time: Long = System.currentTimeMillis(),
                 user: UserId,
                 post: PostId,
-                postTitle: String?,
                 operator: NamedUser,
                 comment: String? = null,
             ): PostNotice
             {
-                val tail =
+                val content =
                     if (comment == null) ""
                     else if (comment.length > SUB_CONTENT_LENGTH) "：${comment.substring(0, SUB_CONTENT_LENGTH)}..."
-                    else "：$comment"
-                val op = when(type)
-                {
-                    Type.POST_COMMENT  -> "评论了"
-                    Type.COMMENT_REPLY -> "回复了"
-                    Type.LIKE          -> "点赞了"
-                    Type.STAR          -> "收藏了"
-                    else               -> ""
-                }
-                val title = postTitle ?: "无标题"
-                val message = "${operator.username}${op}您的帖子${title}$tail"
-                return PostNotice(id, time, type, user, false, post, operator.id, message)
+                    else comment
+                return PostNotice(id, time, type, user, false, post, operator.id, content)
             }
         }
     }

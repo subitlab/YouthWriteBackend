@@ -420,7 +420,6 @@ private suspend fun Context.likePost()
                 type = if (type == LikeType.LIKE) Notice.Type.LIKE else Notice.Type.STAR,
                 user = post.author,
                 post = post.id,
-                postTitle = post.title,
                 operator = loginUser,
             )
         get<Notices>().createNotice(notice)

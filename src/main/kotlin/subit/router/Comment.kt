@@ -150,7 +150,6 @@ private suspend fun Context.commentPost()
                 user = parent.author,
                 type = if (parent.parent == null) Notice.Type.POST_COMMENT else Notice.Type.COMMENT_REPLY,
                 post = parent.id,
-                postTitle = parent.title,
                 operator = loginUser,
                 comment = getContentText(newComment.content, SUB_CONTENT_LENGTH),
             )
