@@ -102,6 +102,9 @@ private suspend fun Context.commentPost()
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     val posts = get<Posts>()
 
+    if (getContentText(newComment.content).isBlank())
+        return call.respond(HttpStatus.BadRequest.subStatus("评论内容不能为空"))
+
     val parent = posts.getPostFullBasicInfo(postId) ?: return call.respond(HttpStatus.NotFound.subStatus("目标帖子不存在"))
     val block = get<Blocks>().getBlock(parent.block) ?: return call.respond(HttpStatus.NotFound.subStatus("目标板块不存在"))
 
