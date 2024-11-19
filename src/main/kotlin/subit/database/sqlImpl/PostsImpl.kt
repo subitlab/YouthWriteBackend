@@ -60,8 +60,8 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
         val anonymous = bool("anonymous").default(false)
         val block = reference("block", BlocksImpl.BlocksTable).index()
         val view = long("view").default(0L)
-        val state = enumerationByName<State>("state", 20).default(State.NORMAL)
-        val top = bool("top").default(false)
+        val state = enumerationByName<State>("state", 20).index().default(State.NORMAL)
+        val top = bool("top").index().default(false)
         // 父帖子, 为null表示是根帖子
         val parent = reference("parent", this).nullable().index()
         // 根帖子, 为null表示是根帖子
@@ -356,7 +356,7 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
         val permissionTable = (permissions as PermissionsImpl).table
         var j = this.join(blockTable, JoinType.INNER, PostsTable.block, blockTable.id)
         if (permissionGroup.user != null)
-            j = j.join(permissionTable, JoinType.INNER, permissionTable.block, blockTable.id)
+            j = j.join(permissionTable, JoinType.LEFT, permissionTable.block, blockTable.id)
         return j
     }
 
@@ -379,7 +379,7 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
 
         // 对于板块的权限限制
         if (permissionGroup.user != null)
-            andHaving { permissionTable.permission.max() greaterEq blockTable.reading }
+            andHaving { coalesce(permissionTable.permission.max(), QueryParameter(PermissionLevel.NORMAL, EnumerationColumnType(PermissionLevel::class))) greaterEq blockTable.reading }
         else
             andHaving { blockTable.reading lessEq PermissionLevel.NORMAL }
 

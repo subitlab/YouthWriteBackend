@@ -77,8 +77,8 @@ class BlocksImpl: DaoSqlImpl<BlocksImpl.BlocksTable>(BlocksTable), Blocks, KoinC
         if (loginUser != null)
         {
             groupBy(permissionsTable.block)
-            if (editable) andHaving { permissionsTable.permission.max() greaterEq table.posting }
-            else andHaving { permissionsTable.permission.max() greaterEq table.reading }
+            if (editable) andHaving { coalesce(permissionsTable.permission.max(), QueryParameter(PermissionLevel.NORMAL, EnumerationColumnType(PermissionLevel::class))) greaterEq table.posting }
+            else andHaving { coalesce(permissionsTable.permission.max(), QueryParameter(PermissionLevel.NORMAL, EnumerationColumnType(PermissionLevel::class))) greaterEq table.reading }
         }
         else
         {
