@@ -117,7 +117,11 @@ private suspend fun Context.editPostTag(add: Boolean): Nothing
     if (post.author != loginUser?.id && !loginUser.hasGlobalAdmin()) finishCall(HttpStatus.Forbidden)
     if (post.parent != null) finishCall(HttpStatus.NotAcceptable.subStatus("不能为评论添加标签"))
     val tag = call.receive<Tag>().tag
-    if (tag.isBlank()) finishCall(HttpStatus.BadRequest)
+
+    // 标签不能包含空格
+    if (tag.any { it.isWhitespace() }) finishCall(HttpStatus.BadRequest.subStatus("标签不能包含空格"))
+    if (tag.isBlank()) finishCall(HttpStatus.BadRequest.subStatus("标签不能为空"))
+
     val success =
         if (add) get<Tags>().addPostTag(pid, tag)
         else get<Tags>().removePostTag(pid, tag)
