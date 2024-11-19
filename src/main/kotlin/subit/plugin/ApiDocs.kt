@@ -11,7 +11,7 @@ import io.github.smiley4.schemakenerator.reflection.processReflection
 import io.github.smiley4.schemakenerator.swagger.compileInlining
 import io.github.smiley4.schemakenerator.swagger.data.TitleType
 import io.github.smiley4.schemakenerator.swagger.generateSwaggerSchema
-import io.github.smiley4.schemakenerator.swagger.withAutoTitle
+import io.github.smiley4.schemakenerator.swagger.withTitle
 import io.ktor.server.application.*
 import io.ktor.server.plugins.ratelimit.*
 import kotlinx.serialization.serializer
@@ -46,7 +46,7 @@ fun Application.installApiDoc() = install(SwaggerUI)
         generator = {
             it.processReflection()
                 .generateSwaggerSchema()
-                .withAutoTitle(TitleType.SIMPLE)
+                .withTitle(TitleType.SIMPLE)
                 .compileInlining()
         }
     }

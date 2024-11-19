@@ -82,13 +82,13 @@ data class HttpStatus(val code: HttpStatusCode, val message: String)
 }
 
 @Serializable
-data class Response<T>(val code: Int, val message: String, val data: T? = null)
+data class Response<T>(val code: Int, val message: String, val data: T)
 {
-    constructor(status: HttpStatus, data: T? = null): this(status.code.value, status.message, data)
+    constructor(status: HttpStatus, data: T): this(status.code.value, status.message, data)
 }
 
 suspend inline fun ApplicationCall.respond(status: HttpStatus) =
-    this.respond(status.code, Response<Nothing>(status))
+    this.respond(status.code, Response<Nothing?>(status, null))
 suspend inline fun <reified T: Any> ApplicationCall.respond(status: HttpStatus, t: T) =
     this.respond(status.code, Response(status, t))
 
@@ -96,9 +96,9 @@ fun OpenApiResponses.statuses(vararg statuses: HttpStatus, bodyDescription: Stri
     statuses.forEach {
         it.message to {
             description = "code: ${it.code.value}, message: ${it.message}"
-            body<Response<Nothing>> {
+            body<Response<Nothing?>> {
                 description = bodyDescription
-                example("固定值", Response<Nothing>(it))
+                example("固定值", Response<Nothing?>(it, null))
             }
         }
     }

@@ -92,15 +92,6 @@ dependencies {
     testImplementation("io.ktor:ktor-server-test-host-jvm")
     testImplementation(kotlin("test"))
     testImplementation(kotlin("test-junit"))
-
-    configurations.all {
-        resolutionStrategy {
-            force("io.github.smiley4:schema-kenerator-core:$schema_kenerator_version")
-            force("io.github.smiley4:schema-kenerator-swagger:$schema_kenerator_version")
-            force("io.github.smiley4:schema-kenerator-reflection:$schema_kenerator_version")
-            force("io.github.smiley4:schema-kenerator-serialization:$schema_kenerator_version")
-        }
-    }
 }
 
 tasks.withType<ProcessResources> {
