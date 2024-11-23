@@ -5,7 +5,6 @@ package subit.database.memoryImpl
 import kotlinx.coroutines.runBlocking
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
-import me.nullaqua.api.kotlin.lock
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import subit.dataClasses.*
@@ -79,41 +78,6 @@ class PostsImpl: Posts, KoinComponent
         }
     }
 
-    override suspend fun getDescendants(
-        pid: PostId,
-        sortBy: Posts.PostListSort,
-        begin: Long,
-        count: Int
-    ): Slice<PostFull>
-    {
-        val descendants = map.values
-            .filter { isAncestor(pid, it.id) }
-            .filter { it.state == State.NORMAL }
-            .map { it }
-            .map { getPostFull(it.id)!! }
-            .sortedBy(sortBy(sortBy))
-            .asSequence()
-            .asSlice(begin, count)
-        return descendants
-    }
-
-    override suspend fun getChildPosts(
-        pid: PostId,
-        sortBy: Posts.PostListSort,
-        begin: Long,
-        count: Int
-    ): Slice<PostFull>
-    {
-        val children = map.values
-            .filter { it.parent == pid }
-            .filter { it.state == State.NORMAL }
-            .map { getPostFull(it.id)!! }
-            .sortedBy(sortBy(sortBy))
-            .asSequence()
-            .asSlice(begin, count)
-        return children
-    }
-
     override suspend fun setTop(pid: PostId, top: Boolean): Boolean
     {
         val post = map[pid] ?: return false
@@ -165,6 +129,8 @@ class PostsImpl: Posts, KoinComponent
         tag: String?,
         comment: Boolean?,
         draft: Boolean?,
+        childOf: PostId?,
+        descendantOf: PostId?,
         createBefore: Instant?,
         createAfter: Instant?,
         lastModifiedBefore: Instant?,
@@ -172,8 +138,9 @@ class PostsImpl: Posts, KoinComponent
         containsKeyWord: String?,
         sortBy: Posts.PostListSort,
         begin: Long,
-        limit: Int
-    ): Slice<PostFullBasicInfo> = loginUser.withPermission()
+        limit: Int,
+        full: Boolean
+    ): Slice<IPostFull<*, *>> = loginUser.withPermission()
     {
         @Suppress("NAME_SHADOWING")
         val draft =
@@ -189,6 +156,8 @@ class PostsImpl: Posts, KoinComponent
                 && (state == null || it.state == state)
                 && (tag == null || tags.getPostTags(it.id).contains(tag))
                 && (comment == null || (it.parent != null) == comment)
+                && (childOf == null || it.parent == childOf)
+                && (descendantOf == null || isAncestor(descendantOf, it.id))
             }
             .filter { canRead(it) }
             .mapNotNull { getPostFull(it.id, draft == true) }
@@ -215,7 +184,7 @@ class PostsImpl: Posts, KoinComponent
             .sortedBy(sortBy(sortBy))
             .asSequence()
             .asSlice(begin, limit)
-            .map { it.toPostFullBasicInfo() }
+            .map { if (full) it else it.toPostFullBasicInfo() }
     }
 
     override suspend fun mapToPostFullBasicInfo(

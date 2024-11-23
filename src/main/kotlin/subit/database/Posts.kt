@@ -75,16 +75,6 @@ interface Posts
      */
     suspend fun isAncestor(parent: PostId, child: PostId): Boolean
 
-    /**
-     * 获取一个节点的所有子孙节点(即所有后代, 不包括自己)
-     */
-    suspend fun getDescendants(pid: PostId, sortBy: PostListSort, begin: Long, count: Int): Slice<PostFull>
-
-    /**
-     * 获取一个节点的所有子节点(即所有直接子节点)
-     */
-    suspend fun getChildPosts(pid: PostId, sortBy: PostListSort, begin: Long, count: Int): Slice<PostFull>
-
     suspend fun setTop(pid: PostId, top: Boolean): Boolean
     suspend fun setPostState(pid: PostId, state: State)
     suspend fun getPostInfo(pid: PostId): PostInfo?
@@ -101,12 +91,17 @@ interface Posts
      * @param tag 标签, 过滤带有该标签的帖子, null表示所有
      * @param comment 是否是评论, null表示所有
      * @param draft 是否是草稿, null表示所有
+     * @param childOf 父帖子, null表示所有
+     * @param descendantOf 祖先帖子, null表示所有
      * @param createBefore 创建时间在该时间之前, null表示不限制
      * @param createAfter 创建时间在该时间之后, null表示不限制
      * @param lastModifiedBefore 最后编辑时间在该时间之前, null表示不限制
      * @param lastModifiedAfter 最后编辑时间在该时间之后, null表示不限制
      * @param containsKeyWord 包含关键字, null表示不限制
      * @param sortBy 排序方式
+     * @param begin 起始位置
+     * @param limit 限制数量
+     * @param full 是否返回完整信息, 若为false返回[PostFullBasicInfo], 若为true返回[PostFull]
      */
     suspend fun getPosts(
         loginUser: UserFull? = null,
@@ -117,6 +112,8 @@ interface Posts
         tag: String? = null,
         comment: Boolean? = null,
         draft: Boolean? = null,
+        childOf: PostId? = null,
+        descendantOf: PostId? = null,
         createBefore: Instant? = null,
         createAfter: Instant? = null,
         lastModifiedBefore: Instant? = null,
@@ -124,8 +121,9 @@ interface Posts
         containsKeyWord: String? = null,
         sortBy: PostListSort,
         begin: Long,
-        limit: Int
-    ): Slice<PostFullBasicInfo>
+        limit: Int,
+        full: Boolean = false,
+    ): Slice<IPostFull<*, *>>
 
     /**
      * 获得若干帖子的基本信息, 用于展示列表

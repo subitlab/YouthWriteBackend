@@ -502,45 +502,6 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
         }
     }
 
-    override suspend fun getDescendants(
-        pid: PostId,
-        sortBy: Posts.PostListSort,
-        begin: Long,
-        count: Int
-    ): Slice<PostFull> = query()
-    {
-        val descendantIds = GetDescendantIdsQuery(pid).alias("descendantIds")
-
-        table
-            .joinPostFull(false)
-            .join(descendantIds, JoinType.INNER, PostsTable.id, descendantIds[PostsTable.id])
-            .select(postFullColumns)
-            .andWhere { PostsTable.id neq pid }
-            .andWhere { PostsTable.state eq State.NORMAL }
-            .groupPostFull()
-            .orderBy(*sortBy.order)
-            .asSlice(begin, count)
-            .map { deserializePost<PostFull>(it) }
-    }
-
-    override suspend fun getChildPosts(
-        pid: PostId,
-        sortBy: Posts.PostListSort,
-        begin: Long,
-        count: Int
-    ): Slice<PostFull> = query()
-    {
-        table
-            .joinPostFull(false)
-            .select(postFullColumns)
-            .andWhere { PostsTable.parent eq pid }
-            .andWhere { PostsTable.state eq State.NORMAL }
-            .groupPostFull()
-            .orderBy(*sortBy.order)
-            .asSlice(begin, count)
-            .map { deserializePost<PostFull>(it) }
-    }
-
     override suspend fun setTop(pid: PostId, top: Boolean) = query()
     {
         update({ id eq pid }) { it[PostsTable.top] = top } > 0
@@ -590,6 +551,8 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
         tag: String?,
         comment: Boolean?,
         draft: Boolean?,
+        childOf: PostId?,
+        descendantOf: PostId?,
         createBefore: Instant?,
         createAfter: Instant?,
         lastModifiedBefore: Instant?,
@@ -597,14 +560,16 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
         containsKeyWord: String?,
         sortBy: Posts.PostListSort,
         begin: Long,
-        limit: Int
-    ): Slice<PostFullBasicInfo> = query()
+        limit: Int,
+        full: Boolean
+    ): Slice<IPostFull<*, *>> = query()
     {
         // 如果对时间有要求就无法限制是不是草稿
         @Suppress("NAME_SHADOWING")
         val draft =
             if (createBefore != null || createAfter != null || lastModifiedBefore != null || lastModifiedAfter != null) false
             else draft
+        val descendantIds = descendantOf?.let { GetDescendantIdsQuery(it).alias("descendantIds") }
 
         fun Query.checkLimits(): Query
         {
@@ -620,6 +585,8 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
                 if (draft) andWhere { lastVersionId.aliasOnlyExpression().isNull() or postVersionTable.draft }
                 else andWhere { lastVersionId.aliasOnlyExpression().isNotNull() }
             }
+            if (childOf != null) andWhere { table.parent eq childOf }
+            if (descendantOf != null) andWhere { PostsTable.id neq descendantOf }
             if (createBefore != null) andWhere { create.aliasOnlyExpression() lessEq timestampParam(createBefore) }
             if (createAfter != null) andWhere { create.aliasOnlyExpression() greaterEq timestampParam(createAfter) }
             if (lastModifiedBefore != null) andWhere { lastModified.aliasOnlyExpression() lessEq timestampParam(lastModifiedBefore) }
@@ -631,20 +598,33 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
 
         val permissionGroup = loginUser.permissionGroup()
 
-        PostsTable
+        val res = PostsTable
             .joinPostFull(draft == true, !tag.isNullOrBlank())
             .joinPermission(permissionGroup)
-            ?.select(postFullBasicInfoColumns)
+            .apply { if (descendantOf != null) join(descendantIds!!, JoinType.INNER, PostsTable.id, descendantIds[PostsTable.id]) }
+            ?.run { if (full) select(postFullColumns) else select(postFullBasicInfoColumns) }
             ?.checkLimits()
             ?.groupPostFull(!tag.isNullOrBlank())
             ?.havingPermission(permissionGroup)
             ?.orderBy(*sortBy.order)
             ?.asSlice(begin, limit)
-            ?.map { deserializePost<PostFullBasicInfo>(it) }
-            ?.let {
+            ?: Slice.empty()
+
+        if (full)
+        {
+            res.map { deserializePost<PostFull>(it) }
+                .let {
+                    if (draft == true) it.map { p -> p.copy(create = null) }
+                    else it
+                }
+        }
+        else
+        {
+            res.map { deserializePost<PostFullBasicInfo>(it) }.let {
                 if (draft == true) it.map { p -> p.copy(create = null) }
                 else it
-            } ?: Slice.empty()
+            }
+        }
     }
 
     override suspend fun mapToPostFullBasicInfo(

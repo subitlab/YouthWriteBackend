@@ -119,30 +119,115 @@ data class PostInfo(
         )
 }
 
+@Serializable
+sealed interface IPostFull<P: IPostFull<P, Content>, Content>
+{
+    val id: PostId
+    val title: String?
+    val content: Content?
+    val author: UserId
+    val anonymous: Boolean
+    val create: Long?
+    val lastModified: Long?
+    val lastVersionId: PostVersionId?
+    val view: Long
+    val block: BlockId
+    val top: Boolean
+    val state: State
+    val like: Long
+    val star: Long
+    val comment: Long
+    val parent: PostId?
+    val root: PostId?
+    val hotScore: Double
+    @Suppress("UNCHECKED_CAST")
+    fun copy(
+        id: PostId = this.id,
+        title: String? = this.title,
+        author: UserId = this.author,
+        anonymous: Boolean = this.anonymous,
+        create: Long? = this.create,
+        lastModified: Long? = this.lastModified,
+        lastVersionId: PostVersionId? = this.lastVersionId,
+        view: Long = this.view,
+        block: BlockId = this.block,
+        top: Boolean = this.top,
+        state: State = this.state,
+        like: Long = this.like,
+        star: Long = this.star,
+        comment: Long = this.comment,
+        parent: PostId? = this.parent,
+        root: PostId? = this.root,
+        hotScore: Double = this.hotScore,
+    ): P = when (this)
+    {
+        is PostFull -> PostFull(
+            id,
+            title,
+            content,
+            author,
+            anonymous,
+            create,
+            lastModified,
+            lastVersionId,
+            view,
+            block,
+            top,
+            state,
+            like,
+            star,
+            comment,
+            parent,
+            root,
+            hotScore,
+        )
+        is PostFullBasicInfo -> PostFullBasicInfo(
+            id,
+            title,
+            content,
+            author,
+            anonymous,
+            create,
+            lastModified,
+            lastVersionId,
+            view,
+            block,
+            top,
+            state,
+            like,
+            star,
+            comment,
+            parent,
+            root,
+            hotScore,
+        )
+    } as P
+}
+
 /**
  * 完整帖子信息, 包含由[PostInfo]的信息和点赞数, 点踩数, 收藏数
  */
 @Serializable
 data class PostFull(
-    val id: PostId,
-    val title: String?,
-    val content: JsonElement?,
-    val author: UserId,
-    val anonymous: Boolean,
-    val create: Long?,
-    val lastModified: Long?,
-    val lastVersionId: PostVersionId?,
-    val view: Long,
-    val block: BlockId,
-    val top: Boolean,
-    val state: State,
-    val like: Long,
-    val star: Long,
-    val comment: Long,
-    val parent: PostId?,
-    val root: PostId?,
-    val hotScore: Double,
-)
+    override val id: PostId,
+    override val title: String?,
+    override val content: JsonElement?,
+    override val author: UserId,
+    override val anonymous: Boolean,
+    override val create: Long?,
+    override val lastModified: Long?,
+    override val lastVersionId: PostVersionId?,
+    override val view: Long,
+    override val block: BlockId,
+    override val top: Boolean,
+    override val state: State,
+    override val like: Long,
+    override val star: Long,
+    override val comment: Long,
+    override val parent: PostId?,
+    override val root: PostId?,
+    override val hotScore: Double,
+): IPostFull<PostFull, JsonElement>
 {
     fun toPostInfo(): PostInfo =
         PostInfo(id, author, anonymous, view, block, top, state, parent, root)
@@ -196,30 +281,33 @@ data class PostFull(
 
 @Serializable
 data class PostFullBasicInfo(
-    val id: PostId,
-    val title: String?,
+    override val id: PostId,
+    override val title: String?,
     val subContent: String?,
-    val author: UserId,
-    val anonymous: Boolean,
-    val create: Long?,
-    val lastModified: Long?,
-    val lastVersionId: PostVersionId?,
-    val view: Long,
-    val block: BlockId,
-    val top: Boolean,
-    val state: State,
-    val like: Long,
-    val star: Long,
-    val comment: Long,
-    val parent: PostId?,
-    val root: PostId?,
-    val hotScore: Double,
-)
+    override val author: UserId,
+    override val anonymous: Boolean,
+    override val create: Long?,
+    override val lastModified: Long?,
+    override val lastVersionId: PostVersionId?,
+    override val view: Long,
+    override val block: BlockId,
+    override val top: Boolean,
+    override val state: State,
+    override val like: Long,
+    override val star: Long,
+    override val comment: Long,
+    override val parent: PostId?,
+    override val root: PostId?,
+    override val hotScore: Double,
+): IPostFull<PostFullBasicInfo, String>
 {
     companion object
     {
         val example = PostFull.example.toPostFullBasicInfo()
     }
+
+    override val content: String?
+        get() = subContent
 
     fun toPostInfo(): PostInfo =
         PostInfo(id, author, anonymous, view, block, top, state, parent, root)

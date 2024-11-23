@@ -15,7 +15,7 @@ import kotlin.contracts.contract
  * @property list 当前切片的数据
  */
 @Serializable
-data class Slice<T>(
+data class Slice<out T>(
     val totalSize: Long,
     val begin: Long,
     val count: Int,

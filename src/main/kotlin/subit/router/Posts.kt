@@ -44,8 +44,7 @@ fun Route.posts() = route("/post", {
         }) { newPost() }
     }
 
-    get("/list", {
-        description = "获取帖子列表, 不登录也可以获取, 但是登录/有相应权限的人可能会看到更多内容"
+    route("/list", {
         request {
             queryParameter<UserId>("author")
             {
@@ -90,6 +89,16 @@ fun Route.posts() = route("/post", {
                     - 不填 -> 返回所有帖子
                 """.trimIndent()
             }
+            queryParameter<PostId>("childOf")
+            {
+                required = false
+                description = "父帖子ID, 若此项不为空则只返回parent为此项的帖子"
+            }
+            queryParameter<PostId>("descendantOf")
+            {
+                required = false
+                description = "祖先帖子ID, 若此项不为空则只返回在该帖子为根的子树中的帖子(不包括该帖子)"
+            }
             queryParameter<Long>("createBefore")
             {
                 required = false
@@ -122,10 +131,31 @@ fun Route.posts() = route("/post", {
             }
             paged()
         }
-        response {
-            statuses<Slice<PostFullBasicInfo>>(HttpStatus.OK, example = sliceOf(PostFullBasicInfo.example))
-        }
-    }) { getPosts() }
+    })
+    {
+        get({
+            deprecated = true
+            summary = "已废弃, 请使用 GET /post/list/basic 替代"
+            description = "获取帖子列表, 将返回帖子的基础信息, 不登录也可以获取, 但是登录/有相应权限的人可能会看到更多内容"
+            response {
+                statuses<Slice<PostFullBasicInfo>>(HttpStatus.OK, example = sliceOf(PostFullBasicInfo.example))
+            }
+        }) { getPosts(false) }
+
+        get("/basic", {
+            description = "获取帖子列表, 将返回帖子的基础信息, 不登录也可以获取, 但是登录/有相应权限的人可能会看到更多内容"
+            response {
+                statuses<Slice<PostFullBasicInfo>>(HttpStatus.OK, example = sliceOf(PostFullBasicInfo.example))
+            }
+        }) { getPosts(false) }
+
+        get("/full", {
+            description = "获取帖子列表, 将返回帖子的完整信息, 不登录也可以获取, 但是登录/有相应权限的人可能会看到更多内容"
+            response {
+                statuses<Slice<PostFull>>(HttpStatus.OK, example = sliceOf(PostFull.example))
+            }
+        }) { getPosts(true) }
+    }
 
     id()
     version()
@@ -144,7 +174,7 @@ private fun Route.id() = route("/{id}", {
     }
 })
 {
-    get("", {
+    get({
         description = "获取帖子信息"
         response {
             statuses<PostFull>(HttpStatus.OK, example = PostFull.example)
@@ -246,7 +276,7 @@ private fun Route.id() = route("/{id}", {
 
     route("/like")
     {
-        post("", {
+        post({
             description = "点赞/取消点赞/收藏/取消收藏 帖子"
             request {
                 body<LikePost>
@@ -261,7 +291,7 @@ private fun Route.id() = route("/{id}", {
             }
         }) { likePost() }
 
-        get("", {
+        get({
             description = "获取帖子的点赞/收藏状态"
             response {
                 statuses<LikeStatus>(HttpStatus.OK, example = LikeStatus(like = true, star = false))
@@ -536,7 +566,7 @@ private suspend fun Context.newPost()
     call.respond(HttpStatus.OK, id)
 }
 
-private suspend fun Context.getPosts()
+private suspend fun Context.getPosts(full: Boolean)
 {
     val loginUser = getLoginUser()
     val author = call.parameters["author"]?.toUserIdOrNull()
@@ -544,8 +574,10 @@ private suspend fun Context.getPosts()
     val top = call.parameters["top"]?.lowercase()?.toBooleanStrictOrNull()
     val state = call.parameters["state"].decodeOrNull<State>()
     val tag = call.parameters["tag"]
-    val comment = call.parameters["comment"]?.toBooleanStrictOrNull()
-    val draft = call.parameters["draft"]?.toBooleanStrictOrNull()
+    val comment = call.parameters["comment"]?.lowercase()?.toBooleanStrictOrNull()
+    val draft = call.parameters["draft"]?.lowercase()?.toBooleanStrictOrNull()
+    val childOf = call.parameters["childOf"]?.toPostIdOrNull()
+    val descendantOf = call.parameters["descendantOf"]?.toPostIdOrNull()
     val createBefore = call.parameters["createBefore"]?.toLongOrNull()
     val createAfter = call.parameters["createAfter"]?.toLongOrNull()
     val lastModifiedBefore = call.parameters["lastModifiedBefore"]?.toLongOrNull()
@@ -563,6 +595,8 @@ private suspend fun Context.getPosts()
         tag = tag,
         comment = comment,
         draft = draft,
+        childOf = childOf,
+        descendantOf = descendantOf,
         createBefore = createBefore?.toInstant(),
         createAfter = createAfter?.toInstant(),
         lastModifiedBefore = lastModifiedBefore?.toInstant(),
@@ -571,8 +605,18 @@ private suspend fun Context.getPosts()
         sortBy = sort,
         begin = begin,
         limit = count,
+        full = full,
     )
-    call.respond(HttpStatus.OK, checkAnonymous(posts))
+    if (full)
+    {
+        @Suppress("UNCHECKED_CAST")
+        call.respond<Slice<PostFull>>(HttpStatus.OK, checkAnonymous(posts as Slice<PostFull>))
+    }
+    else
+    {
+        @Suppress("UNCHECKED_CAST")
+        call.respond<Slice<PostFullBasicInfo>>(HttpStatus.OK, checkAnonymous(posts as Slice<PostFullBasicInfo>))
+    }
 }
 
 private suspend fun Context.setBlockTopPosts()

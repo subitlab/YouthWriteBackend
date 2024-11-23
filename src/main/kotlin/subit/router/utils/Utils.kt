@@ -62,29 +62,13 @@ inline fun <reified T> OpenApiRequestParameter.example(any: T)
 inline fun Context.getLoginUser(): UserFull? = call.getLoginUser()
 inline fun ApplicationCall.getLoginUser(): UserFull? = this.principal<UserFull>()
 
-@JvmName("checkAnonymousPostFull")
-inline fun Context.checkAnonymous(posts: Slice<PostFull>) = checkPermission()
+inline fun <reified T: IPostFull<T, *>> Context.checkAnonymous(posts: Slice<T>) = checkPermission()
 {
     if (hasGlobalAdmin) posts
     else posts.map { if (it.anonymous && it.author != dbUser?.id) it.copy(author = UserId(0)) else it }
 }
 
-@JvmName("checkAnonymousPostFullBasicInfo")
-inline fun Context.checkAnonymous(post: PostFull) = checkPermission()
-{
-    if (hasGlobalAdmin) post
-    else if (post.anonymous && post.author != dbUser?.id) post.copy(author = UserId(0)) else post
-}
-
-@JvmName("checkAnonymousPostFullBasicInfo")
-inline fun Context.checkAnonymous(posts: Slice<PostFullBasicInfo>) = checkPermission()
-{
-    if (hasGlobalAdmin) posts
-    else posts.map { if (it.anonymous && it.author != dbUser?.id) it.copy(author = UserId(0)) else it }
-}
-
-@JvmName("checkAnonymousPostFullBasicInfo")
-inline fun Context.checkAnonymous(post: PostFullBasicInfo) = checkPermission()
+inline fun <reified T: IPostFull<T, *>> Context.checkAnonymous(post: T) = checkPermission()
 {
     if (hasGlobalAdmin) post
     else if (post.anonymous && post.author != dbUser?.id) post.copy(author = UserId(0)) else post

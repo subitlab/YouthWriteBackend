@@ -53,6 +53,8 @@ fun Route.comment() = route("/comment", {
     }
 
     route("/list/{postId}", {
+        deprecated = true
+        summary = "已废弃, 请使用 GET /post/list/full 替代"
         request {
             paged()
             pathParameter<PostId>("postId")
@@ -168,11 +170,10 @@ private suspend fun Context.getComments(all: Boolean)
     val type = call.parameters["sort"].decodeOrElse { Posts.PostListSort.NEW }
     val (begin, count) = call.getPage()
     val posts = get<Posts>()
-    val post = posts.getPostInfo(postId) ?: return call.respond(HttpStatus.NotFound)
-    checkPermission { checkRead(post) }
-    val comments =
-        if (all) posts.getDescendants(postId, type, begin, count)
-        else posts.getChildPosts(postId, type, begin, count)
+    @Suppress("UNCHECKED_CAST")
+    val comments: Slice<PostFull> =
+        if (all) posts.getPosts(loginUser = getLoginUser(), descendantOf = postId, sortBy = type, begin = begin, limit = count, full = true) as Slice<PostFull>
+        else posts.getPosts(loginUser = getLoginUser(), childOf = postId, sortBy = type, begin = begin, limit = count, full = true) as Slice<PostFull>
     val wordMarkings = get<WordMarkings>()
     val res = comments.map {
         if (it.lastVersionId == null || it.content == null) return@map it
