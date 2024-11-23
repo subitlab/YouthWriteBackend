@@ -121,8 +121,7 @@ open class PermissionGroup(val dbUser: DatabaseUser?, val ssoUser: SsoUserFull?)
         return when (post.state)
         {
             NORMAL  -> true
-            PRIVATE -> post.author == dbUser?.id || hasGlobalAdmin
-            else -> hasGlobalAdmin
+            else -> post.author == dbUser?.id || hasGlobalAdmin
         }
     }
 
@@ -176,7 +175,7 @@ open class PermissionGroup(val dbUser: DatabaseUser?, val ssoUser: SsoUserFull?)
 
     suspend fun canComment(post: PostInfo): Boolean = !isProhibit() && canRead(post) && hasRealName && when (post.state)
     {
-        NORMAL, PRIVATE -> blocks.getBlock(post.block)?.let { getPermission(post.block) >= it.commenting } ?: false
+        NORMAL, PRIVATE -> blocks.getBlock(post.block)?.let { getPermission(post.block) >= it.commenting } == true
         else            -> false
     }
 
@@ -299,8 +298,7 @@ class PermissionChecker(dbUser: DatabaseUser?, ssoUser: SsoUserFull?): Permissio
         return when (post.state)
         {
             NORMAL  -> Unit
-            PRIVATE -> checkOrFailed(post.author == dbUser?.id || hasGlobalAdmin, HttpStatus.Forbidden)
-            DELETED -> checkOrFailed(hasGlobalAdmin, HttpStatus.NotFound)
+            PRIVATE, DELETED -> checkOrFailed(post.author == dbUser?.id || hasGlobalAdmin, HttpStatus.Forbidden)
         }
     }
 

@@ -355,8 +355,11 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
         val blockTable = (blocks as BlocksImpl).table
         val permissionTable = (permissions as PermissionsImpl).table
         var j = this.join(blockTable, JoinType.INNER, PostsTable.block, blockTable.id)
+        j = j.join(PostsTable.alias("rootPost"), JoinType.LEFT, PostsTable.rootPost, PostsTable.id)
         if (permissionGroup.user != null)
+        {
             j = j.join(permissionTable, JoinType.LEFT, permissionTable.block, blockTable.id)
+        }
         return j
     }
 
@@ -383,8 +386,10 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
         else
             andHaving { blockTable.reading lessEq PermissionLevel.NORMAL }
 
-        // 帖子状态限制: 只能看到正常状态的帖子和自己的私密帖子
+        // 帖子状态限制: 只能看到正常状态的帖子或自己的帖子
         andWhere { (table.state eq State.NORMAL) or (table.author eq permissionGroup.user) }
+        // 帖子状态限制: 如果有根帖子, 则根帖子也必须是正常状态或自己的帖子
+        andWhere { PostsTable.rootPost.isNull() or ((PostsTable.alias("rootPost")[PostsTable.state] eq State.NORMAL) or (PostsTable.alias("rootPost")[PostsTable.author] eq permissionGroup.user)) }
         // 板块状态限制: 只能看到正常状态的板块
         andWhere { blockTable.state eq State.NORMAL }
         return this
