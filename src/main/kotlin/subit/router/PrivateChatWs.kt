@@ -4,6 +4,7 @@ package subit.router.privateChatWs
 
 import io.github.smiley4.ktorswaggerui.dsl.routing.get
 import io.github.smiley4.ktorswaggerui.dsl.routing.route
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
@@ -20,10 +21,25 @@ import subit.router.utils.finishCall
 import subit.router.utils.getLoginUser
 import subit.utils.HttpStatus
 import subit.utils.PrivateChatUtil
+import subit.utils.toInstant
 
 fun Route.privateChatWs() = route("/privateChatWs", {
     tags = listOf("私信")
-    description = "私信的WebSocket实现"
+    description = """
+        私信的WebSocket实现
+        
+        身份验证: 
+        由于ws不支持自定义头,
+        所以在连接时, 
+        请在websocket协议头(${HttpHeaders.SecWebSocketProtocol})中传入两个值, 
+        第一个值为"Bearer", 
+        第二个值为用户的token, 例如:
+        ```
+        Sec-WebSocket-Protocol: Bearer, token
+        ```
+        服务器会在响应的websocket协议头中返回"Bearer", 以表示token已经被接受, 
+        之后服务器会验证token的有效性, 如果token无效, 服务器会关闭连接(状态码为1008)
+    """.trimIndent()
     request()
     {
         body<PrivateChatPacket.Receive>()
@@ -36,12 +52,14 @@ fun Route.privateChatWs() = route("/privateChatWs", {
                 - Read: 表示标记一条私信为已读, from表示发送方, 如果为null表示标记所有私信为已读
                 - Block: 表示屏蔽某人, userId表示对方的id
                 - Unblock: 表示取消屏蔽某人, userId表示对方的id
+                - LoadMore: 表示加载更多私信, user表示对方的id, time表示最早的私信的时间, 接收到该请求后, 服务器会响应若干Message数据包(若更早的私信数量超过count则响应count条, 否则响应全部), 以便客户端加载更多私信
             """.trimIndent()
             example("发送一条新的私信", PrivateChatPacket.Receive.messageExample)
             example("标记一条私信为已读", PrivateChatPacket.Receive.readExample)
             example("标记所有私信为已读", PrivateChatPacket.Receive.readAllExample)
             example("屏蔽某人", PrivateChatPacket.Receive.blockExample)
             example("取消屏蔽某人", PrivateChatPacket.Receive.unblockExample)
+            example("加载更多私信(10条)", PrivateChatPacket.Receive.loadMoreExample)
         }
     }
     response()
@@ -82,7 +100,7 @@ private sealed interface PrivateChatPacket<T: PrivateChatPacket.PacketType>
         @Serializable
         enum class Type: PacketType
         {
-            MESSAGE, READ, READ_ALL, BLOCK, UNBLOCK
+            MESSAGE, READ, READ_ALL, BLOCK, UNBLOCK, LOAD_MORE
         }
         @Serializable
         @SerialName("MESSAGE")
@@ -96,6 +114,9 @@ private sealed interface PrivateChatPacket<T: PrivateChatPacket.PacketType>
         @Serializable
         @SerialName("UNBLOCK")
         data class Unblock(val userId: UserId): Receive(Type.UNBLOCK)
+        @Serializable
+        @SerialName("LOAD_MORE")
+        data class LoadMore(val user: UserId, val time: Long, val count: Int): Receive(Type.LOAD_MORE)
 
         companion object
         {
@@ -104,6 +125,7 @@ private sealed interface PrivateChatPacket<T: PrivateChatPacket.PacketType>
             val readAllExample = Read(null)
             val blockExample = Block(UserId(1))
             val unblockExample = Unblock(UserId(1))
+            val loadMoreExample = LoadMore(UserId(1), System.currentTimeMillis(), 10)
         }
     }
 
@@ -164,6 +186,13 @@ private fun Route.privateChatWsImpl() = webSocket()
                     is PrivateChatPacket.Receive.Read -> packet.from?.let { read(it) } ?: readAll()
                     is PrivateChatPacket.Receive.Block -> block(packet.userId, true)
                     is PrivateChatPacket.Receive.Unblock -> block(packet.userId, false)
+                    is PrivateChatPacket.Receive.LoadMore ->
+                    {
+                        loadMore(packet.user, packet.time.toInstant(), packet.count).list.forEach()
+                        {
+                            sendSerialized(PrivateChatPacket.Send.Message(it))
+                        }
+                    }
                 }
             }
             catch (_: ClosedReceiveChannelException)

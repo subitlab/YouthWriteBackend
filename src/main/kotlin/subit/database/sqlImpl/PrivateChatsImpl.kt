@@ -113,8 +113,8 @@ class PrivateChatsImpl: DaoSqlImpl<PrivateChatsImpl.PrivateChatsTable>(PrivateCh
     ): Slice<PrivateChat> = query()
     {
         selectAll().where {
-            val time = if (before != null) time lessEq before
-            else if (after != null) time greaterEq after
+            val time = if (before != null) time less before
+            else if (after != null) time greater after
             else Op.TRUE
             val x = (from eq user1) and (to eq user2)
             val y = (from eq user2) and (to eq user1)

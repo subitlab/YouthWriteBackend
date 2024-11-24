@@ -1,5 +1,6 @@
 package subit.utils
 
+import kotlinx.datetime.Instant
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import subit.dataClasses.PrivateChat
@@ -90,6 +91,8 @@ object PrivateChatUtil: KoinComponent
         suspend fun block(user: UserId, isBlock: Boolean) = block(this.user, user, isBlock)
         suspend fun read(user: UserId) = read(this.user, user)
         suspend fun readAll() = readAll(this.user)
+        suspend fun loadMore(user: UserId, time: Instant, count: Int) =
+            privateChats.getPrivateChatsBefore(this.user, user, time, 0, count)
 
         fun onReceive(block: suspend (message: PrivateChat)->Unit)
         {

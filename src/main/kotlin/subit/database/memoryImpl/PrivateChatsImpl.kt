@@ -36,8 +36,8 @@ class PrivateChatsImpl: PrivateChats
     {
         val list = privateChats.values.filter { it.from == user1 && it.to == user2 || it.from == user2 && it.to == user1 }
         return list.let { list ->
-            if (before != null) list.filter { it.time <= before }
-            else if (after != null) list.filter { it.time >= after }
+            if (before != null) list.filter { it.time < before }
+            else if (after != null) list.filter { it.time > after }
             else list
         }.let { list ->
             if (before != null) list.sortedByDescending { it.time }
