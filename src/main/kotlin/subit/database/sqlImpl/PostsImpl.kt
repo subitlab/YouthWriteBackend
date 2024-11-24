@@ -606,8 +606,8 @@ class PostsImpl: DaoSqlImpl<PostsImpl.PostsTable>(PostsTable), Posts, KoinCompon
         val res = PostsTable
             .joinPostFull(draft == true, !tag.isNullOrBlank())
             .joinPermission(permissionGroup)
-            .apply { if (descendantOf != null) join(descendantIds!!, JoinType.INNER, PostsTable.id, descendantIds[PostsTable.id]) }
-            ?.run { if (full) select(postFullColumns) else select(postFullBasicInfoColumns) }
+            ?.let { if (descendantIds != null) it.join(descendantIds, JoinType.INNER, PostsTable.id, descendantIds[PostsTable.id]) else it }
+            ?.let { if (full) it.select(postFullColumns) else it.select(postFullBasicInfoColumns) }
             ?.checkLimits()
             ?.groupPostFull(!tag.isNullOrBlank())
             ?.havingPermission(permissionGroup)
