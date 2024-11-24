@@ -2,25 +2,27 @@ package subit.database.memoryImpl
 
 import kotlinx.datetime.Instant
 import subit.dataClasses.PrivateChat
+import subit.dataClasses.PrivateChatId
+import subit.dataClasses.PrivateChatId.Companion.toPrivateChatId
 import subit.dataClasses.Slice
 import subit.dataClasses.Slice.Companion.asSlice
 import subit.dataClasses.UserId
-import subit.dataClasses.UserId.Companion.toUserId
 import subit.database.PrivateChats
 import java.util.*
 
 class PrivateChatsImpl: PrivateChats
 {
-    private val privateChats = Collections.synchronizedMap(hashMapOf<Long, MutableList<PrivateChat>>())
+    private val privateChats = Collections.synchronizedMap(hashMapOf<PrivateChatId, PrivateChat>())
     private val unread = Collections.synchronizedMap(hashMapOf<Long, Long>())
     private val block = Collections.synchronizedMap(hashMapOf<Long, Boolean>())
-    private fun makeList() = Collections.synchronizedList(mutableListOf<PrivateChat>())
     private infix fun UserId.link(other: UserId): Long = (this.value.toLong() shl 32) or other.value.toLong()
-    override suspend fun addPrivateChat(from: UserId, to: UserId, content: String)
+    override suspend fun addPrivateChat(from: UserId, to: UserId, content: String): PrivateChat
     {
-        val list = privateChats.getOrPut(from link to) { makeList() }
-        list.add(PrivateChat(from, to, System.currentTimeMillis(), content))
+        val id = privateChats.size.toPrivateChatId()
+        val chat = PrivateChat(id, from, to, System.currentTimeMillis(), content)
+        privateChats[id] = chat
         unread[from link to] = (unread[from link to] ?: 0) + 1
+        return chat
     }
 
     private fun getPrivateChats(
@@ -32,9 +34,8 @@ class PrivateChatsImpl: PrivateChats
         count: Int
     ): Slice<PrivateChat>
     {
-        val list1 = privateChats[user1 link user2] ?: emptyList()
-        val list2 = privateChats[user2 link user1] ?: emptyList()
-        return (list1 + list2).let { list ->
+        val list = privateChats.values.filter { it.from == user1 && it.to == user2 || it.from == user2 && it.to == user1 }
+        return list.let { list ->
             if (before != null) list.filter { it.time <= before }
             else if (after != null) list.filter { it.time >= after }
             else list
@@ -64,13 +65,13 @@ class PrivateChatsImpl: PrivateChats
         getPrivateChats(user1, user2, after = time.toEpochMilliseconds(), begin = begin, count = count)
 
     override suspend fun getChatUsers(uid: UserId, begin: Long, count: Int): Slice<UserId> =
-        privateChats.keys.asSequence()
-            .filter { it ushr 32 == uid.value.toLong() || it and 0xffffffff == uid.value.toLong() }
-            .groupBy { (it ushr 32) xor (it and 0xffffffff) xor uid.value.toLong() }
-            .map { it.key to it.value.max() }
+        privateChats.values.asSequence()
+            .filter { it.from == uid || it.to == uid }
+            .groupBy { if (it.from == uid) it.to else it.from }
+            .map { it.key to it.value.maxOfOrNull { it.time } }
             .sortedByDescending { it.second }
             .asSequence()
-            .map { it.first.toUserId() }
+            .map { it.first }
             .asSlice(begin, count)
 
     override suspend fun getUnreadCount(uid: UserId, other: UserId): Long = unread[other link uid] ?: 0

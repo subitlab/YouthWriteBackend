@@ -6,6 +6,7 @@ import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.plugins.contentnegotiation.*
 import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.json.ClassDiscriminatorMode
 import kotlinx.serialization.json.Json
 import subit.debug
 
@@ -23,7 +24,7 @@ val contentNegotiationJson = Json()
     allowSpecialFloatingPointValues = true
     decodeEnumsCaseInsensitive = true
     allowTrailingComma = true
-    classDiscriminator = "__klass"
+    classDiscriminatorMode = ClassDiscriminatorMode.NONE
 }
 
 /**

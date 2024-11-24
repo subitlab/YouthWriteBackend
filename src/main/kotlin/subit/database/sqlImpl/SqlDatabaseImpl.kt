@@ -217,3 +217,7 @@ fun Table.noticeId(name: String) = registerColumn(name, NoticeIdColumnType())
 // WordMarkingId
 class WordMarkingIdColumnType: WarpColumnType<Long, WordMarkingId>(LongColumnType(), ::WordMarkingId, WordMarkingId::value)
 fun Table.wordMarkingId(name: String) = registerColumn(name, WordMarkingIdColumnType())
+
+// PrivateChatId
+class PrivateChatIdColumnType: WarpColumnType<Long, PrivateChatId>(LongColumnType(), ::PrivateChatId, PrivateChatId::value)
+fun Table.privateChatId(name: String) = registerColumn(name, PrivateChatIdColumnType())

@@ -7,7 +7,7 @@ import subit.dataClasses.UserId
 
 interface PrivateChats
 {
-    suspend fun addPrivateChat(from: UserId, to: UserId, content: String)
+    suspend fun addPrivateChat(from: UserId, to: UserId, content: String): PrivateChat
 
     /**
      * 获取两人间的聊天记录, 返回的应是包含双向消息且比time早, 按照时间逆序排序分页的

@@ -121,3 +121,17 @@ value class NoticeId(override val value: Long): Id<NoticeId, Long>
         fun Number.toNoticeId() = NoticeId(toLong())
     }
 }
+
+@JvmInline
+@Serializable
+value class PrivateChatId(override val value: Long): Id<PrivateChatId, Long>
+{
+    override fun toString(): String = value.toString()
+
+    companion object
+    {
+        fun String.toPrivateChatId() = PrivateChatId(toLong())
+        fun String.toPrivateChatIdOrNull() = toLongOrNull()?.let(::PrivateChatId)
+        fun Number.toPrivateChatId() = PrivateChatId(toLong())
+    }
+}

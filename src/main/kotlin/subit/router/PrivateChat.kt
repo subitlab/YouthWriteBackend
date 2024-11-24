@@ -19,6 +19,7 @@ import subit.utils.HttpStatus
 import subit.utils.respond
 import subit.utils.statuses
 
+@Deprecated("Use privateChatWs instead")
 fun Route.privateChat() = route("/privateChat", {
     tags = listOf("私信")
 })
@@ -110,7 +111,7 @@ fun Route.privateChat() = route("/privateChat", {
         }
     }) { getUnreadCount(true) }
 
-    get("/isBlock/{userId}", {
+    get("/block/{userId}", {
         description = "获取是否被某人拉黑"
         request {
             pathParameter<UserId>("userId")

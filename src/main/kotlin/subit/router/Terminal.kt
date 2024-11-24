@@ -34,19 +34,22 @@ private val loggerFlow = MutableSharedFlow<Packet<String>>(
 )
 private val sharedFlow = loggerFlow.asSharedFlow()
 
-private val init: Unit = run {
-    YouthWriteLogger.globalLogger.logger.addHandler(object : Handler()
+private val init: Unit by lazy()
+{
+    YouthWriteLogger.globalLogger.logger.addHandler(object: Handler()
     {
         init
         {
             this.formatter = ToConsoleHandler.formatter
         }
+
         override fun publish(record: LogRecord)
         {
             if (!loggerConfig.check(record)) return
             if (record.loggerName.startsWith("io.ktor.websocket")) return
             loggerFlow.tryEmit(Packet(MESSAGE, formatter.format(record)))
         }
+
         override fun flush() = Unit
         override fun close() = Unit
     })
@@ -68,8 +71,8 @@ fun Route.terminal() = route("/terminal", {
         class WebSocketCommandSender(user: UserFull): CommandSet.CommandSender
         {
             override val name: String = "WebSocket('${user.username}' (id: ${user.id}))"
-            override suspend fun out(line: String) = sendSerialized(Packet(MESSAGE,parseLine(line, false)))
-            override suspend fun err(line: String) = sendSerialized(Packet(MESSAGE,parseLine(line, true)))
+            override suspend fun out(line: String) = sendSerialized(Packet(MESSAGE, parseLine(line, false)))
+            override suspend fun err(line: String) = sendSerialized(Packet(MESSAGE, parseLine(line, true)))
             override suspend fun clear() = sendSerialized(Packet(CLEAR, null))
         }
 
@@ -95,13 +98,20 @@ fun Route.terminal() = route("/terminal", {
 
     get("")
     {
-        val html = Loader.getResource("terminal.html")!!.readAllBytes().decodeToString().replace("\${root}", application.rootPath)
+        val html = Loader.getResource("terminal.html")!!
+            .readAllBytes()
+            .decodeToString()
+            .replace("\${root}", application.rootPath)
         call.respondBytes(html.toByteArray(), ContentType.Text.Html, HttpStatusCode.OK)
     }
 
     get("/icon")
     {
-        call.respondBytes(Loader.getResource("logo/SubIT-icon.png")!!.readAllBytes(), ContentType.Image.PNG, HttpStatusCode.OK)
+        call.respondBytes(
+            Loader.getResource("logo/SubIT-icon.png")!!.readAllBytes(),
+            ContentType.Image.PNG,
+            HttpStatusCode.OK
+        )
     }
 }
 
@@ -110,10 +120,13 @@ private enum class Type
 {
     // request
     COMMAND,
+
     // request & response
     TAB,
+
     // response
     MESSAGE,
+
     // response
     CLEAR,
 }

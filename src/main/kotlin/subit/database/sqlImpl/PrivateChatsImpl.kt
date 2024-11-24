@@ -1,12 +1,14 @@
 package subit.database.sqlImpl
 
 import kotlinx.datetime.Instant
+import org.jetbrains.exposed.dao.id.IdTable
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.bitwiseXor
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.kotlin.datetime.CurrentTimestamp
 import org.jetbrains.exposed.sql.kotlin.datetime.timestamp
 import subit.dataClasses.PrivateChat
+import subit.dataClasses.PrivateChatId
 import subit.dataClasses.Slice
 import subit.dataClasses.UserId
 import subit.database.PrivateChats
@@ -15,15 +17,18 @@ import subit.database.sqlImpl.utils.singleOrNull
 
 class PrivateChatsImpl: DaoSqlImpl<PrivateChatsImpl.PrivateChatsTable>(PrivateChatsTable), PrivateChats
 {
-    object PrivateChatsTable: Table("private_chats")
+    object PrivateChatsTable: IdTable<PrivateChatId>("private_chats")
     {
+        override val id = privateChatId("id").autoIncrement().entityId()
         val from = reference("from", UsersImpl.UsersTable).index()
         val to = reference("to", UsersImpl.UsersTable).index()
         val time = timestamp("time").index().defaultExpression(CurrentTimestamp)
         val content = text("content")
+        override val primaryKey = PrimaryKey(id)
     }
 
     private fun deserialize(row: ResultRow) = PrivateChat(
+        id = row[PrivateChatsTable.id].value,
         from = row[PrivateChatsTable.from].value,
         to = row[PrivateChatsTable.to].value,
         time = row[PrivateChatsTable.time].toEpochMilliseconds(),
@@ -86,14 +91,16 @@ class PrivateChatsImpl: DaoSqlImpl<PrivateChatsImpl.PrivateChatsTable>(PrivateCh
         else count
     }
 
-    override suspend fun addPrivateChat(from: UserId, to: UserId, content: String): Unit = query()
+    override suspend fun addPrivateChat(from: UserId, to: UserId, content: String): PrivateChat = query()
     {
-        insert {
+        val (id, time) = insertReturning(listOf(table.id, table.time))
+        {
             it[PrivateChatsTable.from] = from
             it[PrivateChatsTable.to] = to
             it[PrivateChatsTable.content] = content
-        }
+        }.single().let { it[table.id].value to it[table.time] }
         unreadCount(from, to) { it+1 }
+        PrivateChat(id, from, to, time.toEpochMilliseconds(), content)
     }
 
     private suspend fun getPrivateChats(

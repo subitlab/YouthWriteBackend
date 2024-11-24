@@ -11,6 +11,7 @@ import kotlinx.serialization.Serializable
  */
 @Serializable
 data class PrivateChat(
+    val id: PrivateChatId,
     val from: UserId,
     val to: UserId,
     val time: Long,
@@ -20,6 +21,7 @@ data class PrivateChat(
     companion object
     {
         val example = PrivateChat(
+            PrivateChatId(1),
             UserId(1),
             UserId(2),
             System.currentTimeMillis(),

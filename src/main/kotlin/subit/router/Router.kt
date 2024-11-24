@@ -19,7 +19,7 @@ import subit.router.home.home
 import subit.router.notice.notice
 import subit.router.oauth.oauth
 import subit.router.posts.posts
-import subit.router.privateChat.privateChat
+import subit.router.privateChatWs.privateChatWs
 import subit.router.report.report
 import subit.router.tags.tag
 import subit.router.teapot.teapot
@@ -90,7 +90,7 @@ fun Application.router() = routing()
             home()
             notice()
             posts()
-            privateChat()
+            privateChatWs()
             report()
             tag()
             teapot()
