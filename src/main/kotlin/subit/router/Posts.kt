@@ -176,15 +176,33 @@ private fun Route.id() = route("/{id}", {
 {
     get({
         description = "获取帖子信息"
+        request {
+            queryParameter<String>("secret")
+            {
+                required = false
+                description = "帖子秘钥, 若帖子为私密帖子且当前用户不是全局管理员或作者则需要此秘钥"
+            }
+        }
         response {
             statuses<PostFull>(HttpStatus.OK, example = PostFull.example)
+            statuses(HttpStatus.Forbidden.subStatus("私密帖子需要秘钥", 1))
+            statuses(HttpStatus.Forbidden.subStatus("私密帖子秘钥错误", 2))
         }
     }) { getPost() }
 
     get("/basic", {
         description = "获取帖子的简要信息, subContent为帖子内容转为string后的前${SUB_CONTENT_LENGTH}个字符"
+        request {
+            queryParameter<String>("secret")
+            {
+                required = false
+                description = "帖子秘钥, 若帖子为私密帖子且当前用户不是全局管理员或作者则需要此秘钥"
+            }
+        }
         response {
             statuses<PostFullBasicInfo>(HttpStatus.OK, example = PostFullBasicInfo.example)
+            statuses(HttpStatus.Forbidden.subStatus("私密帖子需要秘钥", 1))
+            statuses(HttpStatus.Forbidden.subStatus("私密帖子秘钥错误", 2))
         }
     }) { getPost(true) }
 
@@ -202,6 +220,18 @@ private fun Route.id() = route("/{id}", {
             statuses(HttpStatus.OK)
         }
     }) { changeState() }
+
+    get("/secret", {
+        description = """
+            获取帖子的密码, 仅限全局管理员和作者可以获取.
+            
+            任何帖子都可以获得秘钥, 具体访问权限见 GET /post/{id}.
+        """.trimIndent()
+        response {
+            statuses<PostSecret>(HttpStatus.OK, example = PostSecret("secret"))
+            statuses(HttpStatus.BadRequest, HttpStatus.NotFound, HttpStatus.Forbidden)
+        }
+    }) { getPostSecret() }
 
     rateLimit(RateLimit.Post.rateLimitName)
     {
@@ -358,16 +388,23 @@ private fun Route.version() = route("/version", {
 private suspend fun Context.getPost(basic: Boolean = false)
 {
     val id = call.parameters["id"]?.toPostIdOrNull() ?: finishCall(HttpStatus.BadRequest)
+    val secret = call.request.queryParameters["secret"]
     if (basic)
     {
         val post = get<Posts>().getPostFullBasicInfo(id) ?: finishCall(HttpStatus.NotFound)
-        checkPermission { checkRead(post.toPostInfo()) }
+        if (post.state != State.PRIVATE) checkPermission { checkRead(post.toPostInfo()) }
+        else if (secret == null) finishCall(HttpStatus.Forbidden.subStatus("私密帖子需要秘钥", 1))
+        else if (secret != post.id.getSecret()) finishCall(HttpStatus.Forbidden.subStatus("私密帖子秘钥错误", 2))
+
         call.respond(HttpStatus.OK, checkAnonymous(post))
     }
     else
     {
         val postFull = get<Posts>().getPostFull(id) ?: finishCall(HttpStatus.NotFound)
-        checkPermission { checkRead(postFull.toPostInfo()) }
+        if (postFull.state != State.PRIVATE) checkPermission { checkRead(postFull.toPostInfo()) }
+        else if (secret == null) finishCall(HttpStatus.Forbidden.subStatus("私密帖子需要秘钥", 1))
+        else if (secret != postFull.id.getSecret()) finishCall(HttpStatus.Forbidden.subStatus("私密帖子秘钥错误", 2))
+
         val wordMarkings = postFull.lastVersionId?.let { get<WordMarkings>().getWordMarkings(it) }
         val resContent = postFull.content?.let { withWordMarkings(it, wordMarkings!!) }
         call.respond(HttpStatus.OK, checkAnonymous(postFull.copy(content = resContent)))
@@ -434,6 +471,16 @@ private suspend fun Context.changeState()
 }
 
 @Serializable
+private data class PostSecret(val secret: String)
+private suspend fun Context.getPostSecret()
+{
+    val id = call.parameters["id"]?.toPostIdOrNull() ?: finishCall(HttpStatus.BadRequest)
+    val post = get<Posts>().getPostInfo(id) ?: finishCall(HttpStatus.NotFound)
+    checkPermission { checkGetPostSecret(post) }
+    call.respond(HttpStatus.OK, PostSecret(post.id.getSecret()))
+}
+
+@Serializable
 private enum class LikeType
 {
     LIKE,
@@ -493,8 +540,8 @@ private suspend fun Context.getLikeList()
     val post = get<Posts>().getPostInfo(id) ?: finishCall(HttpStatus.NotFound)
     checkPermission { checkRead(post) }
     val list =
-        if (star) get<Stars>().getStars(post = id, begin = begin, limit = count).map { it.user to it.time }
-        else get<Likes>().getLikes(post = id, begin = begin, limit = count).map { it.user to it.time }
+        if (star) get<Stars>().getStars(post = id, reverseOrder = false, begin = begin, limit = count).map { it.user to it.time }
+        else get<Likes>().getLikes(post = id, reverseOrder = false, begin = begin, limit = count).map { it.user to it.time }
 
     val res = checkPermission {
         list.map {

@@ -56,11 +56,18 @@ class LikesImpl: DaoSqlImpl<LikesImpl.LikesTable>(LikesTable), Likes, KoinCompon
         LikesTable.selectAll().where { post eq pid }.count()
     }
 
-    override suspend fun getLikes(user: UserId?, post: PostId?, begin: Long, limit: Int): Slice<Like> = query()
+    override suspend fun getLikes(
+        user: UserId?,
+        post: PostId?,
+        reverseOrder: Boolean,
+        begin: Long,
+        limit: Int
+    ): Slice<Like> = query()
     {
-        val query = LikesTable.selectAll()
-        user?.let { query.andWhere { LikesTable.user eq it } }
-        post?.let { query.andWhere { LikesTable.post eq it } }
+        val query = table.selectAll()
+        query.orderBy(table.time, if (reverseOrder) SortOrder.DESC else SortOrder.ASC)
+        user?.let { query.andWhere { table.user eq it } }
+        post?.let { query.andWhere { table.post eq it } }
         query.asSlice(begin, limit).map { deserialize(it) }
     }
 

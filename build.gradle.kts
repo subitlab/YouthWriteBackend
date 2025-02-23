@@ -11,7 +11,7 @@ val schema_kenerator_version: String by project
 plugins {
     kotlin("jvm") version "2.0.20"
     kotlin("plugin.serialization") version "2.0.20"
-    id("io.ktor.plugin") version "3.0.1"
+    id("io.ktor.plugin") version "3.1.0"
 }
 
 group = "subit"
@@ -34,6 +34,7 @@ dependencies {
     implementation("io.ktor:ktor-server-core-jvm") // core
     implementation("io.ktor:ktor-server-netty-jvm") // netty
     implementation("io.ktor:ktor-server-auth-jvm") // 登陆验证
+    implementation("io.ktor:ktor-server-auth-jwt-jvm") // jwt登陆验证
     implementation("io.ktor:ktor-server-content-negotiation") // request/response时反序列化
     implementation("io.ktor:ktor-server-status-pages") // 错误页面(异常处理)
     implementation("io.ktor:ktor-server-swagger")

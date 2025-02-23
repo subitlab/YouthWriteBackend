@@ -113,6 +113,7 @@ open class PermissionGroup(val dbUser: DatabaseUser?, val ssoUser: SsoUserFull?)
 
     suspend fun canRead(post: PostInfo): Boolean
     {
+        if (post.author == user) return true
         if (isProhibit()) return false
         val blockInfo = blocks.getBlock(post.block) ?: return false
         if (!canRead(blockInfo)) return false
@@ -121,7 +122,7 @@ open class PermissionGroup(val dbUser: DatabaseUser?, val ssoUser: SsoUserFull?)
         return when (post.state)
         {
             NORMAL  -> true
-            else -> post.author == dbUser?.id || hasGlobalAdmin
+            else -> hasGlobalAdmin
         }
     }
 
@@ -131,7 +132,16 @@ open class PermissionGroup(val dbUser: DatabaseUser?, val ssoUser: SsoUserFull?)
         val post = posts.getPostInfo(version.post) ?: return false
         if (!canRead(post)) return false
         if (!version.draft) return true
-        return post.author == dbUser?.id || hasGlobalAdmin
+        return post.author == user || hasGlobalAdmin
+    }
+
+    /// 可以获得文章秘钥 ///
+
+    suspend fun canGetPostSecret(post: PostInfo): Boolean
+    {
+        if (isProhibit()) return false
+        if (!canRead(post)) return false
+        return post.author == user || hasGlobalAdmin
     }
 
     /// 可以删除 ///
@@ -142,15 +152,15 @@ open class PermissionGroup(val dbUser: DatabaseUser?, val ssoUser: SsoUserFull?)
             NORMAL ->
                 when (newState)
                 {
-                    DELETED -> post.author == dbUser?.id || hasAdminIn(post.block)
-                    PRIVATE -> post.author == dbUser?.id
+                    DELETED -> post.author == user || hasAdminIn(post.block)
+                    PRIVATE -> post.author == user
                     NORMAL -> true
                 }
             PRIVATE ->
                 when (newState)
                 {
-                    NORMAL -> post.author == dbUser?.id
-                    DELETED -> post.author == dbUser?.id || hasGlobalAdmin
+                    NORMAL -> post.author == user
+                    DELETED -> post.author == user || hasGlobalAdmin
                     PRIVATE -> true
                 }
             DELETED -> if (newState != DELETED) hasGlobalAdmin else true
@@ -194,7 +204,7 @@ open class PermissionGroup(val dbUser: DatabaseUser?, val ssoUser: SsoUserFull?)
         if (!canRead(post)) return false
         if (!hasRealName) return false
         if (post.state != NORMAL) return false
-        return post.author == dbUser?.id
+        return post.author == user
     }
 
     /// 可以匿名 ///
@@ -217,7 +227,7 @@ open class PermissionGroup(val dbUser: DatabaseUser?, val ssoUser: SsoUserFull?)
     {
         if (isProhibit()) return false
         // 如果在尝试修改自己的权限
-        if (other.id == dbUser?.id)
+        if (other.id == user)
         {
             // 如果尝试修改自己的全局权限, 要有全局管理员且目标权限比当前权限低
             if (block == null)
@@ -250,8 +260,8 @@ open class PermissionGroup(val dbUser: DatabaseUser?, val ssoUser: SsoUserFull?)
     suspend fun canChangeFilePermission(other: DatabaseUser, permission: PermissionLevel): Boolean
     {
         if (isProhibit()) return false
-        if (other.id == dbUser?.id)
-            return dbUser.filePermission >= permission
+        if (other.id == user)
+            return (dbUser?.filePermission ?: PermissionLevel.NORMAL) >= permission
         return filePermission > permission && hasFileAdmin
     }
 }
@@ -290,6 +300,7 @@ class PermissionChecker(dbUser: DatabaseUser?, ssoUser: SsoUserFull?): Permissio
 
     suspend fun checkRead(post: PostInfo)
     {
+        if (post.author == user) return
         checkProhibit()
         val blockInfo = blocks.getBlock(post.block) ?: checkFailed(HttpStatus.NotFound)
         checkRead(blockInfo)
@@ -298,7 +309,7 @@ class PermissionChecker(dbUser: DatabaseUser?, ssoUser: SsoUserFull?): Permissio
         return when (post.state)
         {
             NORMAL  -> Unit
-            PRIVATE, DELETED -> checkOrFailed(post.author == dbUser?.id || hasGlobalAdmin, HttpStatus.Forbidden)
+            PRIVATE, DELETED -> checkOrFailed(hasGlobalAdmin, HttpStatus.Forbidden)
         }
     }
 
@@ -307,8 +318,16 @@ class PermissionChecker(dbUser: DatabaseUser?, ssoUser: SsoUserFull?): Permissio
         checkProhibit()
         val post = posts.getPostInfo(version.post) ?: checkFailed(HttpStatus.NotFound)
         checkRead(post)
-        checkRealName()
-        checkOrFailed(post.author == dbUser?.id || hasGlobalAdmin, HttpStatus.Forbidden)
+        if (version.draft) checkOrFailed(post.author == user || hasGlobalAdmin, HttpStatus.Forbidden)
+    }
+
+    /// 可以获得文章秘钥 ///
+
+    suspend fun checkGetPostSecret(post: PostInfo)
+    {
+        checkProhibit()
+        checkRead(post)
+        checkOrFailed(post.author == user || hasGlobalAdmin, HttpStatus.Forbidden.subStatus("只有作者或全局管理员可以获取文章秘钥"))
     }
 
     /// 可以删除 ///
@@ -323,15 +342,15 @@ class PermissionChecker(dbUser: DatabaseUser?, ssoUser: SsoUserFull?): Permissio
             NORMAL ->
                 when (newState)
                 {
-                    DELETED -> checkOrFailed(post.author == dbUser?.id || hasAdminIn(post.block), HttpStatus.Forbidden)
-                    PRIVATE -> checkOrFailed(post.author == dbUser?.id, HttpStatus.Forbidden)
+                    DELETED -> checkOrFailed(post.author == user || hasAdminIn(post.block), HttpStatus.Forbidden)
+                    PRIVATE -> checkOrFailed(post.author == user, HttpStatus.Forbidden)
                     NORMAL -> Unit
                 }
             PRIVATE ->
                 when (newState)
                 {
-                    NORMAL -> checkOrFailed(post.author == dbUser?.id, HttpStatus.Forbidden)
-                    DELETED -> checkOrFailed(post.author == dbUser?.id || hasGlobalAdmin, HttpStatus.Forbidden)
+                    NORMAL -> checkOrFailed(post.author == user, HttpStatus.Forbidden)
+                    DELETED -> checkOrFailed(post.author == user || hasGlobalAdmin, HttpStatus.Forbidden)
                     PRIVATE -> Unit
                 }
             DELETED -> checkOrFailed(newState != DELETED, HttpStatus.Forbidden)
@@ -382,7 +401,7 @@ class PermissionChecker(dbUser: DatabaseUser?, ssoUser: SsoUserFull?): Permissio
         checkRead(post)
         checkRealName()
         if (post.state != NORMAL) checkFailed(HttpStatus.NotAcceptable.subStatus("当前帖子状态不允许编辑"))
-        checkOrFailed(post.author == dbUser?.id, HttpStatus.Forbidden)
+        checkOrFailed(post.author == user, HttpStatus.Forbidden)
     }
 
     /// 可以匿名 ///
@@ -404,7 +423,7 @@ class PermissionChecker(dbUser: DatabaseUser?, ssoUser: SsoUserFull?): Permissio
          *
          * 这里在其基础上将返回true改为不做任何操作, 返回false改为结束请求, 并返回403及详细说明
          */
-        if (other.id == dbUser?.id)
+        if (other.id == user)
         {
             // 如果尝试修改自己的全局权限, 要有全局管理员且目标权限比当前权限低
             if (block == null)
@@ -470,9 +489,9 @@ class PermissionChecker(dbUser: DatabaseUser?, ssoUser: SsoUserFull?): Permissio
     suspend fun checkChangeFilePermission(other: DatabaseUser, permission: PermissionLevel)
     {
         checkProhibit()
-        if (other.id == dbUser?.id)
+        if (other.id == user)
         {
-            if (dbUser.filePermission >= permission) return
+            if ((dbUser?.filePermission ?: PermissionLevel.NORMAL) >= permission) return
             else checkFailed(
                 HttpStatus.Forbidden.subStatus(
                     message = "修改自己的文件权限要求目标权限不高于当前权限"

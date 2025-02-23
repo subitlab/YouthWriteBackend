@@ -29,7 +29,7 @@ fun Route.notice() = route("/notice", {
                 """.trimIndent()
         request {
             paged()
-            queryParameter<Type>("type")
+            queryParameter<List<Type>>("type")
             {
                 required = false
                 description = "通知类型, 可选值为${Type.entries.joinToString { it.name }}, 不填则获取所有通知"
@@ -141,13 +141,13 @@ fun Route.notice() = route("/notice", {
 private suspend fun Context.getList()
 {
     val (begin, count) = call.getPage()
-    val type: Type? = call.parameters["type"].decodeOrNull()
+    val type: List<Type>? = call.parameters["type"]?.decodeOrElse { finishCall(HttpStatus.BadRequest.subStatus("type不合法")) }
     val read = call.parameters["read"]?.toBooleanStrictOrNull()
-    val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
+    val loginUser = getLoginUser() ?: return finishCall(HttpStatus.Unauthorized)
     val notices = get<Notices>()
     notices
         .getNotices(loginUser.id, type, read, begin, count)
-        .let { call.respond(HttpStatus.OK, it) }
+        .let { finishCall(HttpStatus.OK, it) }
 }
 
 private suspend fun Context.getNotice()

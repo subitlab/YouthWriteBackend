@@ -80,7 +80,7 @@ object SSO: KoinComponent
             {
                 bearerAuth(accessToken)
             }.body<Response<Information<SsoUserFull>>>().data
-            if (data?.service?.id != systemConfig.ssoServerId) null else data.user
+            if (data.service.id != systemConfig.ssoServerId) null else data.user
         }.getOrElse { logger.fine("error in sso", it); null }
     }
 
@@ -125,7 +125,7 @@ object SSO: KoinComponent
                 bearerAuth(systemConfig.ssoSecret)
                 header("Oauth-Code", "Bearer $code")
                 parameter("time", MAX_ACCESS_TOKEN_VALID_TIME)
-            }.body<Response<AccessTokenResponse>>().data?.accessToken
+            }.body<Response<AccessTokenResponse>>().data.accessToken
         }.getOrElse { logger.fine("error in sso", it); null }
     }
 

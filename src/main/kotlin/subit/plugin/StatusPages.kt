@@ -7,6 +7,7 @@ import io.ktor.server.application.*
 import io.ktor.server.plugins.*
 import io.ktor.server.plugins.statuspages.*
 import io.ktor.server.request.*
+import io.ktor.util.toMap
 import subit.logger.YouthWriteLogger
 import subit.plugin.rateLimit.RateLimit
 import subit.router.utils.CallFinish
@@ -25,7 +26,7 @@ fun Application.installStatusPages() = install(StatusPages)
     val logger = YouthWriteLogger.getLogger()
 
     exception<CallFinish> { call, finish -> finish.block(call) }
-    exception<BadRequestException> { call, _ -> call.respond(HttpStatus.BadRequest) }
+    exception<BadRequestException> { call, _ -> call.respond(HttpStatus.BadRequest.subStatus("请求体格式不合法")) }
     exception<Throwable>
     { call, throwable ->
         logger.warning("出现位置错误, 访问接口: ${call.request.path()}", throwable)

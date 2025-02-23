@@ -13,9 +13,11 @@ data class SystemConfig(
     val ssoServerId: Int,
     @Comment("SSO服务秘钥")
     val ssoSecret: String,
+    @Comment("私密文章秘钥")
+    val postSecret: String,
 )
 
 var systemConfig: SystemConfig by config(
     "system.yml", 
-    SystemConfig(false, "https://ssubito.subit.org.cn/api", 1, "secret"),
+    SystemConfig(false, "https://ssubito.subit.org.cn/api", 1, "secret", "secret"),
 )

@@ -39,12 +39,12 @@ fun Route.user() = route("/user", {
         }
         response {
             statuses<UserFull>(
-                HttpStatus.OK.subStatus(message = "获取完整用户信息成功"),
+                HttpStatus.OK.subStatus(message = "获取完整用户信息成功", subStatus = 1),
                 bodyDescription = "当id为0时或当前用户拥有全局管理员",
                 example = UserFull.example
             )
             statuses<BasicUserInfo>(
-                HttpStatus.OK.subStatus(message = "获取基础用户的信息成功"),
+                HttpStatus.OK.subStatus(message = "获取基础用户的信息成功", subStatus = 0),
                 bodyDescription = "当id不为0即获取其他用户的信息且user权限低于ADMIN时返回",
                 example = BasicUserInfo.example
             )
@@ -224,12 +224,12 @@ private suspend fun Context.getStars(isStar: Boolean)
         if (loginUser == null) return call.respond(HttpStatus.Unauthorized)
         if (isStar)
         {
-            val stars = get<Stars>().getStars(user = loginUser.id, begin = begin, limit = count).map { it.post }
+            val stars = get<Stars>().getStars(user = loginUser.id, begin = begin, limit = count).map(Star::post)
             return call.respond(HttpStatus.OK, stars)
         }
         else
         {
-            val likes = get<Likes>().getLikes(user = loginUser.id, begin = begin, limit = count).map { it.post }
+            val likes = get<Likes>().getLikes(user = loginUser.id, begin = begin, limit = count).map(Like::post)
             return call.respond(HttpStatus.OK, likes)
         }
     }

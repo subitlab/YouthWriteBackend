@@ -1,6 +1,7 @@
 package subit.database.memoryImpl
 
 import kotlinx.datetime.Clock
+import subit.dataClasses.Like
 import subit.dataClasses.PostId
 import subit.dataClasses.Slice
 import subit.dataClasses.Slice.Companion.asSlice
@@ -30,9 +31,17 @@ class StarsImpl: Stars
     override suspend fun getStarsCount(pid: PostId): Long =
         set.count { it.post == pid }.toLong()
 
-    override suspend fun getStars(user: UserId?, post: PostId?, begin: Long, limit: Int): Slice<Star> =
+    override suspend fun getStars(
+        user: UserId?,
+        post: PostId?,
+        reverseOrder: Boolean,
+        begin: Long,
+        limit: Int
+    ): Slice<Star> =
         set.filter { (user == null || it.user == user) && (post == null || it.post == post) }
-            .sortedByDescending(Star::time).asSequence().asSlice(begin, limit)
+            .let { if (reverseOrder) it.sortedByDescending(Star::time) else it.sortedBy(Star::time) }
+            .asSequence()
+            .asSlice(begin, limit)
 
     override suspend fun totalStarsCount(duration: Duration?): Long
     {

@@ -23,7 +23,7 @@ class NoticesImpl: Notices
 
     override suspend fun getNotices(
         user: UserId,
-        type: Notice.Type?,
+        type: List<Notice.Type>?,
         read: Boolean?,
         begin: Long,
         count: Int
@@ -31,7 +31,7 @@ class NoticesImpl: Notices
         notices.values
             .asSequence()
             .filter { it.user == user }
-            .filter { type == null || it.type == type }
+            .filter { type == null || it.type in type }
             .filter { read == null || it.read == read }
             .asSlice(begin, count)
 

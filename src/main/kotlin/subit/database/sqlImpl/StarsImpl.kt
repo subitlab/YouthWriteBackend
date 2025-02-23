@@ -61,16 +61,16 @@ class StarsImpl: DaoSqlImpl<StarsImpl.StarsTable>(StarsTable), Stars
     override suspend fun getStars(
         user: UserId?,
         post: PostId?,
+        reverseOrder: Boolean,
         begin: Long,
-        limit: Int,
+        limit: Int
     ): Slice<Star> = query()
     {
-        var q = selectAll()
-
-        if (user != null) q = q.andWhere { StarsTable.user eq user }
-        if (post != null) q = q.andWhere { StarsTable.post eq post }
-
-        q.asSlice(begin, limit).map(::deserialize)
+        val query = table.selectAll()
+        query.orderBy(table.time, if (reverseOrder) SortOrder.DESC else SortOrder.ASC)
+        user?.let { query.andWhere { table.user eq it } }
+        post?.let { query.andWhere { table.post eq it } }
+        query.asSlice(begin, limit).map { deserialize(it) }
     }
 
     override suspend fun totalStarsCount(duration: Duration?): Long = query()

@@ -29,9 +29,17 @@ class LikesImpl: Likes
     override suspend fun getLikesCount(pid: PostId): Long =
         set.count { it.post == pid }.toLong()
 
-    override suspend fun getLikes(user: UserId?, post: PostId?, begin: Long, limit: Int): Slice<Like> =
+    override suspend fun getLikes(
+        user: UserId?,
+        post: PostId?,
+        reverseOrder: Boolean,
+        begin: Long,
+        limit: Int
+    ): Slice<Like> =
         set.filter { (user == null || it.user == user) && (post == null || it.post == post) }
-            .sortedByDescending(Like::time).asSequence().asSlice(begin, limit)
+            .let { if (reverseOrder) it.sortedByDescending(Like::time) else it.sortedBy(Like::time) }
+            .asSequence()
+            .asSlice(begin, limit)
 
     override suspend fun totalLikesCount(duration: Duration?): Long
     {

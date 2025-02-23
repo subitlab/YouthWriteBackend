@@ -15,6 +15,7 @@ interface Likes
     suspend fun getLikes(
         user: UserId? = null,
         post: PostId? = null,
+        reverseOrder: Boolean = true,
         begin: Long = 1,
         limit: Int = Int.MAX_VALUE,
     ): Slice<Like>

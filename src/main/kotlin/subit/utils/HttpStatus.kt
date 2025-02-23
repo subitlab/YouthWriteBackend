@@ -1,17 +1,21 @@
 package subit.utils
 
+import io.github.smiley4.ktorswaggerui.dsl.routes.OpenApiResponse
 import io.github.smiley4.ktorswaggerui.dsl.routes.OpenApiResponses
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.response.*
 import kotlinx.serialization.Serializable
+import me.nullaqua.api.kotlin.reflect.getField
+import org.intellij.lang.annotations.Language
+import subit.logger.YouthWriteLogger
 import subit.router.utils.example
 
 /**
  * 定义了一些出现的自定义的HTTP状态码, 更多HTTP状态码请参考[io.ktor.http.HttpStatusCode]
  */
 @Suppress("unused")
-data class HttpStatus(val code: HttpStatusCode, val message: String)
+data class HttpStatus(val code: HttpStatusCode, val message: String, val subStatus: Int = 0)
 {
     companion object
     {
@@ -78,13 +82,15 @@ data class HttpStatus(val code: HttpStatusCode, val message: String)
         val LoginSuccessButNotAuthorized = HttpStatus(HttpStatusCode.ExpectationFailed, "登录成功但未授权")
     }
 
-    fun subStatus(message: String) = HttpStatus(code, "${this.message}: $message")
+    fun subStatus(message: String? = null, subStatus: Int = this.subStatus) =
+        if (message != null) HttpStatus(code, "${this.message}: $message", subStatus)
+        else HttpStatus(code, this.message, subStatus)
 }
 
 @Serializable
-data class Response<T>(val code: Int, val message: String, val data: T)
+data class Response<T>(val code: Int, val subStatus: Int, val message: String, val data: T)
 {
-    constructor(status: HttpStatus, data: T): this(status.code.value, status.message, data)
+    constructor(status: HttpStatus, data: T): this(status.code.value, status.subStatus, status.message, data)
 }
 
 suspend inline fun ApplicationCall.respond(status: HttpStatus) =
@@ -92,19 +98,28 @@ suspend inline fun ApplicationCall.respond(status: HttpStatus) =
 suspend inline fun <reified T: Any> ApplicationCall.respond(status: HttpStatus, t: T) =
     this.respond(status.code, Response(status, t))
 
-fun OpenApiResponses.statuses(vararg statuses: HttpStatus, bodyDescription: String = "错误信息") =
+fun OpenApiResponses.statuses(vararg statuses: HttpStatus, @Language("Markdown") bodyDescription: String = "错误信息")
+{
+    @Suppress("UNCHECKED_CAST")
+    val response = this@statuses.getField("responses") as Map<String, OpenApiResponse>
+    val logger = YouthWriteLogger.getLogger()
+
     statuses.forEach {
-        it.message to {
-            description = "code: ${it.code.value}, message: ${it.message}"
+        if ("${it.code.value}/${it.subStatus}" in response) logger.warning("重复定义HTTP状态码: ${it.code.value}/${it.subStatus}", IllegalStateException())
+
+        "${it.code.value}/${it.subStatus}" to {
+            description = it.message
             body<Response<Nothing?>> {
                 description = bodyDescription
                 example("固定值", Response<Nothing?>(it, null))
             }
         }
     }
+}
 
 inline fun <reified T: Any> OpenApiResponses.statuses(
     vararg statuses: HttpStatus,
+    @Language("Markdown")
     bodyDescription: String = "返回体",
     example: T
 ) = statuses<T>(*statuses, bodyDescription = bodyDescription, examples = listOf(example))
@@ -112,13 +127,19 @@ inline fun <reified T: Any> OpenApiResponses.statuses(
 @JvmName("statusesWithBody")
 inline fun <reified T: Any> OpenApiResponses.statuses(
     vararg statuses: HttpStatus,
+    @Language("Markdown")
     bodyDescription: String = "返回体",
     examples: List<T> = emptyList()
 )
 {
+    @Suppress("UNCHECKED_CAST")
+    val response = this@statuses.getField("responses") as Map<String, OpenApiResponse>
+    val logger = YouthWriteLogger.getLogger()
+
     statuses.forEach {
-        it.message to {
-            description = "code: ${it.code.value}, message: ${it.message}"
+        if ("${it.code.value}/${it.subStatus}" in response) logger.warning("重复定义HTTP状态码: ${it.code.value}/${it.subStatus}", IllegalStateException())
+        "${it.code.value}/${it.subStatus}" to {
+            description = it.message
             body<Response<T>>
             {
                 description = bodyDescription
@@ -128,3 +149,15 @@ inline fun <reified T: Any> OpenApiResponses.statuses(
         }
     }
 }
+
+fun OpenApiResponses.statuses(contentType: ContentType, vararg statuses: HttpStatus, bodyDescription: String = "返回体") =
+    statuses.forEach {
+        it.message to {
+            description = "code: ${it.code.value}, message: ${it.message}"
+            body<Response<Nothing>> {
+                description = bodyDescription
+                example("固定值", Response<Nothing?>(it, null))
+                mediaTypes(contentType)
+            }
+        }
+    }

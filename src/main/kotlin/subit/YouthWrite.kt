@@ -55,7 +55,7 @@ private fun parseCommandLineArgs(args: Array<String>): Pair<Array<String>, File>
     dataDir.mkdirs()
 
     // 是否开启debug模式
-    debug = argsMap["-debug"]?.toBoolean() ?: false
+    debug = argsMap["-debug"].toBoolean()
     System.setProperty("io.ktor.development", "$debug")
 
     // 去除命令行中的-config参数, 因为ktor会解析此参数进而不加载打包的application.yaml

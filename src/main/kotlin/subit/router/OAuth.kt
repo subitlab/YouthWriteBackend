@@ -46,7 +46,8 @@ fun Route.oauth() = route("oauth", {
             logger.config("status is null")
             finishCall(HttpStatus.InvalidOAuthCode)
         }
-        if (status != SSO.AuthorizationStatus.AUTHORIZED) finishCall(HttpStatus.LoginSuccessButNotAuthorized, accessToken)
+        if (status != SSO.AuthorizationStatus.AUTHORIZED)
+            finishCall(HttpStatus.LoginSuccessButNotAuthorized, accessToken)
         finishCall(HttpStatus.OK, accessToken)
     }
 }

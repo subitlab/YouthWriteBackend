@@ -70,11 +70,17 @@ class NoticesImpl: DaoSqlImpl<NoticesImpl.NoticesTable>(NoticesTable), Notices, 
         selectAll().where { table.id eq id }.singleOrNull()?.let(::deserialize)
     }
 
-    override suspend fun getNotices(user: UserId, type: Type?, read: Boolean?, begin: Long, count: Int): Slice<Notice> = query()
+    override suspend fun getNotices(
+        user: UserId,
+        type: List<Type>?,
+        read: Boolean?,
+        begin: Long,
+        count: Int
+    ): Slice<Notice> = query()
     {
         selectAll()
             .andWhere { table.user eq user }
-            .apply { type?.let { andWhere { table.type eq it } } }
+            .apply { type?.let { andWhere { table.type inList it } } }
             .apply { read?.let { andWhere { table.read eq it } } }
             .orderBy(table.time, SortOrder.DESC)
             .asSlice(begin, count)
