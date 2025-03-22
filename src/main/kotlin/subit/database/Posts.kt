@@ -705,6 +705,93 @@ class Posts: DaoSqlImpl<Posts.PostsTable>(PostsTable), KoinComponent
         }
     }
 
+    suspend fun getPostsAdvanced(
+        loginUser: UserFull? = null,
+        author: List<UserId>? = null,
+        block: List<BlockId>? = null,
+        top: Boolean? = null,
+        state: List<State>? = null,
+        tag: List<String>? = null,
+        comment: Boolean? = null,
+        draft: Boolean? = null,
+        childOf: List<PostId>? = null,
+        descendantOf: PostId? = null,
+        createBefore: Instant? = null,
+        createAfter: Instant? = null,
+        lastModifiedBefore: Instant? = null,
+        lastModifiedAfter: Instant? = null,
+        containsKeyWord: List<String>? = null,
+        sortBy: subit.database.Posts.PostListSort,
+        begin: Long,
+        limit: Int,
+        full: Boolean = false,
+    ): Slice<IPostFull<*, *>> = query()
+    {
+        // 如果对时间有要求就无法限制是不是草稿
+        @Suppress("NAME_SHADOWING")
+        val draft =
+            if (createBefore != null || createAfter != null || lastModifiedBefore != null || lastModifiedAfter != null) false
+            else draft
+        val descendantIds = descendantOf?.let { GetDescendantIdsQuery(it).alias("descendantIds") }
+
+        fun Query.checkLimits(): Query
+        {
+            val postVersionTable = postVersions.table
+
+            if (author != null) andWhere { table.author inList author }
+            if (block != null) andWhere { table.block inList block }
+            if (top != null) andWhere { table.top eq top }
+            if (state != null) andWhere { table.state inList state }
+            if (comment != null) andWhere { if (comment) table.parent.isNotNull() else table.parent.isNull() }
+            if (draft != null)
+            {
+                if (draft) andWhere { lastVersionId.aliasOnlyExpression().isNull() or postVersionTable.draft }
+                else andWhere { lastVersionId.aliasOnlyExpression().isNotNull() }
+            }
+            if (childOf != null) andWhere { table.parent inList childOf }
+            if (descendantOf != null) andWhere { PostsTable.id neq descendantOf }
+            if (createBefore != null) andWhere { create.aliasOnlyExpression() lessEq timestampParam(createBefore) }
+            if (createAfter != null) andWhere { create.aliasOnlyExpression() greaterEq timestampParam(createAfter) }
+            if (lastModifiedBefore != null) andWhere { lastModified.aliasOnlyExpression() lessEq timestampParam(lastModifiedBefore) }
+            if (lastModifiedAfter != null) andWhere { lastModified.aliasOnlyExpression() greaterEq timestampParam(lastModifiedAfter) }
+            if (!containsKeyWord.isNullOrEmpty()) andWhere { containsKeyWord.map { keyword ->
+                (PostVersionTable.textContent like "%$keyword%") or (PostVersionTable.title like "%$keyword%")
+            }.reduce { acc, condition -> acc or condition } }
+            if (!tag.isNullOrEmpty()) andHaving { Tags.TagsTable.tag inList tag }
+            return this
+        }
+
+        val permissionGroup = loginUser.permissionGroup()
+
+        val res = PostsTable
+            .joinPostFull(draft == true, !tag.isNullOrEmpty())
+            .joinPermission(permissionGroup)
+            ?.let { if (descendantIds != null) it.join(descendantIds, JoinType.INNER, PostsTable.id, descendantIds[PostsTable.id]) else it }
+            ?.let { if (full) it.select(postFullColumns) else it.select(postFullBasicInfoColumns) }
+            ?.checkLimits()
+            ?.groupPostFull(!tag.isNullOrEmpty())
+            ?.havingPermission(permissionGroup)
+            ?.orderBy(*sortBy.order)
+            ?.asSlice(begin, limit)
+            ?: Slice.empty()
+
+        if (full)
+        {
+            res.map { deserializePost<PostFull>(it) }
+                .let {
+                    if (draft == true) it.map { p -> p.copy(create = null) }
+                    else it
+                }
+        }
+        else
+        {
+            res.map { deserializePost<PostFullBasicInfo>(it) }.let {
+                if (draft == true) it.map { p -> p.copy(create = null) }
+                else it
+            }
+        }
+    }
+
     /**
      * 获得若干帖子的基本信息, 用于展示列表
      * @param loginUser 当前操作用户, null表示未登录, 返回的帖子应是该用户可见的.

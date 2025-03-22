@@ -157,6 +157,110 @@ fun Route.posts() = route("/post", {
         }) { getPosts(true) }
     }
 
+    route("/advanceSearch", {
+        request {
+            queryParameter<List<UserId>>("author")
+            {
+                required = false
+                description = "作者ID列表, 不填则为所有用户"
+            }
+            queryParameter<List<BlockId>>("block")
+            {
+                required = false
+                description = "板块ID列表, 不填则为所有板块"
+            }
+            queryParameter<Boolean>("top")
+            {
+                required = false
+                description = "是否置顶, 不填则为所有"
+            }
+            queryParameter<List<State>>("state")
+            {
+                required = false
+                description = "帖子状态列表, 重复忽略不计, 不填则为所有"
+            }
+            queryParameter<List<String>>("tag")
+            {
+                required = false
+                description = "标签, 不填则为所有"
+            }
+            queryParameter<Boolean>("comment")
+            {
+                required = false
+                description = """
+                    - true -> 只返回评论
+                    - false -> 只返回帖子
+                    - 不填 -> 返回所有
+                """.trimIndent()
+            }
+            queryParameter<Boolean>("draft")
+            {
+                required = false
+                description = """
+                    - true -> 返回所有只有草稿版本的帖子
+                    - false -> 返回所有有发布版本的帖子
+                    - 不填 -> 返回所有帖子
+                """.trimIndent()
+            }
+            queryParameter<List<PostId>>("childOf")
+            {
+                required = false
+                description = "父帖子ID列表, 若此项不为空则只返回parent为此项的帖子"
+            }
+            queryParameter<PostId>("descendantOf")
+            {
+                required = false
+                description = "祖先帖子ID, 若此项不为空则只返回在该帖子为根的子树中的帖子(不包括该帖子)"
+            }
+            queryParameter<Long>("createBefore")
+            {
+                required = false
+                description = "创建时间在此时间之前, 若此项不为空, 则draft项无效且被视为false"
+            }
+            queryParameter<Long>("createAfter")
+            {
+                required = false
+                description = "创建时间在此时间之后, 若此项不为空, 则draft项无效且被视为false"
+            }
+            queryParameter<Long>("lastModifiedBefore")
+            {
+                required = false
+                description = "最后修改时间在此时间之前, 若此项不为空, 则draft项无效且被视为false"
+            }
+            queryParameter<Long>("lastModifiedAfter")
+            {
+                required = false
+                description = "最后修改时间在此时间之后, 若此项不为空, 则draft项无效且被视为false"
+            }
+            queryParameter<List<String>>("containsKeyWord")
+            {
+                required = false
+                description = "包含关键词列表"
+            }
+            queryParameter<Posts.PostListSort>("sort")
+            {
+                required = true
+                description = "排序方式"
+            }
+            paged()
+        }
+    })
+    {
+        get("/basic", {
+            description = "获取帖子列表, 将返回帖子的基础信息, 不登录也可以获取, 但是登录/有相应权限的人可能会看到更多内容"
+            response {
+                statuses<Slice<PostFullBasicInfo>>(HttpStatus.OK, example = sliceOf(PostFullBasicInfo.example))
+            }
+        }) { getPostsAdvanced(false) }
+
+        get("/full", {
+            description = "获取帖子列表, 将返回帖子的完整信息, 不登录也可以获取, 但是登录/有相应权限的人可能会看到更多内容"
+            response {
+                statuses<Slice<PostFull>>(HttpStatus.OK, example = sliceOf(PostFull.example))
+            }
+        }) { getPostsAdvanced(true) }
+    }
+
     id()
     version()
 }
@@ -636,6 +740,59 @@ private suspend fun Context.getPosts(full: Boolean)
     val posts = get<Posts>().getPosts(
         loginUser = loginUser,
         author = if (author == UserId(0)) loginUser?.id else author,
+        block = block,
+        top = top,
+        state = state,
+        tag = tag,
+        comment = comment,
+        draft = draft,
+        childOf = childOf,
+        descendantOf = descendantOf,
+        createBefore = createBefore?.toInstant(),
+        createAfter = createAfter?.toInstant(),
+        lastModifiedBefore = lastModifiedBefore?.toInstant(),
+        lastModifiedAfter = lastModifiedAfter?.toInstant(),
+        containsKeyWord = containsKeyWord,
+        sortBy = sort,
+        begin = begin,
+        limit = count,
+        full = full,
+    )
+    if (full)
+    {
+        @Suppress("UNCHECKED_CAST")
+        call.respond<Slice<PostFull>>(HttpStatus.OK, checkAnonymous(posts as Slice<PostFull>))
+    }
+    else
+    {
+        @Suppress("UNCHECKED_CAST")
+        call.respond<Slice<PostFullBasicInfo>>(HttpStatus.OK, checkAnonymous(posts as Slice<PostFullBasicInfo>))
+    }
+}
+
+private suspend fun Context.getPostsAdvanced(full: Boolean)
+{
+    val loginUser = getLoginUser()
+    val author: List<UserId>? = call.parameters["author"].decodeOrNull()
+    val block: List<BlockId>? = call.parameters["block"].decodeOrNull()
+    val top = call.parameters["top"]?.lowercase()?.toBooleanStrictOrNull()
+    val state: List<State>? = call.parameters["state"].decodeOrNull()
+    val tag: List<String>? = call.parameters["tag"].decodeOrNull()
+    val comment = call.parameters["comment"]?.lowercase()?.toBooleanStrictOrNull()
+    val draft = call.parameters["draft"]?.lowercase()?.toBooleanStrictOrNull()
+    val childOf: List<PostId>? = call.parameters["childOf"].decodeOrNull()
+    val descendantOf = call.parameters["descendantOf"]?.toPostIdOrNull()
+    val createBefore = call.parameters["createBefore"]?.toLongOrNull()
+    val createAfter = call.parameters["createAfter"]?.toLongOrNull()
+    val lastModifiedBefore = call.parameters["lastModifiedBefore"]?.toLongOrNull()
+    val lastModifiedAfter = call.parameters["lastModifiedAfter"]?.toLongOrNull()
+    val containsKeyWord: List<String>? = call.parameters["containsKeyWord"].decodeOrNull()
+    val sort = call.parameters["sort"].decodeOrElse<Posts.PostListSort> { finishCall(HttpStatus.BadRequest.subStatus("sort参数错误")) }
+    val (begin, count) = call.getPage()
+
+    val posts = get<Posts>().getPostsAdvanced(
+        loginUser = loginUser,
+        author = author,
         block = block,
         top = top,
         state = state,
