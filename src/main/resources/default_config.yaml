@@ -15,9 +15,8 @@ serverHost:
   - '*.subit.org.cn'
 
 database:
-  # 数据库实现, 可选值: sql, memory
-  impl: sql
-  sql: # 该配置项仅在 impl 为 sql 时必须, 其余情况下无效
+
+  sql:
 
     # 支持的数据库：
     # - Postgres

@@ -4,7 +4,7 @@ import io.ktor.server.application.*
 import io.ktor.server.netty.*
 import net.mamoe.yamlkt.Yaml
 import subit.console.command.CommandSet.startCommandThread
-import subit.database.loadDatabaseImpl
+import subit.database.SqlDatabaseImpl
 import subit.logger.YouthWriteLogger
 import subit.plugin.apiDoc.installApiDoc
 import subit.plugin.authentication.installAuthentication
@@ -138,7 +138,7 @@ fun Application.init()
     installStatusPages()
     installWebSockets()
 
-    loadDatabaseImpl()
+    SqlDatabaseImpl.apply { init() }
 
     router()
 }
