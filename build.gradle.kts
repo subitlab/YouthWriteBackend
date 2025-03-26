@@ -111,6 +111,6 @@ kotlin {
 ktor {
     fatJar {
         allowZip64 = true
-        archiveFileName = "YouthWriteBackend.jar"
+        archiveFileName = "YouthWrite.jar"
     }
 }

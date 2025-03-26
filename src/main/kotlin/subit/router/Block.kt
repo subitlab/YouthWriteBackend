@@ -148,6 +148,16 @@ fun Route.block() = route("/block", {
         get("/children", {
             description = "获取板块的子板块, 若id为0则表示获取没有父板块的板块"
             request {
+                queryParameter<Boolean>("editable")
+                {
+                    description = "是否只获取当前用户有权限编辑的板块, 不填视为false"
+                    required = false
+                }
+                queryParameter<String>("key")
+                {
+                    description = "要求包含某一关键字"
+                    required = false
+                }
                 paged()
             }
             response {
@@ -329,6 +339,8 @@ private suspend fun Context.getChildren()
 {
     val id1 = call.parameters["id"]?.toBlockIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
     val id = if (id1 == BlockId(0)) null else id1
+    val editable = call.parameters["editable"].toBoolean()
+    val key = call.parameters["key"]
     val (begin, count) = call.getPage()
     val blocks = get<Blocks>()
 
@@ -338,7 +350,7 @@ private suspend fun Context.getChildren()
         if (block != null) checkRead(block)
     }
 
-    blocks.getChildren(getLoginUser(), id, begin, count).let { call.respond(HttpStatus.OK, it) }
+    blocks.getChildren(getLoginUser(), id, begin, count, editable, key).let { call.respond(HttpStatus.OK, it) }
 }
 
 private suspend fun Context.getAllBlocks()

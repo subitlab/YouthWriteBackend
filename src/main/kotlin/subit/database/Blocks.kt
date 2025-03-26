@@ -147,15 +147,23 @@ class Blocks: DaoSqlImpl<Blocks.BlocksTable>(BlocksTable), KoinComponent
         }
     }
 
-    suspend fun getChildren(loginUser: UserFull?, parent: BlockId?, begin: Long, count: Int): Slice<Block> = query()
+    suspend fun getChildren(
+        loginUser: UserFull?,
+        parent: BlockId?,
+        begin: Long,
+        count: Int,
+        editable: Boolean,
+        key: String?,
+    ): Slice<Block> = query()
     {
         val permissionGroup = loginUser.permissionGroup()
         Join(table)
-            .joinPermission(loginUser, permissionGroup, editable = false)
+            .joinPermission(loginUser, permissionGroup, editable)
             ?.select(BlocksTable.columns)
             ?.where { BlocksTable.parent eq parent }
-            ?.checkPermission(loginUser, permissionGroup, editable = false)
-            ?.orderBy(id, SortOrder.DESC)
+            ?.apply { if (key != null) this.andWhere { table.name like "%$key%" } }
+            ?.checkPermission(loginUser, permissionGroup, editable)
+            ?.orderBy(id, SortOrder.ASC)
             ?.asSlice(begin, count)
             ?.map(::deserializeBlock)
         ?: Slice.empty()
