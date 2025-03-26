@@ -10,10 +10,7 @@ import subit.dataClasses.BlockId.Companion.toBlockIdOrNull
 import subit.dataClasses.UserId.Companion.toUserIdOrNull
 import subit.database.*
 import subit.router.utils.*
-import subit.utils.HttpStatus
-import subit.utils.SSO
-import subit.utils.respond
-import subit.utils.statuses
+import subit.utils.*
 
 fun Route.block() = route("/block", {
     tags = listOf("板块")
@@ -132,12 +129,21 @@ fun Route.block() = route("/block", {
             }
         }) { getBlockInfo() }
 
-        delete("", {
-            description = "删除板块"
+        put("/state",{
+            description = "修改板块状态"
+            request {
+                queryParameter<State>("state")
+                {
+                    required = true
+                    description = "新状态"
+                    example(State.DELETED)
+                }
+            }
             response {
                 statuses(HttpStatus.OK, HttpStatus.Forbidden, HttpStatus.Unauthorized)
             }
-        }) { deleteBlock() }
+        })
+        { changeState() }
 
         get("/children", {
             description = "获取板块的子板块, 若id为0则表示获取没有父板块的板块"
@@ -254,14 +260,15 @@ private suspend fun Context.getBlockInfo()
     call.respond(HttpStatus.OK, block)
 }
 
-private suspend fun Context.deleteBlock()
+private suspend fun Context.changeState()
 {
-    val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
-    val id = call.parameters["id"]?.toBlockIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
+    val loginUser = getLoginUser() ?: finishCall(HttpStatus.Unauthorized)
+    val id = call.parameters["id"]?.toBlockIdOrNull() ?: finishCall(HttpStatus.BadRequest)
+    val state = call.parameters["state"].decodeOrElse<State>{ finishCall(HttpStatus.BadRequest) }
     val blocks = get<Blocks>()
-    val block = blocks.getBlock(id) ?: return call.respond(HttpStatus.NotFound)
-    checkPermission { checkChangeState(block, State.DELETED) }
-    blocks.setState(id, State.DELETED)
+    val block = blocks.getBlock(id) ?: finishCall(HttpStatus.NotFound)
+    checkPermission { checkChangeState(block, state) }
+    blocks.setState(id, state)
     get<Operations>().addOperation(loginUser.id, id)
     if (loginUser.id != block.creator) get<Notices>().createNotice(
         Notice.SystemNotice(
