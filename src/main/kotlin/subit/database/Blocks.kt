@@ -1,7 +1,9 @@
 package subit.database
 
+import org.intellij.lang.annotations.Language
 import org.jetbrains.exposed.dao.id.IdTable
 import org.jetbrains.exposed.sql.*
+import org.jetbrains.exposed.sql.statements.Statement
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import subit.dataClasses.*
@@ -11,6 +13,7 @@ import subit.database.utils.asSlice
 import subit.database.utils.singleOrNull
 import subit.router.utils.PermissionGroup
 import subit.router.utils.permissionGroup
+import java.sql.ResultSet
 
 /**
  * 板块数据库交互类
@@ -147,33 +150,53 @@ class Blocks: DaoSqlImpl<Blocks.BlocksTable>(BlocksTable), KoinComponent
         }
     }
 
-    suspend fun getChildren(
-        loginUser: UserFull?,
-        parent: BlockId?,
-        begin: Long,
-        count: Int,
-        editable: Boolean,
-        key: String?,
-    ): Slice<Block> = query()
+    /**
+     * 连续的空白字符(包括空格和换行)的匹配正则表达式
+     */
+    private val whiteSpaceRegex = Regex("\\s+")
+
+    /**
+     * 一个查询, 可以获得以[rootId]为根的子树内的所有帖子的id, 也会包括[rootId]自己
+     */
+    private inner class GetDescendantIdsQuery(
+        val rootId: BlockId
+    ): Query(
+        org.jetbrains.exposed.sql.Slice(BlocksTable, listOf(id)),
+        null
+    )
     {
-        val permissionGroup = loginUser.permissionGroup()
-        Join(table)
-            .joinPermission(loginUser, permissionGroup, editable)
-            ?.select(BlocksTable.columns)
-            ?.where { BlocksTable.parent eq parent }
-            ?.apply { if (key != null) this.andWhere { table.name like "%$key%" } }
-            ?.checkPermission(loginUser, permissionGroup, editable)
-            ?.orderBy(id, SortOrder.ASC)
-            ?.asSlice(begin, count)
-            ?.map(::deserializeBlock)
-        ?: Slice.empty()
+        @Language("SQL")
+        val sql = """
+            WITH RECURSIVE SubTree AS (
+                SELECT id, parent
+                FROM blocks
+                WHERE id = ${rootId.value}
+                UNION ALL
+                SELECT n.id, n.parent
+                FROM blocks n
+                INNER JOIN SubTree subTree ON n.parent = subTree.id
+            )
+            SELECT SubTree.id AS id
+            FROM SubTree
+        """.trimIndent().replace(whiteSpaceRegex, " ")
+
+        override val queryToExecute: Statement<ResultSet>
+            get() = this
+
+        override fun prepareSQL(builder: QueryBuilder): String
+        {
+            builder.append(sql)
+            return builder.toString()
+        }
     }
 
     /**
-     * 获取所有板块
+     * 获取板块列表
      * @param loginUser 登录用户, 用于权限判断, null表示未登录
      * @param editable 是否只获取可编辑的板块
      * @param key 若不为null则筛选板块名称包含关键词的板块
+     * @param childOf 若不为null则筛选该板块的子板块, 若为BlockId(0)则筛选根板块
+     * @param descendantOf 若不为null则筛选该板块的后代板块及自己
      * @param begin 起始位置
      * @param count 数量
      */
@@ -181,19 +204,75 @@ class Blocks: DaoSqlImpl<Blocks.BlocksTable>(BlocksTable), KoinComponent
         loginUser: UserFull?,
         editable: Boolean,
         key: String?,
+        childOf: BlockId?,
+        descendantOf: BlockId?,
         begin: Long,
-        count: Int
+        count: Int,
     ): Slice<Block> = query()
     {
         val permissionGroup = loginUser.permissionGroup()
+        val descendantIds = descendantOf?.let { GetDescendantIdsQuery(it).alias("descendantIds") }
+
         Join(table)
+            .let {
+                if (descendantIds != null) it.join(descendantIds, JoinType.INNER, id, descendantIds[id])
+                else it
+            }
             .joinPermission(loginUser, permissionGroup, editable)
             ?.select(table.columns)
             ?.apply { if (key != null) this.andWhere { table.name like "%$key%" } }
+            ?.apply {
+                if (childOf != null)
+                    if (childOf == BlockId(0)) this.andWhere { table.parent.isNull() }
+                    else this.andWhere { table.parent eq childOf }
+            }
             ?.checkPermission(loginUser, permissionGroup, editable)
             ?.orderBy(table.id, SortOrder.ASC)
             ?.asSlice(begin, count)
             ?.map(::deserializeBlock)
         ?: Slice.empty()
+    }
+
+    /**
+     * 一个查询, 可以获得以[node]为到根的路径
+     */
+    private inner class GetPathQuery(
+        val node: BlockId
+    ): Query(
+        BlocksTable,
+        null
+    )
+    {
+        @Language("SQL")
+        val sql = """
+            WITH RECURSIVE SubTree AS (
+                SELECT ${table.columns.joinToString { "m.\"${it.name}\"" }}
+                FROM blocks m
+                WHERE id = ${node.value}
+                UNION ALL
+                SELECT ${table.columns.joinToString { "n.\"${it.name}\"" }}
+                FROM blocks n
+                INNER JOIN SubTree subTree ON n.id = subTree.parent
+            )
+            SELECT ${table.columns.joinToString { "SubTree.\"${it.name}\" AS \"${it.name}\"" }} 
+            FROM SubTree
+        """.trimIndent().replace(whiteSpaceRegex, " ")
+
+        override val queryToExecute: Statement<ResultSet>
+            get() = this
+
+        override fun prepareSQL(builder: QueryBuilder): String
+        {
+            builder.append(sql)
+            return builder.toString()
+        }
+    }
+
+    suspend fun getPath(block: BlockId): List<Block> = query()
+    {
+        GetPathQuery(block)
+            .toList()
+            .reversed()
+            .map(::deserializeBlock)
     }
 }

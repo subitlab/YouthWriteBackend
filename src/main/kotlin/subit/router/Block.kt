@@ -77,10 +77,9 @@ fun Route.block() = route("/block", {
         }
     }) { changePermission() }
 
-    get("/all", {
-        description = "获得所有板块, 只包含当前用户有权限看的板块"
+    route("/list",{
+        description = "获得板块列表"
         request {
-            paged()
             queryParameter<Boolean>("editable")
             {
                 description = "是否只获取当前用户有权限编辑的板块, 不填视为false"
@@ -91,25 +90,48 @@ fun Route.block() = route("/block", {
                 description = "要求包含某一关键字"
                 required = false
             }
-        }
-        response {
-            statuses<Slice<Block>>(HttpStatus.OK, example = sliceOf(Block.example))
-        }
-    }) { getAllBlocks() }
-
-    get("/all/tree", {
-        description = "以树形结构获得所有当前用户可见的板块"
-        request {
-            queryParameter<Boolean>("editable")
+            queryParameter<BlockId>("childOf")
             {
-                description = "是否只获取当前用户有权限编辑的板块, 不填视为false"
+                description = "获取某一板块的子板块, 填0表示获取根版块们, 不能和descendantOf同时填写"
+                required = false
+            }
+            queryParameter<BlockId>("descendantOf")
+            {
+                description = "获取某一板块的所有子孙板块, 包括自己, 不能和childOf同时填写"
                 required = false
             }
         }
+    }) {
+        get("/flat",{
+            description = "获得板块列表, 展平输出"
+            request {
+                paged()
+            }
+            response {
+                statuses<Slice<Block>>(HttpStatus.OK, example = sliceOf(Block.example))
+            }
+        }) { getBlocksList(false) }
+        get("/tree",{
+            description = "获得板块列表, 以树形结构输出"
+            response {
+                statuses<Set<BlockTree>>(HttpStatus.OK, example = setOf(BlockTree.leafExample, BlockTree.example))
+            }
+        }) { getBlocksList(true) }
+    }
+
+    get("/path",{
+       description = "获得板块的路径,从根到板块"
+         request {
+              queryParameter<BlockId>("id")
+              {
+                required = true
+                description = "板块ID"
+              }
+         }
         response {
-            statuses<Set<BlockTree>>(HttpStatus.OK, example = setOf(BlockTree.leafExample, BlockTree.example))
+            statuses<List<Block>>(HttpStatus.OK, example = listOf(Block.example))
         }
-    }) { getBlockTree() }
+    }) { getBlockPath() }
 
     route("/{id}", {
         request {
@@ -144,27 +166,6 @@ fun Route.block() = route("/block", {
             }
         })
         { changeState() }
-
-        get("/children", {
-            description = "获取板块的子板块, 若id为0则表示获取没有父板块的板块"
-            request {
-                queryParameter<Boolean>("editable")
-                {
-                    description = "是否只获取当前用户有权限编辑的板块, 不填视为false"
-                    required = false
-                }
-                queryParameter<String>("key")
-                {
-                    description = "要求包含某一关键字"
-                    required = false
-                }
-                paged()
-            }
-            response {
-                statuses<Slice<Block>>(HttpStatus.OK, example = sliceOf(Block.example))
-                statuses(HttpStatus.Forbidden, HttpStatus.Unauthorized)
-            }
-        }) { getChildren() }
 
         get("/permission/{user}", {
             description = "获取用户在板块的权限"
@@ -335,31 +336,45 @@ private suspend fun Context.getPermission()
     call.respond(HttpStatus.OK, checkPermission(user) { getPermission(bid) })
 }
 
-private suspend fun Context.getChildren()
+private suspend fun Context.getBlocksList(tree: Boolean)
 {
-    val id1 = call.parameters["id"]?.toBlockIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
-    val id = if (id1 == BlockId(0)) null else id1
+    val childOf = call.parameters["childOf"]?.toBlockIdOrNull()
+    val descendantOf = call.parameters["descendantOf"]?.toBlockIdOrNull()
     val editable = call.parameters["editable"].toBoolean()
     val key = call.parameters["key"]
-    val (begin, count) = call.getPage()
     val blocks = get<Blocks>()
+
+    if(childOf != null && descendantOf != null){
+        finishCall(HttpStatus.BadRequest, "childOf和descendantOf不能同时填写")
+    }
 
     checkPermission()
     {
-        val block = id?.let { blocks.getBlock(it) }
-        if (block != null) checkRead(block)
+        val father = childOf?.let { blocks.getBlock(it) }
+        if (father != null) checkRead(father)
+        val ancestor = descendantOf?.let { blocks.getBlock(it) }
+        if (ancestor != null) checkRead(ancestor)
     }
 
-    blocks.getChildren(getLoginUser(), id, begin, count, editable, key).let { call.respond(HttpStatus.OK, it) }
+    if(tree){
+        finishCall(HttpStatus.OK,
+            blocks.getBlocks(getLoginUser(), editable, key, childOf, descendantOf, 0, Int.MAX_VALUE)
+                .list.toMutableSet().toBlockTree()
+        )
+    }
+    else {
+        val (begin, count) = call.getPage()
+        finishCall(HttpStatus.OK, blocks.getBlocks(getLoginUser(), editable, key, childOf, descendantOf, begin, count))
+    }
 }
 
-private suspend fun Context.getAllBlocks()
+private suspend fun Context.getBlockPath()
 {
-    val (begin, count) = call.getPage()
-    val editable = call.parameters["editable"].toBoolean()
-    val key = call.parameters["key"]
-    val res = get<Blocks>().getBlocks(getLoginUser(), editable, key, begin, count)
-    finishCall(HttpStatus.OK, res)
+    val id = call.parameters["id"]?.toBlockIdOrNull() ?: finishCall(HttpStatus.BadRequest)
+    val blocks = get<Blocks>()
+    val block = blocks.getBlock(id) ?: finishCall(HttpStatus.NotFound)
+    checkPermission { checkRead(block) }
+    finishCall(HttpStatus.OK, blocks.getPath(id))
 }
 
 @Serializable
@@ -379,11 +394,4 @@ private fun MutableSet<Block>.toBlockTree(root: Block? = null): Set<BlockTree>
         .also { this.removeAll(it.toSet()) }
         .map { BlockTree(it, this.toBlockTree(it)) }
         .toSet()
-}
-
-private suspend fun Context.getBlockTree()
-{
-    val editable = call.parameters["editable"].toBoolean()
-    val allBlocks = get<Blocks>().getBlocks(getLoginUser(), editable, null, 0, Int.MAX_VALUE).list.toMutableSet()
-    call.respond(HttpStatus.OK, allBlocks.toBlockTree())
 }
