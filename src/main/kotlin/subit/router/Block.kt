@@ -17,12 +17,12 @@ fun Route.block() = route("/block", {
 })
 {
     post("/new", {
-        description = "创建板块, 创建根板块需要全局管理员权限, 其他情况需要在父板块中有管理员权限."
+        description = "创建板块, 创建根板块需要全局管理员权限, 其他情况需要在父板块中有管理员权限"
         request {
             body<NewBlock>
             {
                 required = true
-                description = "新板块信息, parent为null表示创建根板块."
+                description = "新板块信息, parent为0表示创建根板块"
                 example(
                     "example", NewBlock(
                         "板块名称",
@@ -53,7 +53,7 @@ fun Route.block() = route("/block", {
             body<EditBlockInfo>
             {
                 required = true
-                description = "新板块信息"
+                description = "新板块信息,parent为0表示修改为根板块"
                 example("example", EditBlockInfo(name = "板块名称", description = "板块描述"))
             }
         }
@@ -191,7 +191,7 @@ private data class WarpBlockId(val block: BlockId)
 private data class NewBlock(
     val name: String,
     val description: String,
-    val parent: BlockId?,
+    val parent: BlockId,
     val postingPermission: PermissionLevel,
     val commentingPermission: PermissionLevel,
     val readingPermission: PermissionLevel,
@@ -203,7 +203,7 @@ private suspend fun Context.newBlock()
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     val newBlock = call.receiveAndCheckBody<NewBlock>()
     val blocks = get<Blocks>()
-    if (newBlock.parent != null)
+    if (newBlock.parent != BlockId(0))
     {
         checkPermission { checkHasAdminIn(newBlock.parent) }
         blocks.getBlock(newBlock.parent) ?: return call.respond(HttpStatus.BadRequest)

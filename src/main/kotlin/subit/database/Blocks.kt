@@ -93,7 +93,7 @@ class Blocks: DaoSqlImpl<Blocks.BlocksTable>(BlocksTable), KoinComponent
     suspend fun createBlock(
         name: String,
         description: String,
-        parent: BlockId?,
+        parent: BlockId,
         creator: UserId,
         postingPermission: PermissionLevel = PermissionLevel.NORMAL,
         commentingPermission: PermissionLevel = PermissionLevel.NORMAL,
@@ -104,7 +104,7 @@ class Blocks: DaoSqlImpl<Blocks.BlocksTable>(BlocksTable), KoinComponent
         insertAndGetId {
             it[BlocksTable.name] = name
             it[BlocksTable.description] = description
-            it[BlocksTable.parent] = parent
+            it[BlocksTable.parent] = if(parent == BlockId(0)) null else parent
             it[BlocksTable.creator] = creator
             it[posting] = postingPermission
             it[commenting] = commentingPermission
@@ -129,7 +129,7 @@ class Blocks: DaoSqlImpl<Blocks.BlocksTable>(BlocksTable), KoinComponent
         {
             if (name != null) it[BlocksTable.name] = name
             if (description != null) it[BlocksTable.description] = description
-            if (parent != null) it[BlocksTable.parent] = parent
+            if (parent != null) it[BlocksTable.parent] = if(parent == BlockId(0)) null else parent
             if (posting != null) it[BlocksTable.posting] = posting
             if (commenting != null) it[BlocksTable.commenting] = commenting
             if (reading != null) it[BlocksTable.reading] = reading
