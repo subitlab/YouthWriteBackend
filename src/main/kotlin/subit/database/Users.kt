@@ -70,4 +70,9 @@ class Users: DaoSqlImpl<Users.UsersTable>(UsersTable)
         insertIgnore { it[UsersTable.id] = id }
         selectAll().where { UsersTable.id eq id }.single().let(::deserialize)
     }
+
+    suspend fun getUser(id: UserId): DatabaseUser? = query()
+    {
+        selectAll().where { UsersTable.id eq id }.singleOrNull()?.let(::deserialize)
+    }
 }

@@ -13,8 +13,8 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import subit.config.systemConfig
 import subit.dataClasses.*
+import subit.database.OldUsers
 import subit.database.Users
-import subit.logger.YouthWriteLogger
 import subit.logger.YouthWriteLogger.getLogger
 import subit.plugin.contentNegotiation.contentNegotiationJson
 
@@ -22,6 +22,7 @@ import subit.plugin.contentNegotiation.contentNegotiationJson
 object SSO: KoinComponent
 {
     val users: Users by inject()
+    val oldUsers: OldUsers by inject()
     private val logger = getLogger()
     private val httpClient = HttpClient(Java)
     {
@@ -129,7 +130,10 @@ object SSO: KoinComponent
         }.getOrElse { logger.fine("error in sso", it); null }
     }
 
-    suspend fun hasUser(id: UserId) = getAccessToken(id) != null
+    suspend fun hasUser(id: UserId): Boolean {
+        if(id < UserId(0))return oldUsers.hasUser(id)
+        return getAccessToken(id) != null
+    }
 
     suspend fun getUserFull(accessToken: String): UserFull?
     {
@@ -138,19 +142,34 @@ object SSO: KoinComponent
         return UserFull.from(ssoUser, dbUser)
     }
 
+    suspend fun getUserFullById(id: UserId): UserFull?
+    {
+        if(id < UserId(0)) {
+            val newId = oldUsers.getNewId(id)
+            if(newId != null)return getUserFullById(newId)
+            // 旧用户
+            val oldUser = oldUsers.getOldUser(id) ?: return null
+            val dbUser = users.getUser(id) ?: return null
+            return UserFull.from(oldUser,dbUser)
+        }
+        else{
+            val accessToken = getAccessToken(id) ?: return null
+            return getUserFull(accessToken)
+        }
+    }
+
     /**
      * 相比[Users.getOrCreateUser],该方法会验证[userId]在sso中存在, 但前者不论sso中是否存在都会创建用户
      */
     suspend fun getDbUser(userId: UserId): DatabaseUser?
     {
-        @Suppress("UNUSED_VARIABLE")
-        val ssoUser = getAccessToken(userId) ?: return null
+        if(!hasUser(userId)) return null
         return users.getOrCreateUser(userId)
     }
 
     suspend fun getUserAndDbUser(userId: UserId): Pair<SsoUser, DatabaseUser>?
     {
-        val ssoUser = getAccessToken(userId)?.let { getUser(it) } ?: return null
+        val ssoUser = getUserFullById(userId)?.toSsoUser() ?: return null
         val dbUser = users.getOrCreateUser(userId)
         return ssoUser to dbUser
     }

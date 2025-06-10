@@ -3,16 +3,39 @@
 package subit.utils
 
 import com.auth0.jwt.algorithms.Algorithm
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.withTimeout
 import kotlinx.datetime.Instant
 import org.jetbrains.exposed.sql.kotlin.datetime.timestampParam
 import org.koin.core.component.KoinComponent
+import subit.Loader
+import subit.config.emailConfig
 import subit.config.systemConfig
 import subit.dataClasses.PostId
+import subit.database.EmailCodes
+import subit.logger.YouthWriteLogger
 import subit.plugin.contentNegotiation.contentNegotiationJson
 import java.io.ByteArrayOutputStream
 import java.io.OutputStream
 import java.io.PrintStream
 import java.util.*
+import javax.mail.Address
+import javax.mail.Message
+import javax.mail.Session
+import javax.mail.internet.InternetAddress
+import javax.mail.internet.MimeBodyPart
+import javax.mail.internet.MimeMessage
+import javax.mail.internet.MimeMultipart
+import kotlin.time.Duration.Companion.seconds
+
+private val logger = YouthWriteLogger.getLogger()
+
+/**
+ * 检查邮箱格式是否正确
+ */
+fun checkEmail(email: String): Boolean = emailConfig.regex.matches(email)
 
 inline fun String?.toUUIDOrNull(): UUID? = runCatching { UUID.fromString(this) }.getOrNull()
 inline fun <reified R> String?.decodeOrElse(block: (Throwable) -> R): R
@@ -75,3 +98,48 @@ open class LinePrintStream(private val line: (String) -> Unit): PrintStream(Line
 }
 
 fun getKoin() = object: KoinComponent {}
+
+private val sendEmailScope = CoroutineScope(Dispatchers.IO)
+
+fun sendEmail(email: String, code: String, usage: EmailCodes.EmailCodeUsage) = sendEmailScope.async()
+{
+    withTimeout(15.seconds)
+    {
+        @Suppress("NAME_SHADOWING")
+        val email = email.lowercase()
+        val props = Properties()
+        props.setProperty("mail.smtp.auth", "true")
+        props.setProperty("mail.host", emailConfig.host)
+        props.setProperty("mail.port", emailConfig.port.toString())
+        props.setProperty("mail.smtp.starttls.enable", "true")
+        val session = Session.getInstance(props)
+        val message = MimeMessage(session)
+        message.setFrom(InternetAddress(emailConfig.sender))
+        message.setRecipient(Message.RecipientType.TO, InternetAddress(email))
+        message.subject = emailConfig.verifyEmailTitle
+
+        val body =
+            Loader
+                .getResource("email.html")
+                ?.readAllBytes()
+                ?.decodeToString()
+                ?.replace("{code}", code)
+                ?.replace("{usage}", usage.description)
+                ?: run {
+                    logger.severe("Failed to load email.html")
+                    logger.severe("Send email failed: email: $email, code: $code, usage: $usage")
+                    return@withTimeout
+                }
+
+        val mimeMultipart = MimeMultipart()
+        val mimeBodyPart = MimeBodyPart()
+        mimeBodyPart.setContent(body, "text/html; charset=utf-8")
+        mimeMultipart.addBodyPart(mimeBodyPart)
+        message.setContent(mimeMultipart)
+
+        val transport = session.getTransport("smtp")
+        transport.connect(emailConfig.host, emailConfig.port, emailConfig.sender, emailConfig.password)
+        transport.sendMessage(message, arrayOf<Address>(InternetAddress(email)))
+        transport.close()
+    }
+}

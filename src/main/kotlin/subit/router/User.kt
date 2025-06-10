@@ -5,17 +5,17 @@ package subit.router.user
 import io.github.smiley4.ktorswaggerui.dsl.routing.get
 import io.github.smiley4.ktorswaggerui.dsl.routing.post
 import io.github.smiley4.ktorswaggerui.dsl.routing.route
+import io.ktor.server.plugins.ratelimit.*
+import io.ktor.server.request.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
 import subit.dataClasses.*
 import subit.dataClasses.UserId.Companion.toUserIdOrNull
 import subit.database.*
 import subit.logger.YouthWriteLogger
+import subit.plugin.rateLimit.RateLimit
 import subit.router.utils.*
-import subit.utils.HttpStatus
-import subit.utils.SSO
-import subit.utils.respond
-import subit.utils.statuses
+import subit.utils.*
 
 private val logger = YouthWriteLogger.getLogger()
 fun Route.user() = route("/user", {
@@ -143,6 +143,43 @@ fun Route.user() = route("/user", {
             }
         }) { switchStars() }
     }
+
+    rateLimit(RateLimit.SendEmail.rateLimitName)
+    {
+        post("/sendEmailCode", {
+            description = "发送邮箱验证码"
+            request {
+                body<EmailInfo>
+                {
+                    required = true
+                    description = "邮箱信息, 认领旧账户时为旧帐户绑定的邮箱"
+                    example("example", EmailInfo("email@abc.com", EmailCodes.EmailCodeUsage.CLAIM_AUTHOR))
+                }
+            }
+            response {
+                statuses(HttpStatus.OK)
+                statuses(
+                    HttpStatus.EmailFormatError.subStatus(subStatus = 1),
+                    HttpStatus.TooManyRequests.subStatus(subStatus = 2),
+                )
+            }
+        }) { sendEmailCode() }
+    }
+
+    post("/claimNewUser", {
+        description = "当前用户认领旧用户，需要验证码"
+        request {
+            body<ClaimNewUser>
+            {
+                required = true
+                description = "旧用户邮箱和验证码"
+                example("example", ClaimNewUser("example@abc.com", "code"))
+            }
+        }
+        response {
+            statuses(HttpStatus.OK, HttpStatus.Unauthorized, HttpStatus.NotFound)
+        }
+    }) { claimNewUser() }
 }
 
 private suspend fun Context.getUserInfo()
@@ -157,8 +194,7 @@ private suspend fun Context.getUserInfo()
     }
     else
     {
-        val token = SSO.getAccessToken(id) ?: return call.respond(HttpStatus.NotFound)
-        val user = SSO.getUserFull(token) ?: return call.respond(HttpStatus.NotFound)
+        val user = SSO.getUserFullById(id) ?: return call.respond(HttpStatus.NotFound)
         if (loginUser.hasGlobalAdmin()) finishCall(HttpStatus.OK, user)
         if (user.checkPermission { isProhibit() }) finishCall(
             HttpStatus.OK,
@@ -260,4 +296,41 @@ private suspend fun Context.switchStars()
     val switchStars = call.receiveAndCheckBody<BooleanSetting>()
     get<Users>().changeShowStars(loginUser.id, switchStars.showStars)
     call.respond(HttpStatus.OK)
+}
+
+@Serializable
+private data class ClaimNewUser(
+    val oldEmail: String,
+    val code: String
+)
+
+private suspend fun Context.claimNewUser(){
+    val loginUser = getLoginUser() ?: finishCall(HttpStatus.Unauthorized)
+    val body = call.receiveAndCheckBody<ClaimNewUser>()
+    if (!get<EmailCodes>().verifyEmailCode(body.oldEmail, body.code, EmailCodes.EmailCodeUsage.CLAIM_AUTHOR))
+        finishCall(HttpStatus.WrongEmailCode)
+
+    val oldUserTable = get<OldUsers>()
+    val id = oldUserTable.getEmailUser(body.oldEmail) ?: finishCall(HttpStatus.AccountNotExist)
+    oldUserTable.setNewId(id, loginUser.id)
+        .takeIf { it } ?: finishCall(HttpStatus.EmailExist.copy(message = "该账户已被其他用户认领"))
+    get<Posts>().claimAuthor(id, loginUser.id)
+    finishCall(HttpStatus.OK)
+}
+
+private suspend fun Context.sendEmailCode()
+{
+    val emailInfo = call.receive<EmailInfo>()
+    if (!checkEmail(emailInfo.email))
+        finishCall(HttpStatus.EmailFormatError)
+    if (emailInfo.usage == EmailCodes.EmailCodeUsage.CLAIM_AUTHOR)
+    {
+        val oldUserTable = get<OldUsers>()
+        val id = oldUserTable.getEmailUser(emailInfo.email) ?:
+            finishCall(HttpStatus.AccountNotExist)
+        if(oldUserTable.getNewId(id) != null)
+            finishCall(HttpStatus.EmailExist.copy(message = "该账户已被其他用户认领"))
+    }
+    get<EmailCodes>().sendEmailCode(emailInfo.email, emailInfo.usage)
+    finishCall(HttpStatus.OK)
 }

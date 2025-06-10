@@ -69,6 +69,7 @@ class ConfigLoader<T: Any> private constructor(
             filesConfig
             loggerConfig
             systemConfig
+            emailConfig
 
             reloadAll()
         }

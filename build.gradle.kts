@@ -61,6 +61,7 @@ dependencies {
     implementation("io.github.smiley4:ktor-swagger-ui:$swagger_ui_version") // 创建api页面
     implementation("io.swagger.parser.v3:swagger-parser:2.1.22")
     implementation("ch.qos.logback:logback-classic:$logback_version") // 日志
+    implementation("com.sun.mail:javax.mail:1.6.2") // 邮件发送
     implementation("net.mamoe.yamlkt:yamlkt:0.13.0") // yaml for kotlin on read/write file
     implementation("io.ktor:ktor-server-config-yaml-jvm") // yaml on read application.yaml
     implementation("org.fusesource.jansi:jansi:2.4.1") // 终端颜色码
