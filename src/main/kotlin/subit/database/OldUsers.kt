@@ -1,7 +1,7 @@
 package subit.database
 
-import org.jetbrains.exposed.dao.id.IdTable
 import org.jetbrains.exposed.sql.ResultRow
+import org.jetbrains.exposed.sql.Table
 import org.jetbrains.exposed.sql.kotlin.datetime.CurrentTimestamp
 import org.jetbrains.exposed.sql.kotlin.datetime.timestamp
 import org.jetbrains.exposed.sql.selectAll
@@ -14,14 +14,13 @@ class OldUsers: DaoSqlImpl<OldUsers.OldUsersTable>(OldUsersTable)
     /**
      * 用户信息表
      */
-    object OldUsersTable: IdTable<UserId>("old_users")
+    object OldUsersTable: Table("old_users")
     {
-        override val id = userId("id").entityId()
+        val id = reference("id", Users.UsersTable).uniqueIndex()
         val name = varchar("name", 100).index()
         val email = varchar("email", 255).uniqueIndex()
         val registrationTime = timestamp("registration_time").defaultExpression(CurrentTimestamp)
         val newId = reference("new_id", Users.UsersTable).nullable().index()
-        override val primaryKey = PrimaryKey(id)
     }
 
     private fun deserialize(row: ResultRow) = SsoUserFull(

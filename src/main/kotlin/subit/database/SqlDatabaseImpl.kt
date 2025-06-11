@@ -73,7 +73,7 @@ object SqlDatabaseImpl: KoinComponent
         this.jdbcUrl = url
         if (user != null) this.username = user
         if (password != null) this.password = password
-        this.maximumPoolSize = 3
+        this.maximumPoolSize = 50
         this.isAutoCommit = false
         this.transactionIsolation = "TRANSACTION_REPEATABLE_READ"
         this.poolName = "subit"
