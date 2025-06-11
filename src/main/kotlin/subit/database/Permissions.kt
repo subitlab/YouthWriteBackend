@@ -14,7 +14,7 @@ class Permissions: DaoSqlImpl<Permissions.PermissionsTable>(PermissionsTable), K
     {
         val user = reference("user", Users.UsersTable).index()
         val block = reference("block", Blocks.BlocksTable).index()
-        val permission = enumeration("permission", PermissionLevel::class).default(PermissionLevel.NORMAL)
+        val permission = enumeration("permission", PermissionLevel::class).index().default(PermissionLevel.NORMAL)
     }
 
     /**

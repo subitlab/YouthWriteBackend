@@ -31,11 +31,11 @@ class Blocks: DaoSqlImpl<Blocks.BlocksTable>(BlocksTable), KoinComponent
             .default(null)
             .index()
         val creator = reference("creator", Users.UsersTable).index()
-        val state = enumerationByName<State>("state", 20).default(State.NORMAL)
-        val posting = enumeration<PermissionLevel>("posting").default(PermissionLevel.NORMAL)
-        val commenting = enumeration<PermissionLevel>("commenting").default(PermissionLevel.NORMAL)
-        val reading = enumeration<PermissionLevel>("reading").default(PermissionLevel.NORMAL)
-        val anonymous = enumeration<PermissionLevel>("anonymous").default(PermissionLevel.NORMAL)
+        val state = enumerationByName<State>("state", 20).index().default(State.NORMAL)
+        val posting = enumeration<PermissionLevel>("posting").index().default(PermissionLevel.NORMAL)
+        val commenting = enumeration<PermissionLevel>("commenting").index().default(PermissionLevel.NORMAL)
+        val reading = enumeration<PermissionLevel>("reading").index().default(PermissionLevel.NORMAL)
+        val anonymous = enumeration<PermissionLevel>("anonymous").index().default(PermissionLevel.NORMAL)
         override val primaryKey: PrimaryKey = PrimaryKey(id)
     }
 

@@ -5,6 +5,7 @@ import com.zaxxer.hikari.HikariDataSource
 import io.ktor.server.application.*
 import io.ktor.server.config.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.datetime.Clock
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import org.jetbrains.exposed.sql.transactions.transaction
@@ -23,6 +24,10 @@ import subit.logger.YouthWriteLogger
 import subit.utils.Power.shutdown
 import java.sql.Driver
 import kotlin.reflect.KClass
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
+
+class SqlTimeoutException(message: String): RuntimeException(message)
 
 /**
  * @param T 表类型
@@ -30,8 +35,18 @@ import kotlin.reflect.KClass
  */
 abstract class DaoSqlImpl<T: Table>(table: T): KoinComponent
 {
-    suspend inline fun <R> query(crossinline block: suspend T.(Transaction)->R) = table.run {
-        newSuspendedTransaction(Dispatchers.IO) { block(this) }
+    protected val logger = YouthWriteLogger.getLogger(this::class)
+    protected suspend inline fun <R> query(crossinline block: suspend T.(Transaction)->R) = table.run()
+    {
+        val clock = Clock.System.now()
+        val res = newSuspendedTransaction(Dispatchers.IO)
+        {
+            block(this)
+        }
+        val elapsed: Duration = Clock.System.now() - clock
+        if (elapsed < 1.seconds) logger.fine("Query executed in $elapsed")
+        else logger.warning("Query executed in $elapsed", SqlTimeoutException("Query executed in $elapsed"))
+        res
     }
 
     private val database: Database by inject()

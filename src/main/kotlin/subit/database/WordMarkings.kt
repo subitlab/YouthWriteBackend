@@ -11,7 +11,7 @@ class WordMarkings: DaoSqlImpl<WordMarkings.WordMarkingsTable>(WordMarkingsTable
     {
         override val id = wordMarkingId("id").autoIncrement().entityId()
         val postVersion = reference("post_version", PostVersions.PostVersionTable)
-        val comment = reference("comment", Posts.PostsTable)
+        val comment = reference("comment", Posts.PostTable)
         val start = integer("start")
         val end = integer("end")
         val state = enumerationByName<WordMarkingState>("state", 20).default(WordMarkingState.NORMAL)

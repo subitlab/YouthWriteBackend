@@ -10,7 +10,7 @@ class Tags: DaoSqlImpl<Tags.TagsTable>(TagsTable)
 {
     object TagsTable: Table("tags")
     {
-        val post = reference("post", Posts.PostsTable).index()
+        val post = reference("post", Posts.PostTable).index()
         val tag = varchar("tag", 100).index()
     }
 

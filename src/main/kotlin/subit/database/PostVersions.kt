@@ -1,17 +1,18 @@
 package subit.database
 
+import kotlinx.datetime.Clock
 import kotlinx.serialization.json.JsonElement
 import org.jetbrains.exposed.dao.id.IdTable
-import org.jetbrains.exposed.sql.ResultRow
-import org.jetbrains.exposed.sql.SortOrder
-import org.jetbrains.exposed.sql.andWhere
-import org.jetbrains.exposed.sql.insertAndGetId
+import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.json.jsonb
 import org.jetbrains.exposed.sql.kotlin.datetime.CurrentTimestamp
 import org.jetbrains.exposed.sql.kotlin.datetime.timestamp
 import org.koin.core.component.KoinComponent
+import org.koin.core.component.inject
 import subit.dataClasses.*
+import subit.dataClasses.Slice
 import subit.database.utils.asSlice
+import subit.database.utils.single
 import subit.database.utils.singleOrNull
 import subit.plugin.contentNegotiation.dataJson
 import subit.utils.getContentText
@@ -21,14 +22,16 @@ class PostVersions: DaoSqlImpl<PostVersions.PostVersionTable>(PostVersionTable),
     object PostVersionTable: IdTable<PostVersionId>("post_versions")
     {
         override val id = postVersionId("id").autoIncrement().entityId()
-        val post = reference("post", Posts.PostsTable)
+        val post = reference("post", Posts.PostTable).index()
         val title = varchar("title", 255)
         val content = jsonb<JsonElement>("content", dataJson)
         val textContent = text("text_content")
         val time = timestamp("time").defaultExpression(CurrentTimestamp).index()
-        val draft = bool("draft").default(false)
+        val draft = bool("draft").index().default(false)
         override val primaryKey = PrimaryKey(id)
     }
+
+    private val posts by inject<Posts>()
 
     private val postVersionColumns = PostVersionTable.columns - PostVersionTable.textContent
     private val postVersionBasicColumns = postVersionColumns - PostVersionTable.content - PostVersionTable.textContent
@@ -64,13 +67,27 @@ class PostVersions: DaoSqlImpl<PostVersions.PostVersionTable>(PostVersionTable),
         draft: Boolean
     ): PostVersionId = query()
     {
-        insertAndGetId {
+        val res = insertAndGetId {
             it[this.post] = post
             it[this.title] = title
             it[this.content] = content
             it[this.textContent] = getContentText(content)
             it[this.draft] = draft
         }.value
+        val q = posts.table.select(
+            posts.table.lastVersion,
+            posts.table.lastDraftVersion,
+            posts.table.create,
+        ).where { posts.table.id eq post }.single()
+        val lastVersion = if (draft) q[posts.table.lastVersion]?.value else res
+        val lastDraftVersion = if (!draft) q[posts.table.lastDraftVersion]?.value else res
+        val create = if (!draft && q[posts.table.create] == null) Clock.System.now() else q[posts.table.create]
+        posts.table.update({ posts.table.id eq post }) {
+            it[posts.table.lastVersion] = lastVersion
+            it[posts.table.lastDraftVersion] = lastDraftVersion
+            it[posts.table.create] = create
+        }
+        res
     }
 
     /**

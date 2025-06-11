@@ -21,7 +21,7 @@ class Notices: DaoSqlImpl<Notices.NoticesTable>(NoticesTable), KoinComponent
         val user = reference("user", Users.UsersTable).index()
         val time = timestamp("time").defaultExpression(CurrentTimestamp)
         val type = enumerationByName<Type>("type", 20).index()
-        val post = reference("post", Posts.PostsTable).nullable().index()
+        val post = reference("post", Posts.PostTable).nullable().index()
         val operator = reference("operator", Users.UsersTable).nullable()
         val content = text("content")
         val read = bool("read").default(false)

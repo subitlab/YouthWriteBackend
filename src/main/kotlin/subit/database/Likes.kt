@@ -1,27 +1,39 @@
 package subit.database
 
 import kotlinx.datetime.Clock
+import org.jetbrains.exposed.dao.id.CompositeIdTable
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.kotlin.datetime.CurrentTimestamp
 import org.jetbrains.exposed.sql.kotlin.datetime.timestamp
 import org.koin.core.component.KoinComponent
+import org.koin.core.component.inject
 import subit.dataClasses.Like
 import subit.dataClasses.PostId
 import subit.dataClasses.Slice
 import subit.dataClasses.UserId
 import subit.database.utils.asSlice
+import subit.database.utils.single
 import subit.utils.toInstant
 import kotlin.time.Duration
 
 class Likes: DaoSqlImpl<Likes.LikesTable>(LikesTable), KoinComponent
 {
-    object LikesTable: Table("likes")
+    object LikesTable: CompositeIdTable("likes")
     {
         val user = reference("user", Users.UsersTable).index()
-        val post = reference("post", Posts.PostsTable).index()
+        val post = reference("post", Posts.PostTable).index()
         val time = timestamp("time").index().defaultExpression(CurrentTimestamp)
+        override val primaryKey = PrimaryKey(user, post)
+
+        init
+        {
+            addIdColumn(user)
+            addIdColumn(post)
+        }
     }
+
+    private val posts: Posts by inject()
 
     private fun deserialize(row: ResultRow) = Like(
         user = row[LikesTable.user].value,
@@ -31,17 +43,26 @@ class Likes: DaoSqlImpl<Likes.LikesTable>(LikesTable), KoinComponent
 
     suspend fun addLike(uid: UserId, pid: PostId): Unit = query()
     {
-        if (getLike(uid, pid)) return@query
-        insert {
+        val id = insertIgnoreAndGetId {
             it[user] = uid
             it[post] = pid
+        }
+        if (id == null) return@query
+        val like = posts.table.select(posts.table.likeCount).where { posts.table.id eq pid }.single()[posts.table.likeCount]
+        posts.table.update({ posts.table.id eq pid }) {
+            it[posts.table.likeCount] = like + 1
         }
     }
 
     suspend fun removeLike(uid: UserId, pid: PostId): Unit = query()
     {
-        deleteWhere {
+        val count = deleteWhere {
             (user eq uid) and (post eq pid)
+        }
+        if (count == 0) return@query
+        val like = posts.table.select(posts.table.likeCount).where { posts.table.id eq pid }.single()[posts.table.likeCount]
+        posts.table.update({ posts.table.id eq pid }) {
+            it[posts.table.likeCount] = like - count
         }
     }
 

@@ -1,15 +1,18 @@
 package subit.database
 
 import kotlinx.datetime.Clock
+import org.jetbrains.exposed.dao.id.CompositeIdTable
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.kotlin.datetime.CurrentTimestamp
 import org.jetbrains.exposed.sql.kotlin.datetime.timestamp
+import org.koin.core.component.inject
 import subit.dataClasses.PostId
 import subit.dataClasses.Slice
 import subit.dataClasses.Star
 import subit.dataClasses.UserId
 import subit.database.utils.asSlice
+import subit.database.utils.single
 import subit.utils.toInstant
 import kotlin.time.Duration
 
@@ -18,12 +21,21 @@ import kotlin.time.Duration
  */
 class Stars: DaoSqlImpl<Stars.StarsTable>(StarsTable)
 {
-    object StarsTable: Table("stars")
+    object StarsTable: CompositeIdTable("stars")
     {
         val user = reference("user", Users.UsersTable).index()
-        val post = reference("post", Posts.PostsTable).index()
-        val time = timestamp("time").defaultExpression(CurrentTimestamp).index()
+        val post = reference("post", Posts.PostTable).index()
+        val time = timestamp("time").index().defaultExpression(CurrentTimestamp)
+        override val primaryKey = PrimaryKey(Stars.StarsTable.user, Stars.StarsTable.post)
+
+        init
+        {
+            addIdColumn(Stars.StarsTable.user)
+            addIdColumn(Stars.StarsTable.post)
+        }
     }
+
+    private val posts: Posts by inject()
 
     private fun deserialize(row: ResultRow) = Star(
         user = row[StarsTable.user].value,
@@ -33,17 +45,26 @@ class Stars: DaoSqlImpl<Stars.StarsTable>(StarsTable)
 
     suspend fun addStar(uid: UserId, pid: PostId): Unit = query()
     {
-        if (getStar(uid, pid)) return@query
-        insert {
-            it[user] = uid
-            it[post] = pid
+        val id = insertIgnoreAndGetId {
+            it[StarsTable.user] = uid
+            it[StarsTable.post] = pid
+        }
+        if (id == null) return@query
+        val star = posts.table.select(posts.table.starCount).where { posts.table.id eq pid }.single()[posts.table.starCount]
+        posts.table.update({ posts.table.id eq pid }) {
+            it[posts.table.starCount] = star + 1
         }
     }
 
     suspend fun removeStar(uid: UserId, pid: PostId): Unit = query()
     {
-        deleteWhere {
-            (user eq uid) and (post eq pid)
+        val count = deleteWhere {
+            (StarsTable.user eq uid) and (StarsTable.post eq pid)
+        }
+        if (count == 0) return@query
+        val star = posts.table.select(posts.table.starCount).where { posts.table.id eq pid }.single()[posts.table.starCount]
+        posts.table.update({ posts.table.id eq pid }) {
+            it[posts.table.starCount] = star - count
         }
     }
 
@@ -61,7 +82,7 @@ class Stars: DaoSqlImpl<Stars.StarsTable>(StarsTable)
         user: UserId? = null,
         post: PostId? = null,
         reverseOrder: Boolean = true,
-        begin: Long = 1,
+        begin: Long = 0,
         limit: Int = Int.MAX_VALUE,
     ): Slice<Star> = query()
     {
