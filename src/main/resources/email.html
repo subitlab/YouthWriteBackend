@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>邮箱验证码邮件</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            max-width: 600px;
+            margin: auto;
+            text-align: center; /* 内容居中 */
+        }
+        .logo-container {
+            text-align: left; /* logo 左对齐 */
+            margin-bottom: 20px; /* logo 与其他内容之间的间距 */
+        }
+        .logo {
+            width: 25%;
+        }
+        h1 {
+            color: #333;
+        }
+        .code {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+            margin: 20px 0;
+        }
+        .footer {
+            margin-top: 20px;
+            font-size: 12px;
+            color: #777;
+        }
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+        .button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <a href="https://subit.org.cn" target="_blank">
+        <div class="logo-container">
+            <img src="https://sso.subit.org.cn/api/logo/normal" alt="SubIT Logo" class="logo"> <!-- 替换为您的 logo 图片地址 -->
+        </div>
+    </a>
+    <h1>邮箱验证码</h1>
+    <p>亲爱的用户，</p>
+    <p>感谢您使用创意写作工坊。请使用以下验证码完成您的{usage}：</p>
+    <div class="code" id="verification-code">{code}</div>
+    <p>如果这并非您本人操作，请忽略此邮件。</p>
+    <div class="footer">
+        <p>Powered by SubIT</p>
+    </div>
+</div>
+
+</body>
+</html>

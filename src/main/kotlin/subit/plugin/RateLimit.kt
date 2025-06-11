@@ -38,7 +38,7 @@ sealed interface RateLimit
 
     companion object
     {
-        val list = listOf(Search, Post, AddView)
+        val list = listOf(Search, Post, AddView, SendEmail)
     }
 
     data object Search: RateLimit

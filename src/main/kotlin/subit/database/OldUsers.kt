@@ -20,7 +20,7 @@ class OldUsers: DaoSqlImpl<OldUsers.OldUsersTable>(OldUsersTable)
         val name = varchar("name", 100).index()
         val email = varchar("email", 255).uniqueIndex()
         val registrationTime = timestamp("registration_time").defaultExpression(CurrentTimestamp)
-        val newId = reference("new_id", this).nullable().index()
+        val newId = reference("new_id", Users.UsersTable).nullable().index()
         override val primaryKey = PrimaryKey(id)
     }
 
