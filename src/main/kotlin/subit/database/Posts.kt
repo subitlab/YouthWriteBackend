@@ -183,8 +183,8 @@ class Posts: DaoSqlImpl<Posts.PostTable>(PostTable), KoinComponent
             author = row[table.author].value,
             anonymous = row[table.anonymous],
             create = if (type != postInfoType) row[table.create]?.toEpochMilliseconds() else null,
-            lastModified = if (type != postInfoType) row[lastModified].toEpochMilliseconds() else null,
-            lastVersionId = if (type != postInfoType) row[PostVersionTable.id].value else null,
+            lastModified = if (type != postInfoType) row.getOrNull(lastModified)?.toEpochMilliseconds() else null,
+            lastVersionId = if (type != postInfoType) row.getOrNull(PostVersionTable.id)?.value else null,
             view = row[table.view],
             block = row[table.block].value,
             top = row[table.top],
@@ -221,6 +221,14 @@ class Posts: DaoSqlImpl<Posts.PostTable>(PostTable), KoinComponent
         table.state,
         table.parent,
         table.rootPost,
+        table.create,
+        table.commentCount,
+        table.lastVersion,
+        table.lastDraftVersion,
+        table.starCount,
+        table.likeCount,
+        lastModified,
+        postVersions.table.id,
         hotScore,
     )
 
@@ -238,7 +246,7 @@ class Posts: DaoSqlImpl<Posts.PostTable>(PostTable), KoinComponent
         val tagsTable = tags.table
 
         var j = this
-            .join(postVersionsTable, JoinType.LEFT, postVersionsTable.id, if (containsDraft) this@Posts.table.lastVersion else this@Posts.table.lastDraftVersion)
+            .join(postVersionsTable, JoinType.LEFT, postVersionsTable.id, if (containsDraft) this@Posts.table.lastDraftVersion else this@Posts.table.lastVersion )
         if (joinTags)
             j = j.join(tagsTable, JoinType.LEFT, this@Posts.table.id, tagsTable.post)
         return j

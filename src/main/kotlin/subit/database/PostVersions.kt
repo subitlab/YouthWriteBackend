@@ -7,6 +7,7 @@ import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.json.jsonb
 import org.jetbrains.exposed.sql.kotlin.datetime.CurrentTimestamp
 import org.jetbrains.exposed.sql.kotlin.datetime.timestamp
+import org.jetbrains.exposed.sql.kotlin.datetime.timestampParam
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import subit.dataClasses.*
@@ -81,11 +82,11 @@ class PostVersions: DaoSqlImpl<PostVersions.PostVersionTable>(PostVersionTable),
         ).where { posts.table.id eq post }.single()
         val lastVersion = if (draft) q[posts.table.lastVersion]?.value else res
         val lastDraftVersion = if (!draft) q[posts.table.lastDraftVersion]?.value else res
-        val create = if (!draft && q[posts.table.create] == null) Clock.System.now() else q[posts.table.create]
+        val create = if (!draft && q[posts.table.create] == null) CurrentTimestamp else q[posts.table.create]?.let(::timestampParam)
         posts.table.update({ posts.table.id eq post }) {
             it[posts.table.lastVersion] = lastVersion
             it[posts.table.lastDraftVersion] = lastDraftVersion
-            it[posts.table.create] = create
+            if (create != null) it[posts.table.create] = create
         }
         res
     }
