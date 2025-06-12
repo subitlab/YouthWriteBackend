@@ -96,4 +96,11 @@ class Likes: DaoSqlImpl<Likes.LikesTable>(LikesTable), KoinComponent
         val time = duration?.let { Clock.System.now() - it } ?: 0L.toInstant()
         table.selectAll().where { table.time greaterEq time }.count()
     }
+
+    suspend fun claimUserLikes(oldUserId: UserId, newUserId: UserId): Unit = query()
+    {
+        table.update({ table.user eq oldUserId }) {
+            it[user] = newUserId
+        }
+    }
 }

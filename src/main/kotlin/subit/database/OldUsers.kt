@@ -21,6 +21,7 @@ class OldUsers: DaoSqlImpl<OldUsers.OldUsersTable>(OldUsersTable)
         val email = varchar("email", 255).uniqueIndex()
         val registrationTime = timestamp("registration_time").defaultExpression(CurrentTimestamp)
         val newId = reference("new_id", Users.UsersTable).nullable().index()
+        val avatar = text("avatar").nullable().default(null)
     }
 
     private fun deserialize(row: ResultRow) = SsoUserFull(
@@ -52,6 +53,11 @@ class OldUsers: DaoSqlImpl<OldUsers.OldUsersTable>(OldUsersTable)
     suspend fun getOldUser(id: UserId): SsoUserFull? = query()
     {
         selectAll().where { OldUsersTable.id eq id }.singleOrNull()?.let(::deserialize)
+    }
+
+    suspend fun getAvatar(id: UserId): String? = query()
+    {
+        selectAll().where { OldUsersTable.id eq id }.singleOrNull()?.get(avatar)
     }
 
     suspend fun getEmailUser(email: String): UserId? = query()

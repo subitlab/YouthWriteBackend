@@ -180,6 +180,20 @@ fun Route.user() = route("/user", {
             statuses(HttpStatus.OK, HttpStatus.Unauthorized, HttpStatus.NotFound)
         }
     }) { claimNewUser() }
+
+    get("getOldUserAvatar/{id}", {
+        description = "获取旧用户头像, 仅限旧用户, 没有头像返回空字符串"
+        request {
+            pathParameter<UserId>("id")
+            {
+                required = true
+                description = "旧用户ID,负数"
+            }
+        }
+        response {
+            statuses<String>(HttpStatus.OK, example = "https://www.youthwrite.pro/wp-content/uploads/2025/03/头像2.png")
+        }
+    }) { getOldUserAvatar() }
 }
 
 private suspend fun Context.getUserInfo()
@@ -315,6 +329,7 @@ private suspend fun Context.claimNewUser(){
     oldUserTable.setNewId(id, loginUser.id)
         .takeIf { it } ?: finishCall(HttpStatus.EmailExist.copy(message = "该账户已被其他用户认领"))
     get<Posts>().claimAuthor(id, loginUser.id)
+    get<Likes>().claimUserLikes(id, loginUser.id)
     finishCall(HttpStatus.OK)
 }
 
@@ -333,4 +348,12 @@ private suspend fun Context.sendEmailCode()
     }
     get<EmailCodes>().sendEmailCode(emailInfo.email, emailInfo.usage)
     finishCall(HttpStatus.OK)
+}
+
+private suspend fun Context.getOldUserAvatar()
+{
+    val id = call.parameters["id"]?.toUserIdOrNull() ?: finishCall(HttpStatus.BadRequest)
+    if (id >= UserId(0)) finishCall(HttpStatus.BadRequest.subStatus("只能获取旧用户的头像,id为负数"))
+    val avatar = get<OldUsers>().getAvatar(id) ?: ""
+    call.respond(HttpStatus.OK, avatar)
 }
