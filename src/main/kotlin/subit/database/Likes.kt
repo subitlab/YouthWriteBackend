@@ -93,9 +93,8 @@ class Likes: DaoSqlImpl<Likes.LikeTable>(LikeTable), KoinComponent
 
     suspend fun claimUserLikes(oldUserId: UserId, newUserId: UserId): Unit = query()
     {
-        table.update({ table.user eq oldUserId }) {
-            it[user] = newUserId
-        }
+        insertIgnore(select(intParam(newUserId.value).alias(table.user.name), post).where { table.user eq oldUserId }, listOf(table.user, table.post))
+        deleteWhere { table.user eq oldUserId }
     }
 }
 

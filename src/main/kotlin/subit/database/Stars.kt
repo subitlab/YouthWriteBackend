@@ -26,12 +26,12 @@ class Stars: DaoSqlImpl<Stars.StarTable>(StarTable)
         val user = reference("user", Users.UsersTable).index()
         val post = reference("post", Posts.PostTable).index()
         val time = timestamp("time").index().defaultExpression(CurrentTimestamp)
-        override val primaryKey = PrimaryKey(Stars.StarTable.user, Stars.StarTable.post)
+        override val primaryKey = PrimaryKey(user, post)
 
         init
         {
-            addIdColumn(Stars.StarTable.user)
-            addIdColumn(Stars.StarTable.post)
+            addIdColumn(user)
+            addIdColumn(post)
         }
     }
 
@@ -90,6 +90,12 @@ class Stars: DaoSqlImpl<Stars.StarTable>(StarTable)
     {
         val time = duration?.let { Clock.System.now() - it } ?: 0L.toInstant()
         table.selectAll().where { table.time greaterEq time }.count()
+    }
+
+    suspend fun claimUserLikes(oldUserId: UserId, newUserId: UserId): Unit = query()
+    {
+        insertIgnore(select(intParam(newUserId.value).alias(table.user.name), Likes.LikeTable.post).where { table.user eq oldUserId }, listOf(table.user, table.post))
+        deleteWhere { table.user eq oldUserId }
     }
 }
 
