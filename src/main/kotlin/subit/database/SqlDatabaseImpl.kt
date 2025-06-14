@@ -39,17 +39,17 @@ abstract class DaoSqlImpl<T: Table>(table: T): KoinComponent
     protected suspend inline fun <R> query(crossinline block: suspend T.(Transaction)->R) = table.run()
     {
         val clock = Clock.System.now()
-        val res = newSuspendedTransaction(Dispatchers.IO)
+        val res = newSuspendedTransaction(Dispatchers.IO, database)
         {
             block(this)
         }
         val elapsed: Duration = Clock.System.now() - clock
-        if (elapsed < 1.seconds) logger.fine("Query executed in $elapsed")
+        if (elapsed < 2.seconds) logger.fine("Query executed in $elapsed")
         else logger.warning("Query executed in $elapsed", SqlTimeoutException("Query executed in $elapsed"))
         res
     }
 
-    private val database: Database by inject()
+    protected val database: Database by inject()
     val table: T by lazy {
         transaction(database)
         {

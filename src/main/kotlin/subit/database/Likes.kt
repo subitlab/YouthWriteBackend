@@ -7,19 +7,20 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.kotlin.datetime.CurrentTimestamp
 import org.jetbrains.exposed.sql.kotlin.datetime.timestamp
 import org.koin.core.component.KoinComponent
-import org.koin.core.component.inject
 import subit.dataClasses.Like
 import subit.dataClasses.PostId
 import subit.dataClasses.Slice
 import subit.dataClasses.UserId
 import subit.database.utils.asSlice
-import subit.database.utils.single
 import subit.utils.toInstant
 import kotlin.time.Duration
+import org.jetbrains.exposed.sql.Database
+import org.jetbrains.exposed.sql.transactions.transaction
+import subit.logger.YouthWriteLogger
 
-class Likes: DaoSqlImpl<Likes.LikesTable>(LikesTable), KoinComponent
+class Likes: DaoSqlImpl<Likes.LikeTable>(LikeTable), KoinComponent
 {
-    object LikesTable: CompositeIdTable("likes")
+    object LikeTable: CompositeIdTable("likes")
     {
         val user = reference("user", Users.UsersTable).index()
         val post = reference("post", Posts.PostTable).index()
@@ -33,36 +34,29 @@ class Likes: DaoSqlImpl<Likes.LikesTable>(LikesTable), KoinComponent
         }
     }
 
-    private val posts: Posts by inject()
+    init
+    {
+        LikeCountTriggerManager.setupTriggers(database)
+    }
 
     private fun deserialize(row: ResultRow) = Like(
-        user = row[LikesTable.user].value,
-        post = row[LikesTable.post].value,
-        time = row[LikesTable.time].toEpochMilliseconds()
+        user = row[LikeTable.user].value,
+        post = row[LikeTable.post].value,
+        time = row[LikeTable.time].toEpochMilliseconds()
     )
 
     suspend fun addLike(uid: UserId, pid: PostId): Unit = query()
     {
-        val id = insertIgnoreAndGetId {
+        insertIgnoreAndGetId {
             it[user] = uid
             it[post] = pid
-        }
-        if (id == null) return@query
-        val like = posts.table.select(posts.table.likeCount).where { posts.table.id eq pid }.single()[posts.table.likeCount]
-        posts.table.update({ posts.table.id eq pid }) {
-            it[posts.table.likeCount] = like + 1
         }
     }
 
     suspend fun removeLike(uid: UserId, pid: PostId): Unit = query()
     {
-        val count = deleteWhere {
+        deleteWhere {
             (user eq uid) and (post eq pid)
-        }
-        if (count == 0) return@query
-        val like = posts.table.select(posts.table.likeCount).where { posts.table.id eq pid }.single()[posts.table.likeCount]
-        posts.table.update({ posts.table.id eq pid }) {
-            it[posts.table.likeCount] = like - count
         }
     }
 
@@ -73,7 +67,7 @@ class Likes: DaoSqlImpl<Likes.LikesTable>(LikesTable), KoinComponent
 
     suspend fun getLikesCount(pid: PostId): Long = query()
     {
-        LikesTable.selectAll().where { post eq pid }.count()
+        LikeTable.selectAll().where { post eq pid }.count()
     }
 
     suspend fun getLikes(
@@ -102,5 +96,122 @@ class Likes: DaoSqlImpl<Likes.LikesTable>(LikesTable), KoinComponent
         table.update({ table.user eq oldUserId }) {
             it[user] = newUserId
         }
+    }
+}
+
+object LikeCountTriggerManager
+{
+    private val logger = YouthWriteLogger.getLogger<LikeCountTriggerManager>()
+
+    private const val INSERT_FUNCTION = "update_likeCount_insert"
+    private const val DELETE_FUNCTION = "update_likeCount_delete"
+    private const val UPDATE_FUNCTION = "update_likeCount_update"
+    private const val INSERT_TRIGGER = "trigger_after_like_insert"
+    private const val DELETE_TRIGGER = "trigger_after_like_delete"
+    private const val UPDATE_TRIGGER = "trigger_after_like_update"
+
+    fun setupTriggers(db: Database)
+    {
+        transaction(db)
+        {
+            try
+            {
+                createFunctionsIfNotExists()
+                createTriggersIfNotExists()
+                logger.info("Database triggers initialized successfully")
+            }
+            catch (e: Exception)
+            {
+                logger.severe("Failed to initialize database triggers", e)
+                throw e
+            }
+        }
+    }
+
+    private fun Transaction.createFunctionsIfNotExists()
+    {
+        deleteFunction(INSERT_FUNCTION)
+        exec(
+        """
+            CREATE FUNCTION $INSERT_FUNCTION() RETURNS TRIGGER AS $$
+            BEGIN
+                UPDATE posts 
+                SET "likeCount" = "likeCount" + 1 
+                WHERE id = NEW.post;
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+            """.trimIndent()
+        )
+
+        deleteFunction(DELETE_FUNCTION)
+        exec(
+        """
+            CREATE FUNCTION $DELETE_FUNCTION() RETURNS TRIGGER AS $$
+            BEGIN
+                UPDATE posts 
+                SET "likeCount" = "likeCount" - 1 
+                WHERE id = OLD.post;
+                RETURN OLD;
+            END;
+            $$ LANGUAGE plpgsql;
+            """.trimIndent()
+        )
+
+        deleteFunction(UPDATE_FUNCTION)
+        exec(
+        """
+            CREATE FUNCTION $UPDATE_FUNCTION() RETURNS TRIGGER AS $$
+            BEGIN
+                IF OLD.post <> NEW.post THEN
+                    UPDATE posts SET "likeCount" = "likeCount" - 1 WHERE id = OLD.post;
+                    UPDATE posts SET "likeCount" = "likeCount" + 1 WHERE id = NEW.post;
+                END IF;
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+            """.trimIndent()
+        )
+    }
+
+    private fun Transaction.createTriggersIfNotExists()
+    {
+        deleteTrigger(INSERT_TRIGGER)
+        exec(
+        """
+            CREATE TRIGGER $INSERT_TRIGGER
+            AFTER INSERT ON likes
+            FOR EACH ROW
+            EXECUTE FUNCTION $INSERT_FUNCTION();
+            """.trimIndent()
+        )
+        deleteTrigger(DELETE_TRIGGER)
+        exec(
+        """
+            CREATE TRIGGER $DELETE_TRIGGER
+            AFTER DELETE ON likes
+            FOR EACH ROW
+            EXECUTE FUNCTION $DELETE_FUNCTION();
+            """.trimIndent()
+        )
+        deleteTrigger(UPDATE_TRIGGER)
+        exec(
+        """
+            CREATE TRIGGER $UPDATE_TRIGGER
+            AFTER UPDATE ON likes
+            FOR EACH ROW
+            EXECUTE FUNCTION $UPDATE_FUNCTION();
+            """.trimIndent()
+        )
+    }
+
+    private fun Transaction.deleteFunction(functionName: String)
+    {
+        exec("DROP FUNCTION IF EXISTS $functionName() CASCADE;")
+    }
+
+    private fun Transaction.deleteTrigger(triggerName: String)
+    {
+        exec("DROP TRIGGER IF EXISTS $triggerName ON likes;")
     }
 }

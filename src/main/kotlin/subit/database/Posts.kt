@@ -21,6 +21,7 @@ import org.jetbrains.exposed.sql.kotlin.datetime.CurrentTimestamp
 import org.jetbrains.exposed.sql.kotlin.datetime.timestamp
 import org.jetbrains.exposed.sql.kotlin.datetime.timestampParam
 import org.jetbrains.exposed.sql.statements.Statement
+import org.jetbrains.exposed.sql.transactions.transaction
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import subit.dataClasses.*
@@ -30,6 +31,7 @@ import subit.database.Posts.PostListSort.*
 import subit.database.utils.asSlice
 import subit.database.utils.single
 import subit.database.utils.singleOrNull
+import subit.logger.YouthWriteLogger
 import subit.router.utils.PermissionGroup
 import subit.router.utils.permissionGroup
 import subit.utils.SUB_CONTENT_LENGTH
@@ -116,6 +118,11 @@ class Posts: DaoSqlImpl<Posts.PostTable>(PostTable), KoinComponent
         val likeCount = long("likeCount").default(0L).index()
         val create = timestamp("create").nullable().default(null).index()
         override val primaryKey = PrimaryKey(id)
+    }
+
+    init
+    {
+        CommentCountTriggerManager.setupTriggers(database)
     }
 
     private val lastModified = PostVersionTable.time
@@ -373,13 +380,12 @@ class Posts: DaoSqlImpl<Posts.PostTable>(PostTable), KoinComponent
         val root =
             if (parent != null)
             {
-                val q = select(table.rootPost, table.commentCount).where { table.id eq parent }.singleOrNull() ?: return@query null
+                val q = select(table.rootPost).where { table.id eq parent }.singleOrNull() ?: return@query null
                 q[table.rootPost]?.value ?: parent
             }
             else null
-        val commentCount: Long = root?.let { select(table.commentCount).where { table.id eq it }.singleOrNull()?.getOrNull(table.commentCount) ?: 0L } ?: 0L
 
-        val res = table.insertAndGetId {
+        table.insertAndGetId {
             it[table.author] = author
             it[table.anonymous] = anonymous
             it[table.block] = block
@@ -388,11 +394,6 @@ class Posts: DaoSqlImpl<Posts.PostTable>(PostTable), KoinComponent
             it[table.state] = state
             it[table.rootPost] = root
         }.value
-        if (root != null) update({ table.id eq root })
-        {
-            it[table.commentCount] = commentCount + 1L
-        }
-        return@query res
     }
 
 
@@ -766,5 +767,122 @@ class Posts: DaoSqlImpl<Posts.PostTable>(PostTable), KoinComponent
     suspend fun claimAuthor(oldAuthor: UserId, newAuthor: UserId): Unit = query()
     {
         table.update({ table.author eq oldAuthor }) { it[table.author] = newAuthor }
+    }
+}
+
+object CommentCountTriggerManager
+{
+    private val logger = YouthWriteLogger.getLogger<CommentCountTriggerManager>()
+
+    private const val INSERT_FUNCTION = "update_comment_count_insert"
+    private const val DELETE_FUNCTION = "update_comment_count_delete"
+    private const val UPDATE_FUNCTION = "update_comment_count_update"
+    private const val INSERT_TRIGGER = "trigger_after_comment_insert"
+    private const val DELETE_TRIGGER = "trigger_after_comment_delete"
+    private const val UPDATE_TRIGGER = "trigger_after_comment_update"
+
+    fun setupTriggers(db: Database)
+    {
+        transaction(db)
+        {
+            try
+            {
+                createFunctionsIfNotExists()
+                createTriggersIfNotExists()
+                logger.info("Database triggers initialized successfully")
+            }
+            catch (e: Exception)
+            {
+                logger.severe("Failed to initialize database triggers", e)
+                throw e
+            }
+        }
+    }
+
+    private fun Transaction.createFunctionsIfNotExists()
+    {
+        deleteFunction(INSERT_FUNCTION)
+        exec(
+            """
+            CREATE FUNCTION $INSERT_FUNCTION() RETURNS TRIGGER AS $$
+            BEGIN
+                UPDATE posts 
+                SET "commentCount" = "commentCount" + 1
+                WHERE id = NEW."rootPost";
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+            """.trimIndent()
+        )
+
+        deleteFunction(DELETE_FUNCTION)
+        exec(
+            """
+            CREATE FUNCTION $DELETE_FUNCTION() RETURNS TRIGGER AS $$
+            BEGIN
+                UPDATE posts 
+                SET "commentCount" = "commentCount" - 1 
+                WHERE id = OLD."rootPost";
+                RETURN OLD;
+            END;
+            $$ LANGUAGE plpgsql;
+            """.trimIndent()
+        )
+
+        deleteFunction(UPDATE_FUNCTION)
+        exec(
+            """
+            CREATE FUNCTION $UPDATE_FUNCTION() RETURNS TRIGGER AS $$
+            BEGIN
+                IF OLD."rootPost" <> NEW."rootPost" THEN
+                    UPDATE posts SET "commentCount" = "commentCount" - 1 WHERE id = OLD.rootPost;
+                    UPDATE posts SET "commentCount" = "commentCount" + 1 WHERE id = NEW.rootPost;
+                END IF;
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+            """.trimIndent()
+        )
+    }
+
+    private fun Transaction.createTriggersIfNotExists()
+    {
+        deleteTrigger(INSERT_TRIGGER)
+        exec(
+            """
+            CREATE TRIGGER $INSERT_TRIGGER
+            AFTER INSERT ON posts
+            FOR EACH ROW
+            EXECUTE FUNCTION $INSERT_FUNCTION();
+            """.trimIndent()
+        )
+        deleteTrigger(DELETE_TRIGGER)
+        exec(
+            """
+            CREATE TRIGGER $DELETE_TRIGGER
+            AFTER DELETE ON posts
+            FOR EACH ROW
+            EXECUTE FUNCTION $DELETE_FUNCTION();
+            """.trimIndent()
+        )
+        deleteTrigger(UPDATE_TRIGGER)
+        exec(
+            """
+            CREATE TRIGGER $UPDATE_TRIGGER
+            AFTER UPDATE ON posts
+            FOR EACH ROW
+            EXECUTE FUNCTION $UPDATE_FUNCTION();
+            """.trimIndent()
+        )
+    }
+
+    private fun Transaction.deleteFunction(functionName: String)
+    {
+        exec("DROP FUNCTION IF EXISTS $functionName() CASCADE;")
+    }
+
+    private fun Transaction.deleteTrigger(triggerName: String)
+    {
+        exec("DROP TRIGGER IF EXISTS $triggerName ON likes;")
     }
 }

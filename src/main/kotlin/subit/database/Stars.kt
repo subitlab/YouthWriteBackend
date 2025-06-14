@@ -6,65 +6,58 @@ import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.kotlin.datetime.CurrentTimestamp
 import org.jetbrains.exposed.sql.kotlin.datetime.timestamp
-import org.koin.core.component.inject
+import org.jetbrains.exposed.sql.transactions.transaction
 import subit.dataClasses.PostId
 import subit.dataClasses.Slice
 import subit.dataClasses.Star
 import subit.dataClasses.UserId
 import subit.database.utils.asSlice
-import subit.database.utils.single
+import subit.logger.YouthWriteLogger
 import subit.utils.toInstant
 import kotlin.time.Duration
 
 /**
  * 收藏数据库交互类
  */
-class Stars: DaoSqlImpl<Stars.StarsTable>(StarsTable)
+class Stars: DaoSqlImpl<Stars.StarTable>(StarTable)
 {
-    object StarsTable: CompositeIdTable("stars")
+    object StarTable: CompositeIdTable("stars")
     {
         val user = reference("user", Users.UsersTable).index()
         val post = reference("post", Posts.PostTable).index()
         val time = timestamp("time").index().defaultExpression(CurrentTimestamp)
-        override val primaryKey = PrimaryKey(Stars.StarsTable.user, Stars.StarsTable.post)
+        override val primaryKey = PrimaryKey(Stars.StarTable.user, Stars.StarTable.post)
 
         init
         {
-            addIdColumn(Stars.StarsTable.user)
-            addIdColumn(Stars.StarsTable.post)
+            addIdColumn(Stars.StarTable.user)
+            addIdColumn(Stars.StarTable.post)
         }
     }
 
-    private val posts: Posts by inject()
+    init
+    {
+        StarCountTriggerManager.setupTriggers(database)
+    }
 
     private fun deserialize(row: ResultRow) = Star(
-        user = row[StarsTable.user].value,
-        post = row[StarsTable.post].value,
-        time = row[StarsTable.time].toEpochMilliseconds()
+        user = row[StarTable.user].value,
+        post = row[StarTable.post].value,
+        time = row[StarTable.time].toEpochMilliseconds()
     )
 
     suspend fun addStar(uid: UserId, pid: PostId): Unit = query()
     {
-        val id = insertIgnoreAndGetId {
-            it[StarsTable.user] = uid
-            it[StarsTable.post] = pid
-        }
-        if (id == null) return@query
-        val star = posts.table.select(posts.table.starCount).where { posts.table.id eq pid }.single()[posts.table.starCount]
-        posts.table.update({ posts.table.id eq pid }) {
-            it[posts.table.starCount] = star + 1
+        insertIgnoreAndGetId {
+            it[StarTable.user] = uid
+            it[StarTable.post] = pid
         }
     }
 
     suspend fun removeStar(uid: UserId, pid: PostId): Unit = query()
     {
-        val count = deleteWhere {
-            (StarsTable.user eq uid) and (StarsTable.post eq pid)
-        }
-        if (count == 0) return@query
-        val star = posts.table.select(posts.table.starCount).where { posts.table.id eq pid }.single()[posts.table.starCount]
-        posts.table.update({ posts.table.id eq pid }) {
-            it[posts.table.starCount] = star - count
+        deleteWhere {
+            (StarTable.user eq uid) and (StarTable.post eq pid)
         }
     }
 
@@ -75,7 +68,7 @@ class Stars: DaoSqlImpl<Stars.StarsTable>(StarsTable)
 
     suspend fun getStarsCount(pid: PostId): Long = query()
     {
-        StarsTable.selectAll().where { post eq pid }.count()
+        StarTable.selectAll().where { post eq pid }.count()
     }
 
     suspend fun getStars(
@@ -97,5 +90,122 @@ class Stars: DaoSqlImpl<Stars.StarsTable>(StarsTable)
     {
         val time = duration?.let { Clock.System.now() - it } ?: 0L.toInstant()
         table.selectAll().where { table.time greaterEq time }.count()
+    }
+}
+
+object StarCountTriggerManager
+{
+    private val logger = YouthWriteLogger.getLogger<StarCountTriggerManager>()
+
+    private const val INSERT_FUNCTION = "update_starCount_insert"
+    private const val DELETE_FUNCTION = "update_starCount_delete"
+    private const val UPDATE_FUNCTION = "update_starCount_update"
+    private const val INSERT_TRIGGER = "trigger_after_star_insert"
+    private const val DELETE_TRIGGER = "trigger_after_star_delete"
+    private const val UPDATE_TRIGGER = "trigger_after_star_update"
+
+    fun setupTriggers(db: Database)
+    {
+        transaction(db)
+        {
+            try
+            {
+                createFunctionsIfNotExists()
+                createTriggersIfNotExists()
+                logger.info("Database triggers initialized successfully")
+            }
+            catch (e: Exception)
+            {
+                logger.severe("Failed to initialize database triggers", e)
+                throw e
+            }
+        }
+    }
+
+    private fun Transaction.createFunctionsIfNotExists()
+    {
+        deleteFunction(INSERT_FUNCTION)
+        exec(
+            """
+            CREATE FUNCTION $INSERT_FUNCTION() RETURNS TRIGGER AS $$
+            BEGIN
+                UPDATE posts 
+                SET "starCount" = "starCount" + 1 
+                WHERE id = NEW.post;
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+            """.trimIndent()
+        )
+
+        deleteFunction(DELETE_FUNCTION)
+        exec(
+            """
+            CREATE FUNCTION $DELETE_FUNCTION() RETURNS TRIGGER AS $$
+            BEGIN
+                UPDATE posts 
+                SET "starCount" = "starCount" - 1 
+                WHERE id = OLD.post;
+                RETURN OLD;
+            END;
+            $$ LANGUAGE plpgsql;
+            """.trimIndent()
+        )
+
+        deleteFunction(UPDATE_FUNCTION)
+        exec(
+            """
+            CREATE FUNCTION $UPDATE_FUNCTION() RETURNS TRIGGER AS $$
+            BEGIN
+                IF OLD.post <> NEW.post THEN
+                    UPDATE posts SET "starCount" = "starCount" - 1 WHERE id = OLD.post;
+                    UPDATE posts SET "starCount" = "starCount" + 1 WHERE id = NEW.post;
+                END IF;
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+            """.trimIndent()
+        )
+    }
+
+    private fun Transaction.createTriggersIfNotExists()
+    {
+        deleteTrigger(INSERT_TRIGGER)
+        exec(
+            """
+            CREATE TRIGGER $INSERT_TRIGGER
+            AFTER INSERT ON stars
+            FOR EACH ROW
+            EXECUTE FUNCTION $INSERT_FUNCTION();
+            """.trimIndent()
+        )
+        deleteTrigger(DELETE_TRIGGER)
+        exec(
+            """
+            CREATE TRIGGER $DELETE_TRIGGER
+            AFTER DELETE ON stars
+            FOR EACH ROW
+            EXECUTE FUNCTION $DELETE_FUNCTION();
+            """.trimIndent()
+        )
+        deleteTrigger(UPDATE_TRIGGER)
+        exec(
+            """
+            CREATE TRIGGER $UPDATE_TRIGGER
+            AFTER UPDATE ON stars
+            FOR EACH ROW
+            EXECUTE FUNCTION $UPDATE_FUNCTION();
+            """.trimIndent()
+        )
+    }
+
+    private fun Transaction.deleteFunction(functionName: String)
+    {
+        exec("DROP FUNCTION IF EXISTS $functionName() CASCADE;")
+    }
+
+    private fun Transaction.deleteTrigger(triggerName: String)
+    {
+        exec("DROP TRIGGER IF EXISTS $triggerName ON stars;")
     }
 }
