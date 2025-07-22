@@ -33,11 +33,11 @@ class PrivateChats: DaoSqlImpl<PrivateChats.PrivateChatsTable>(PrivateChatsTable
     }
 
     private fun deserialize(row: ResultRow) = PrivateChat(
-        id = row[PrivateChatsTable.id].value,
-        from = row[PrivateChatsTable.from].value,
-        to = row[PrivateChatsTable.to].value,
-        time = row[PrivateChatsTable.time].toEpochMilliseconds(),
-        content = row[PrivateChatsTable.content]
+        id = row[table.id].value,
+        from = row[table.from].value,
+        to = row[table.to].value,
+        time = row[table.time].toEpochMilliseconds(),
+        content = row[table.content]
     )
 
     /**
@@ -66,7 +66,7 @@ class PrivateChats: DaoSqlImpl<PrivateChats.PrivateChatsTable>(PrivateChatsTable
          * 若有更好的实现方法, 可以自行修改.
          */
         val count = select(content).where {
-            (PrivateChatsTable.from eq from) and (PrivateChatsTable.to eq to) and (time eq Instant.PG_MIN)
+            (table.from eq from) and (table.to eq to) and (time eq Instant.PG_MIN)
         }.singleOrNull()?.get(content)?.toLongOrNull() ?: 0
         if (block != null)
         {
@@ -74,18 +74,18 @@ class PrivateChats: DaoSqlImpl<PrivateChats.PrivateChatsTable>(PrivateChatsTable
             if (newCount != count)
             {
                 if (newCount == 0L) deleteWhere {
-                    (PrivateChatsTable.from eq from)
-                        .and(PrivateChatsTable.to eq to)
+                    (table.from eq from)
+                        .and(table.to eq to)
                         .and(time eq Instant.PG_MIN)
                 }
                 else if (count == 0L) insert {
-                    it[PrivateChatsTable.from] = from
-                    it[PrivateChatsTable.to] = to
+                    it[table.from] = from
+                    it[table.to] = to
                     it[time] = Instant.PG_MIN
                     it[content] = newCount.toString()
                 }
                 else update({
-                    (PrivateChatsTable.from eq from) and (PrivateChatsTable.to eq to) and (time eq Instant.PG_MIN)
+                    (table.from eq from) and (table.to eq to) and (time eq Instant.PG_MIN)
                 })
                 {
                     it[content] = newCount.toString()
@@ -100,9 +100,9 @@ class PrivateChats: DaoSqlImpl<PrivateChats.PrivateChatsTable>(PrivateChatsTable
     {
         val (id, time) = insertReturning(listOf(table.id, table.time))
         {
-            it[PrivateChatsTable.from] = from
-            it[PrivateChatsTable.to] = to
-            it[PrivateChatsTable.content] = content
+            it[table.from] = from
+            it[table.to] = to
+            it[table.content] = content
         }.single().let { it[table.id].value to it[table.time] }
         unreadCount(to, from) { if (from != to) it+1 else 0 }
         PrivateChat(id, from, to, time.toEpochMilliseconds(), content)
@@ -196,7 +196,7 @@ class PrivateChats: DaoSqlImpl<PrivateChats.PrivateChatsTable>(PrivateChatsTable
         //此处表示from拉黑了to
         // 只要存在time是Instant.DISTANT_FUTURE的记录，就表示from拉黑了to
 
-        val op = (PrivateChatsTable.from eq from) and (PrivateChatsTable.to eq to) and (time eq Instant.DISTANT_FUTURE)
+        val op = (table.from eq from) and (table.to eq to) and (time eq Instant.DISTANT_FUTURE)
 
         // 如果取消拉黑, 则删除记录即可
         if (!isBlock) deleteWhere { op }
@@ -204,8 +204,8 @@ class PrivateChats: DaoSqlImpl<PrivateChats.PrivateChatsTable>(PrivateChatsTable
         else if (select(content).where { op }.count() <= 0)
         {
             insert {
-                it[PrivateChatsTable.from] = from
-                it[PrivateChatsTable.to] = to
+                it[table.from] = from
+                it[table.to] = to
                 it[time] = Instant.DISTANT_FUTURE
                 it[content] = "This is a block record. The $from block $to. Do not delete this record."
             }
@@ -215,14 +215,19 @@ class PrivateChats: DaoSqlImpl<PrivateChats.PrivateChatsTable>(PrivateChatsTable
     suspend fun getIsBlock(from: UserId, to: UserId): Boolean = query()
     {
         selectAll().where {
-            (PrivateChatsTable.from eq from) and (PrivateChatsTable.to eq to) and (time eq Instant.DISTANT_FUTURE)
+            (table.from eq from) and (table.to eq to) and (time eq Instant.DISTANT_FUTURE)
         }.count() > 0
     }
 
     suspend fun getMessageCount(from: UserId, to: UserId): Long = query()
     {
-        selectAll().where {
-            (PrivateChatsTable.from eq from) and (PrivateChatsTable.to eq to) and (time neq Instant.PG_MIN) and (time neq Instant.DISTANT_FUTURE)
-        }.count()
+        selectAll()
+            .andWhere {
+                (table.from eq from) and (table.to eq to)
+            }.orWhere {
+                (table.from eq to) and (table.to eq from)
+            }.andWhere {
+                (time neq Instant.PG_MIN) and (time neq Instant.DISTANT_FUTURE)
+            }.count()
     }
 }

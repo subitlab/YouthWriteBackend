@@ -200,6 +200,7 @@ private fun Route.privateChatWsImpl() = webSocket()
                         {
                             sendSerialized(PrivateChatPacket.Send.Message(it))
                         }
+                        messageCount(packet.user )
                     }
                 }
             }
