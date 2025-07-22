@@ -55,7 +55,9 @@ object PrivateChatUtil: KoinComponent
     {
         if (privateChats.getIsBlock(from, to)) return
         val msg = privateChats.addPrivateChat(from, to, message)
+        val unreadCount = privateChats.getUnreadCount(to, from)
         getClients(to).forEach { it.onReceive.invoke(msg) }
+        getClients(to).forEach { it.onUnreadCountChange.invoke(from, unreadCount, privateChats.getUnreadCount(to)) }
         getClients(from).forEach { it.onSend.invoke(msg) }
     }
 

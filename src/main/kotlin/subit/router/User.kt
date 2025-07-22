@@ -182,7 +182,7 @@ fun Route.user() = route("/user", {
     }) { claimNewUser() }
 
     get("getOldUserAvatar/{id}", {
-        description = "获取旧用户头像, 仅限旧用户, 没有头像返回空字符串"
+        description = "获取旧用户头像URL, 仅限旧用户, 没有头像返回空字符串"
         request {
             pathParameter<UserId>("id")
             {

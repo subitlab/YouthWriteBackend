@@ -202,6 +202,7 @@ private fun Route.privateChatWsImpl() = webSocket()
             catch (e: Throwable)
             {
                 logger.warning("Error in private chat websocket", e)
+                break
             }
         }
     }

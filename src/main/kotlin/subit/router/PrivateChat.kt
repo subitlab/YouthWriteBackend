@@ -19,7 +19,7 @@ import subit.utils.HttpStatus
 import subit.utils.respond
 import subit.utils.statuses
 
-@Deprecated("Use privateChatWs instead", level = DeprecationLevel.ERROR, replaceWith = ReplaceWith("privateChatWs"))
+//@Deprecated("Use privateChatWs instead", level = DeprecationLevel.WARNING, replaceWith = ReplaceWith("privateChatWs"))
 fun Route.privateChat() = route("/privateChat", {
     tags = listOf("私信")
 })
