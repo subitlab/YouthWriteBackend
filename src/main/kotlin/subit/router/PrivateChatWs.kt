@@ -78,6 +78,7 @@ fun Route.privateChatWs() = route("/privateChatWs", {
                 example("发送/接收到新的私信", PrivateChatPacket.Send.messageExample)
                 example("未读私信数量变化", PrivateChatPacket.Send.unreadCountExample)
                 example("被屏蔽状态变化", PrivateChatPacket.Send.blockExample)
+                example("与某人的总私信条目数量变化", PrivateChatPacket.Send.messageCountExample)
             }
         }
     }
@@ -135,7 +136,7 @@ private sealed interface PrivateChatPacket<T: PrivateChatPacket.PacketType>
         @Serializable
         enum class Type: PacketType
         {
-            MESSAGE, UNREAD_COUNT, BLOCK
+            MESSAGE, UNREAD_COUNT, BLOCK, MESSAGE_COUNT
         }
         @Serializable
         @SerialName("MESSAGE")
@@ -146,12 +147,16 @@ private sealed interface PrivateChatPacket<T: PrivateChatPacket.PacketType>
         @Serializable
         @SerialName("BLOCK")
         data class Block(val user: UserId, val block: Boolean, val isBlocked: Boolean): Send(Type.BLOCK)
+        @Serializable
+        @SerialName("MESSAGE_COUNT")
+        data class MessageCount(val user: UserId, val count: Long): Send(Type.MESSAGE_COUNT)
 
         companion object
         {
             val messageExample = Message(PrivateChat.example)
             val unreadCountExample = UnreadCount(UserId(1), 1, 2)
             val blockExample = Block(UserId(1), true, false)
+            val messageCountExample = MessageCount(UserId(1), 10)
         }
     }
 }
@@ -173,6 +178,9 @@ private fun Route.privateChatWsImpl() = webSocket()
         }
         onBlockChange { user, block, isBlocked ->
             sendSerialized(PrivateChatPacket.Send.Block(user, block, isBlocked))
+        }
+        onMessageCountChange { user, count ->
+            sendSerialized(PrivateChatPacket.Send.MessageCount(user, count))
         }
 
         while (true)

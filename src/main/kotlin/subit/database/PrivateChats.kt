@@ -14,10 +14,14 @@ import subit.dataClasses.UserId
 import subit.database.utils.asSlice
 import subit.database.utils.singleOrNull
 
-val Instant.Companion.PG_MIN get() = Instant.parse("-4712-01-01T00:00:00Z")
-
 class PrivateChats: DaoSqlImpl<PrivateChats.PrivateChatsTable>(PrivateChatsTable)
 {
+    companion object
+    {
+        @JvmStatic
+        private val Instant.Companion.PG_MIN get() = Instant.parse("-4712-01-01T00:00:00Z")
+    }
+
     object PrivateChatsTable: IdTable<PrivateChatId>("private_chats")
     {
         override val id = privateChatId("id").autoIncrement().entityId()
@@ -100,7 +104,7 @@ class PrivateChats: DaoSqlImpl<PrivateChats.PrivateChatsTable>(PrivateChatsTable
             it[PrivateChatsTable.to] = to
             it[PrivateChatsTable.content] = content
         }.single().let { it[table.id].value to it[table.time] }
-        unreadCount(from, to) { if (from != to) it+1 else 0 }
+        unreadCount(to, from) { if (from != to) it+1 else 0 }
         PrivateChat(id, from, to, time.toEpochMilliseconds(), content)
     }
 
@@ -213,5 +217,12 @@ class PrivateChats: DaoSqlImpl<PrivateChats.PrivateChatsTable>(PrivateChatsTable
         selectAll().where {
             (PrivateChatsTable.from eq from) and (PrivateChatsTable.to eq to) and (time eq Instant.DISTANT_FUTURE)
         }.count() > 0
+    }
+
+    suspend fun getMessageCount(from: UserId, to: UserId): Long = query()
+    {
+        selectAll().where {
+            (PrivateChatsTable.from eq from) and (PrivateChatsTable.to eq to) and (time neq Instant.PG_MIN) and (time neq Instant.DISTANT_FUTURE)
+        }.count()
     }
 }
