@@ -80,7 +80,7 @@ object PrivateChatUtil: KoinComponent
             }
         }
         getClients(user).forEach { it.onMessageCountChange.invoke(with, privateChats.getMessageCount(user, with)) }
-        getClients(user).forEach { it.onUnreadCountChange.invoke(with, unreadCount, unreadCount) }
+        getClients(user).forEach { it.onUnreadCountChange.invoke(with, unreadCount, privateChats.getUnreadCount(user)) }
     }
 
     private suspend fun read(from: UserId, to: UserId)
