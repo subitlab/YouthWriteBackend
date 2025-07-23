@@ -194,14 +194,7 @@ private fun Route.privateChatWsImpl() = webSocket()
                     is PrivateChatPacket.Receive.Read -> packet.from?.let { read(it) } ?: readAll()
                     is PrivateChatPacket.Receive.Block -> block(packet.userId, true)
                     is PrivateChatPacket.Receive.Unblock -> block(packet.userId, false)
-                    is PrivateChatPacket.Receive.LoadMore ->
-                    {
-                        loadMore(packet.user, packet.time.toInstant(), packet.count).list.forEach()
-                        {
-                            sendSerialized(PrivateChatPacket.Send.Message(it))
-                        }
-                        messageCount(packet.user )
-                    }
+                    is PrivateChatPacket.Receive.LoadMore -> loadMore(packet.user, packet.time.toInstant(), packet.count)
                 }
             }
             catch (_: ClosedReceiveChannelException)

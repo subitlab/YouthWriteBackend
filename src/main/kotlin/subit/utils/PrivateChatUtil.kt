@@ -69,9 +69,18 @@ object PrivateChatUtil: KoinComponent
         getClients(to).forEach { it.onBlockChange.invoke(from, isBlocked, block) }
     }
 
-    private suspend fun messageCount(user: UserId, with: UserId)
+    private suspend fun loadMore(user: UserId, with: UserId, time: Instant, count: Int)
     {
+        val chatList = privateChats.getPrivateChatsBefore(user, with, time, 0, count).list
+        val unreadCount = privateChats.getUnreadCount(user, with)
+
+        getClients(user).forEach { client ->
+            chatList.forEach {
+                client.onSend.invoke(it)
+            }
+        }
         getClients(user).forEach { it.onMessageCountChange.invoke(with, privateChats.getMessageCount(user, with)) }
+        getClients(user).forEach { it.onUnreadCountChange.invoke(with, unreadCount, unreadCount) }
     }
 
     private suspend fun read(from: UserId, to: UserId)
@@ -99,9 +108,7 @@ object PrivateChatUtil: KoinComponent
         suspend fun block(user: UserId, isBlock: Boolean) = block(this.user, user, isBlock)
         suspend fun read(user: UserId) = read(this.user, user)
         suspend fun readAll() = readAll(this.user)
-        suspend fun loadMore(user: UserId, time: Instant, count: Int) =
-            privateChats.getPrivateChatsBefore(this.user, user, time, 0, count)
-        suspend fun messageCount(user: UserId) = messageCount(this.user, user)
+        suspend fun loadMore(user: UserId, time: Instant, count: Int) = loadMore(this.user, user, time, count)
 
         fun onReceive(block: suspend (message: PrivateChat)->Unit)
         {
