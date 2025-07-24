@@ -91,12 +91,6 @@ class Stars: DaoSqlImpl<Stars.StarTable>(StarTable)
         val time = duration?.let { Clock.System.now() - it } ?: 0L.toInstant()
         table.selectAll().where { table.time greaterEq time }.count()
     }
-
-    suspend fun claimUserLikes(oldUserId: UserId, newUserId: UserId): Unit = query()
-    {
-        insertIgnore(select(intParam(newUserId.value).alias(table.user.name), Likes.LikeTable.post).where { table.user eq oldUserId }, listOf(table.user, table.post))
-        deleteWhere { table.user eq oldUserId }
-    }
 }
 
 object StarCountTriggerManager

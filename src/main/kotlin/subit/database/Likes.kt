@@ -91,7 +91,7 @@ class Likes: DaoSqlImpl<Likes.LikeTable>(LikeTable), KoinComponent
         table.selectAll().where { table.time greaterEq time }.count()
     }
 
-    suspend fun claimUserLikes(oldUserId: UserId, newUserId: UserId): Unit = query()
+    suspend fun bindNewAccount(oldUserId: UserId, newUserId: UserId): Unit = query()
     {
         insertIgnore(select(intParam(newUserId.value).alias(table.user.name), post).where { table.user eq oldUserId }, listOf(table.user, table.post))
         deleteWhere { table.user eq oldUserId }

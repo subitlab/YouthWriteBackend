@@ -764,7 +764,7 @@ class Posts: DaoSqlImpl<Posts.PostTable>(PostTable), KoinComponent
         table.select(view.sum()).single()[view.sum()] ?: 0
     }
 
-    suspend fun claimAuthor(oldAuthor: UserId, newAuthor: UserId): Unit = query()
+    suspend fun bindNewAccount(oldAuthor: UserId, newAuthor: UserId): Unit = query()
     {
         table.update({ table.author eq oldAuthor }) { it[table.author] = newAuthor }
     }

@@ -153,7 +153,7 @@ fun Route.user() = route("/user", {
                 {
                     required = true
                     description = "邮箱信息, 认领旧账户时为旧帐户绑定的邮箱"
-                    example("example", EmailInfo("email@abc.com", EmailCodes.EmailCodeUsage.CLAIM_AUTHOR))
+                    example("example", EmailInfo("email@abc.com", EmailCodes.EmailCodeUsage.BIND_NEW_ACCOUNT))
                 }
             }
             response {
@@ -166,22 +166,22 @@ fun Route.user() = route("/user", {
         }) { sendEmailCode() }
     }
 
-    post("/claimNewUser", {
-        description = "当前用户认领旧用户，需要验证码"
+    post("/bindNewAccount", {
+        description = "旧帐户绑定新用户，需要验证码"
         request {
-            body<ClaimNewUser>
+            body<BindNewAccount>
             {
                 required = true
                 description = "旧用户邮箱和验证码"
-                example("example", ClaimNewUser("example@abc.com", "code"))
+                example("example", BindNewAccount("example@abc.com", "code"))
             }
         }
         response {
             statuses(HttpStatus.OK, HttpStatus.Unauthorized, HttpStatus.NotFound)
         }
-    }) { claimNewUser() }
+    }) { bindNewUser() }
 
-    get("getOldUserAvatar/{id}", {
+    get("/getOldAccountAvatar/{id}", {
         description = "获取旧用户头像URL, 仅限旧用户, 没有头像返回空字符串"
         request {
             pathParameter<UserId>("id")
@@ -193,7 +193,7 @@ fun Route.user() = route("/user", {
         response {
             statuses<String>(HttpStatus.OK, example = "https://www.youthwrite.pro/wp-content/uploads/2025/03/头像2.png")
         }
-    }) { getOldUserAvatar() }
+    }) { getOldAccountAvatar() }
 }
 
 private suspend fun Context.getUserInfo()
@@ -313,23 +313,23 @@ private suspend fun Context.switchStars()
 }
 
 @Serializable
-private data class ClaimNewUser(
+private data class BindNewAccount(
     val oldEmail: String,
     val code: String
 )
 
-private suspend fun Context.claimNewUser(){
+private suspend fun Context.bindNewUser(){
     val loginUser = getLoginUser() ?: finishCall(HttpStatus.Unauthorized)
-    val body = call.receiveAndCheckBody<ClaimNewUser>()
-    if (!get<EmailCodes>().verifyEmailCode(body.oldEmail, body.code, EmailCodes.EmailCodeUsage.CLAIM_AUTHOR))
+    val body = call.receiveAndCheckBody<BindNewAccount>()
+    if (!get<EmailCodes>().verifyEmailCode(body.oldEmail, body.code, EmailCodes.EmailCodeUsage.BIND_NEW_ACCOUNT))
         finishCall(HttpStatus.WrongEmailCode)
 
     val oldUserTable = get<OldUsers>()
     val id = oldUserTable.getEmailUser(body.oldEmail) ?: finishCall(HttpStatus.AccountNotExist)
     oldUserTable.setNewId(id, loginUser.id)
         .takeIf { it } ?: finishCall(HttpStatus.EmailExist.copy(message = "该账户已被其他用户认领"))
-    get<Posts>().claimAuthor(id, loginUser.id)
-    get<Likes>().claimUserLikes(id, loginUser.id)
+    get<Posts>().bindNewAccount(id, loginUser.id)
+    get<Likes>().bindNewAccount(id, loginUser.id)
     finishCall(HttpStatus.OK)
 }
 
@@ -338,7 +338,7 @@ private suspend fun Context.sendEmailCode()
     val emailInfo = call.receive<EmailInfo>()
     if (!checkEmail(emailInfo.email))
         finishCall(HttpStatus.EmailFormatError)
-    if (emailInfo.usage == EmailCodes.EmailCodeUsage.CLAIM_AUTHOR)
+    if (emailInfo.usage == EmailCodes.EmailCodeUsage.BIND_NEW_ACCOUNT)
     {
         val oldUserTable = get<OldUsers>()
         val id = oldUserTable.getEmailUser(emailInfo.email) ?:
@@ -350,7 +350,7 @@ private suspend fun Context.sendEmailCode()
     finishCall(HttpStatus.OK)
 }
 
-private suspend fun Context.getOldUserAvatar()
+private suspend fun Context.getOldAccountAvatar()
 {
     val id = call.parameters["id"]?.toUserIdOrNull() ?: finishCall(HttpStatus.BadRequest)
     if (id >= UserId(0)) finishCall(HttpStatus.BadRequest.subStatus("只能获取旧用户的头像,id为负数"))

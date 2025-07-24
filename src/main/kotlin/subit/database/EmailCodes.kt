@@ -29,7 +29,7 @@ class EmailCodes: DaoSqlImpl<EmailCodes.EmailsTable>(EmailsTable)
     @Serializable
     enum class EmailCodeUsage(@Transient val description: String)
     {
-        CLAIM_AUTHOR("账户认领"),
+        BIND_NEW_ACCOUNT("旧帐户绑定新账户"),
     }
 
     init
