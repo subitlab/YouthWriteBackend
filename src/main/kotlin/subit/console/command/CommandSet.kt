@@ -54,11 +54,12 @@ object CommandSet: TreeCommand(
             {
                 line = Console.lineReader.readLine(prompt, rightPrompt, null as Char?, null)
             }
-            catch (e: UserInterruptException)
+            catch (_: UserInterruptException)
             {
                 Console.onUserInterrupt(ConsoleCommandSender)
+                continue
             }
-            catch (e: EndOfFileException)
+            catch (_: EndOfFileException)
             {
                 logger.warning("Console is closed")
                 shutdown(0, "Console is closed")

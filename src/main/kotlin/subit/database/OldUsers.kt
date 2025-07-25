@@ -7,6 +7,7 @@ import org.jetbrains.exposed.sql.kotlin.datetime.timestamp
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.update
 import subit.dataClasses.*
+import subit.database.utils.asSlice
 import subit.database.utils.singleOrNull
 
 class OldUsers: DaoSqlImpl<OldUsers.OldUsersTable>(OldUsersTable)
@@ -65,4 +66,10 @@ class OldUsers: DaoSqlImpl<OldUsers.OldUsersTable>(OldUsersTable)
         selectAll().where { OldUsersTable.email eq email.lowercase() }.singleOrNull()?.get(id)?.value
     }
 
+    suspend fun searchUser(name: String, begin: Long, count: Int): Slice<UserId> = query()
+    {
+        select(id).where { OldUsersTable.name like "%$name%" }
+            .asSlice(begin, count)
+            .map { it[id].value }
+    }
 }

@@ -4,13 +4,15 @@ package subit.router.privateChatWs
 
 import io.github.smiley4.ktorswaggerui.dsl.routing.get
 import io.github.smiley4.ktorswaggerui.dsl.routing.route
-import io.ktor.http.HttpHeaders
-import io.ktor.http.HttpStatusCode
+import io.ktor.http.*
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
-import io.ktor.websocket.CloseReason
-import io.ktor.websocket.close
+import io.ktor.websocket.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import subit.dataClasses.PrivateChat
@@ -22,6 +24,7 @@ import subit.router.utils.getLoginUser
 import subit.utils.HttpStatus
 import subit.utils.PrivateChatUtil
 import subit.utils.toInstant
+import java.util.*
 
 fun Route.privateChatWs() = route("/privateChatWs", {
     tags = listOf("私信")
@@ -138,9 +141,10 @@ private sealed interface PrivateChatPacket<T: PrivateChatPacket.PacketType>
         {
             MESSAGE, UNREAD_COUNT, BLOCK, MESSAGE_COUNT
         }
+
         @Serializable
         @SerialName("MESSAGE")
-        data class Message(val message: PrivateChat): Send(Type.MESSAGE)
+        data class Message(val message: PrivateChat, val uuid: String, val pid: Int, val pCount: Int): Send(Type.MESSAGE)
         @Serializable
         @SerialName("UNREAD_COUNT")
         data class UnreadCount(val user: UserId, val count: Long, val totalCount: Long): Send(Type.UNREAD_COUNT)
@@ -153,10 +157,32 @@ private sealed interface PrivateChatPacket<T: PrivateChatPacket.PacketType>
 
         companion object
         {
-            val messageExample = Message(PrivateChat.example)
+            val messageExample = Message(PrivateChat.example, UUID.randomUUID().toString(), 0, 1)
             val unreadCountExample = UnreadCount(UserId(1), 1, 2)
             val blockExample = Block(UserId(1), true, false)
             val messageCountExample = MessageCount(UserId(1), 10)
+        }
+    }
+}
+
+private const val MAX_CONTENT_LENGTH = 1 shl 12
+
+private fun sendSliced(msg: PrivateChat, send: suspend (PrivateChatPacket.Send) -> Unit)
+{
+    val uuid = UUID.randomUUID().toString()
+    val contents = msg.content.chunked(MAX_CONTENT_LENGTH)
+    CoroutineScope(Dispatchers.IO).launch()
+    {
+        contents.forEachIndexed()
+        { index, string ->
+            val packet = PrivateChatPacket.Send.Message(
+                message = msg.copy(content = string),
+                uuid = uuid,
+                pid = index,
+                pCount = contents.size
+            )
+            send(packet)
+            delay(1)
         }
     }
 }
@@ -167,11 +193,11 @@ private fun Route.privateChatWsImpl() = webSocket()
 
     PrivateChatUtil.client(loginUser)
     {
-        onSend {
-            sendSerialized(PrivateChatPacket.Send.Message(it))
-        }
-        onReceive {
-            sendSerialized(PrivateChatPacket.Send.Message(it))
+        onMessage {
+            if (it.content.length <= MAX_CONTENT_LENGTH)
+                sendSerialized(PrivateChatPacket.Send.Message(it, UUID.randomUUID().toString(), 0, 1))
+            else
+                sendSliced(it, ::sendSerialized)
         }
         onUnreadCountChange { user, count, totalCount ->
             sendSerialized(PrivateChatPacket.Send.UnreadCount(user, count, totalCount))

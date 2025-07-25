@@ -1,38 +1,110 @@
 package subit.utils
 
 import io.ktor.server.application.*
+import io.ktor.utils.io.InternalAPI
+import kotlinx.coroutines.runBlocking
 import org.koin.core.component.KoinComponent
 import subit.console.AnsiStyle.Companion.RESET
 import subit.console.SimpleAnsiColor.Companion.CYAN
 import subit.console.SimpleAnsiColor.Companion.PURPLE
 import subit.logger.YouthWriteLogger
+import java.io.File
 import kotlin.system.exitProcess
 
 @Suppress("unused")
 object Power: KoinComponent
 {
+    @JvmField
     val logger = YouthWriteLogger.getLogger()
+    private var isShutdown: Int? = null
 
+    @JvmStatic
     fun shutdown(code: Int, cause: String = "unknown"): Nothing
     {
         val application = runCatching { getKoin().get<Application>() }.getOrNull()
         application.shutdown(code, cause)
     }
+
+    @JvmStatic
     fun Application?.shutdown(code: Int, cause: String = "unknown"): Nothing
     {
+        synchronized(Power)
+        {
+            if (isShutdown != null) exitProcess(isShutdown!!)
+            isShutdown = code
+        }
         logger.warning("${PURPLE}Server is shutting down: ${CYAN}$cause${RESET}")
         // 尝试主动结束Ktor, 这一过程不一定成功, 例如Ktor本来就在启动过程中出错将关闭失败
-        if (this != null) runCatching()
+        if (this != null) logger.warning("Failed to stop Ktor: ")
         {
             monitor.raise(ApplicationStopPreparing, environment)
             engine.stop()
-            this.dispose()
-        }.onFailure {
-            logger.warning("Failed to stop Ktor: ${it.message}")
-            it.printStackTrace(YouthWriteLogger.err)
+            @OptIn(InternalAPI::class)
+            runBlocking { this@shutdown.disposeAndJoin() }
+            logger.info("Ktor is stopped.")
         }
         else logger.warning("Application is null")
-        // 无论是否成功关闭, 都强制退出
+        startShutdownHook(code)
         exitProcess(code)
+    }
+
+    @JvmStatic
+    private fun startShutdownHook(code: Int)
+    {
+        val hook = Thread()
+        {
+            try
+            {
+                Thread.sleep(3000)
+                logger.severe("检测到程序未退出，尝试强制终止")
+                Runtime.getRuntime().halt(code)
+            }
+            catch (e: InterruptedException)
+            {
+                Thread.currentThread().interrupt()
+            }
+        }
+        hook.isDaemon = true
+        hook.start()
+    }
+
+    @JvmStatic
+    fun init() = runCatching()
+    {
+        val javaVersion = System.getProperty("java.specification.version")
+        if (javaVersion != "17")
+        {
+            logger.severe("Java version is $javaVersion, but SubQuiz requires Java 17.")
+            shutdown(1, "Java version is $javaVersion, but SubQuiz requires Java 17.")
+        }
+
+        val file = File(this.javaClass.protectionDomain.codeSource.location.toURI())
+        val lst = file.lastModified()
+        val thread = Thread()
+        {
+            try
+            {
+                while (true)
+                {
+                    Thread.sleep(1000)
+                    val newLst = file.lastModified()
+                    if (newLst != lst)
+                    {
+                        logger.warning("检测到文件 ${file.name} 已被修改，程序将自动关闭")
+                        shutdown(0, "File ${file.name} modified")
+                    }
+                }
+            }
+            catch (e: InterruptedException)
+            {
+                Thread.currentThread().interrupt()
+            }
+        }
+        thread.isDaemon = true
+        thread.start()
+    }.onFailure()
+    {
+        logger.severe("启动监视器失败", it)
+        shutdown(1, "Failed to start monitoring")
     }
 }

@@ -11,7 +11,6 @@ import org.jline.widget.AutosuggestionWidgets
 import subit.console.command.CommandSet
 import subit.dataDir
 import subit.logger.YouthWriteLogger.nativeOut
-import subit.utils.Power
 import sun.misc.Signal
 import java.io.File
 
@@ -38,13 +37,12 @@ object Console
     /**
      * 命令行读取器,命令补全为[CommandSet.CommandCompleter],命令历史保存在[historyFile]中
      */
-    val lineReader: LineReader?
+    val lineReader: LineReaderImpl?
 
     init
     {
-        Signal.handle(Signal("INT")) { onUserInterrupt(CommandSet.ConsoleCommandSender) }
         var terminal: Terminal? = null
-        var lineReader: LineReader? = null
+        var lineReader: LineReaderImpl? = null
         try
         {
             terminal = TerminalBuilder.builder().jansi(true).build()
@@ -54,11 +52,19 @@ object Console
                 terminal = null
                 throw IllegalStateException("Unsupported terminal type: dumb")
             }
+
+            Signal.handle(Signal("INT")) { onUserInterrupt(CommandSet.ConsoleCommandSender) }
+            Signal.handle(Signal("TSTP")) { onUserInterrupt(CommandSet.ConsoleCommandSender) }
+            Signal.handle(Signal("WINCH")) { Console.lineReader?.redrawLine() }
+            terminal.handle(Terminal.Signal.INT) { onUserInterrupt(CommandSet.ConsoleCommandSender) }
+            terminal.handle(Terminal.Signal.TSTP) { onUserInterrupt(CommandSet.ConsoleCommandSender) }
+            terminal.handle(Terminal.Signal.WINCH) { Console.lineReader?.redrawLine() }
+
             lineReader = LineReaderBuilder.builder()
                 .terminal(terminal)
                 .completer(CommandSet.CommandCompleter)
                 .variable(LineReader.HISTORY_FILE, historyFile)
-                .build()
+                .build() as LineReaderImpl
 
             // 自动配对(小括号/中括号/大括号/引号等)
             val autopairWidgets = AutopairWidgets(lineReader, true)
@@ -67,7 +73,7 @@ object Console
             val autosuggestionWidgets = AutosuggestionWidgets(lineReader)
             autosuggestionWidgets.enable()
         }
-        catch (e: Throwable)
+        catch (_: Throwable)
         {
             terminal?.close()
             println("Failed to initialize terminal, will use system console instead.")
@@ -76,7 +82,7 @@ object Console
         this.lineReader = lineReader
     }
 
-    fun onUserInterrupt(sender: CommandSet.CommandSender): Nothing = runBlocking()
+    fun onUserInterrupt(sender: CommandSet.CommandSender) = runBlocking()
     {
         sender.err("You might have pressed Ctrl+C or performed another operation to stop the server.")
         sender.err(
@@ -84,7 +90,6 @@ object Console
             "it should only be used when a command-line system error prevents the program from closing."
         )
         sender.err("If you want to stop the server, please use the \"stop\" command.")
-        Power.shutdown(0, "User interrupt")
     }
 
     /**

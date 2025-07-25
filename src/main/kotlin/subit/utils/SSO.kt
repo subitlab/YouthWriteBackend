@@ -173,4 +173,18 @@ object SSO: KoinComponent
         val dbUser = users.getOrCreateUser(userId)
         return ssoUser to dbUser
     }
+
+    suspend fun searchUser(name: String, begin: Long, count: Int): Slice<UserId> = withContext(Dispatchers.IO)
+    {
+        runCatching {
+            val url = systemConfig.ssoServer + "/serviceApi/search/username"
+            httpClient.get(url)
+            {
+                bearerAuth(systemConfig.ssoSecret)
+                parameter("key", name)
+                parameter("begin", begin)
+                parameter("count", count)
+            }.body<Response<Slice<UserId>>>().data
+        }.getOrElse { logger.fine("error in sso", it); sliceOf() }
+    }
 }

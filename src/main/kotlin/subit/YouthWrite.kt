@@ -78,6 +78,8 @@ fun main(args: Array<String>)
     // 初始化配置文件加载器, 会加载所有配置文件
     subit.config.ConfigLoader.init()
 
+    Power.init()
+
     // 检查主配置文件是否存在, 不存在则创建默认配置文件, 并结束程序
     if (!configFile.exists())
     {

@@ -194,6 +194,32 @@ fun Route.user() = route("/user", {
             statuses<String>(HttpStatus.OK, example = "https://www.youthwrite.pro/wp-content/uploads/2025/03/头像2.png")
         }
     }) { getOldAccountAvatar() }
+
+    get("/searchByUsername", {
+        description = "通过用户名搜索用户"
+        request {
+            queryParameter<String>("username")
+            {
+                required = true
+                description = "用户名"
+            }
+            queryParameter<Boolean>("oldUser")
+            {
+                required = false
+                description = "是否搜索旧用户, 默认为true"
+            }
+            queryParameter<Long>("newUser")
+            {
+                required = false
+                description = "是否搜索新用户, 默认为true"
+            }
+            paged()
+        }
+        response {
+            statuses<Slice<BasicUserInfo>>(HttpStatus.OK, example = sliceOf(BasicUserInfo.example))
+            statuses(HttpStatus.BadRequest, HttpStatus.NotFound)
+        }
+    }, Context::searchByUsername)
 }
 
 private suspend fun Context.getUserInfo()
@@ -356,4 +382,23 @@ private suspend fun Context.getOldAccountAvatar()
     if (id >= UserId(0)) finishCall(HttpStatus.BadRequest.subStatus("只能获取旧用户的头像,id为负数"))
     val avatar = get<OldUsers>().getAvatar(id) ?: ""
     call.respond(HttpStatus.OK, avatar)
+}
+
+private suspend fun Context.searchByUsername()
+{
+    val username = call.parameters["username"] ?: return call.respond(HttpStatus.BadRequest)
+    val oldUser = call.parameters["oldUser"]?.toBooleanStrictOrNull() ?: true
+    val newUser = call.parameters["newUser"]?.toBooleanStrictOrNull() ?: true
+    if (!oldUser && !newUser) return call.respond(HttpStatus.BadRequest.subStatus("至少需要搜索旧用户或新用户"))
+    val (begin, count) = call.getPage()
+    val ssoUsers =
+        if (newUser) SSO.searchUser(username, begin, count)
+        else sliceOf()
+    val oldUsers =
+        if (oldUser) get<OldUsers>().searchUser(username, begin - ssoUsers.totalSize, count - ssoUsers.count)
+        else sliceOf()
+    val res = Slice(ssoUsers.totalSize + oldUsers.totalSize, begin, ssoUsers.list + oldUsers.list)
+        .map { SSO.getUserFullById(it)!! }
+
+    call.respond(HttpStatus.OK, res)
 }
