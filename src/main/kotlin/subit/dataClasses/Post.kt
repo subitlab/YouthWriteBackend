@@ -6,6 +6,7 @@ import org.koin.core.component.KoinComponent
 import subit.plugin.contentNegotiation.contentNegotiationJson
 import subit.utils.SUB_CONTENT_LENGTH
 import subit.utils.getContentText
+import kotlin.Boolean
 
 @Serializable
 data class PostVersionInfo(
@@ -67,6 +68,8 @@ data class PostVersionBasicInfo(
  * @property view 帖子浏览量
  * @property block 帖子所属板块
  * @property state 帖子当前状态
+ * @property top 帖子是否置顶
+ * @property private 帖子是否私密
  */
 @Serializable
 data class PostInfo(
@@ -78,7 +81,8 @@ data class PostInfo(
     val top: Boolean,
     val state: State,
     val parent: PostId?,
-    val root: PostId?
+    val root: PostId?,
+    val private: Boolean,
 )
 {
     companion object: KoinComponent
@@ -116,6 +120,7 @@ data class PostInfo(
             parent,
             root,
             hotScore,
+            private,
         )
 }
 
@@ -140,6 +145,7 @@ sealed interface IPostFull<P: IPostFull<P, Content>, Content>
     val parent: PostId?
     val root: PostId?
     val hotScore: Double
+    val private: Boolean
     @Suppress("UNCHECKED_CAST")
     fun copy(
         id: PostId = this.id,
@@ -180,6 +186,7 @@ sealed interface IPostFull<P: IPostFull<P, Content>, Content>
             parent,
             root,
             hotScore,
+            private,
         )
         is PostFullBasicInfo -> PostFullBasicInfo(
             id,
@@ -200,6 +207,7 @@ sealed interface IPostFull<P: IPostFull<P, Content>, Content>
             parent,
             root,
             hotScore,
+            private,
         )
     } as P
 }
@@ -227,10 +235,11 @@ data class PostFull(
     override val parent: PostId?,
     override val root: PostId?,
     override val hotScore: Double,
+    override val private: Boolean,
 ): IPostFull<PostFull, JsonElement>
 {
     fun toPostInfo(): PostInfo =
-        PostInfo(id, author, anonymous, view, block, top, state, parent, root)
+        PostInfo(id, author, anonymous, view, block, top, state, parent, root, private)
 
     fun toPostFullBasicInfo(): PostFullBasicInfo =
         PostFullBasicInfo(
@@ -252,6 +261,7 @@ data class PostFull(
             parent,
             root,
             hotScore,
+            private,
         )
 
     companion object
@@ -275,6 +285,7 @@ data class PostFull(
             PostId(1),
             PostId(1),
             1.0,
+            false,
         )
     }
 }
@@ -299,6 +310,7 @@ data class PostFullBasicInfo(
     override val parent: PostId?,
     override val root: PostId?,
     override val hotScore: Double,
+    override val private: Boolean,
 ): IPostFull<PostFullBasicInfo, String>
 {
     companion object
@@ -310,5 +322,5 @@ data class PostFullBasicInfo(
         get() = subContent
 
     fun toPostInfo(): PostInfo =
-        PostInfo(id, author, anonymous, view, block, top, state, parent, root)
+        PostInfo(id, author, anonymous, view, block, top, state, parent, root, private)
 }

@@ -17,10 +17,4 @@ enum class State
      * 被删除
      */
     DELETED,
-
-    /**
-     * 私密
-     */
-    PRIVATE,
-    ;
 }

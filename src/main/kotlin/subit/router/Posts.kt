@@ -30,7 +30,7 @@ fun Route.posts() = route("/post", {
                 body<NewPost>
                 {
                     required = true
-                    description = "发帖, 成功返回帖子ID. state为帖子状态, 不允许为DELETE, PRIVATE为预留"
+                    description = "发帖, 成功返回帖子ID. state为帖子状态, 不允许为DELETE"
                     example(
                         "example",
                         NewPost("标题", PostVersionInfo.example.content, false, BlockId(0), false, State.NORMAL, false)
@@ -284,7 +284,7 @@ private fun Route.id() = route("/{id}", {
             queryParameter<String>("secret")
             {
                 required = false
-                description = "帖子秘钥, 若帖子为私密帖子且当前用户不是全局管理员或作者则需要此秘钥"
+                description = "帖子授权密钥，授权后在密钥变更前用户可永久访问该私密帖子"
             }
         }
         response {
@@ -300,13 +300,14 @@ private fun Route.id() = route("/{id}", {
             queryParameter<String>("secret")
             {
                 required = false
-                description = "帖子秘钥, 若帖子为私密帖子且当前用户不是全局管理员或作者则需要此秘钥"
+                description = "帖子授权密钥，授权后在密钥变更前用户可永久访问该私密帖子"
             }
         }
         response {
             statuses<PostFullBasicInfo>(HttpStatus.OK, example = PostFullBasicInfo.example)
-            statuses(HttpStatus.Forbidden.subStatus("私密帖子需要秘钥", 1))
+            statuses(HttpStatus.Forbidden.subStatus("私密帖子需要授权", 1))
             statuses(HttpStatus.Forbidden.subStatus("私密帖子秘钥错误", 2))
+            statuses(HttpStatus.Forbidden.subStatus("请登录后访问", 3))
         }
     }) { getPost(true) }
 
@@ -324,18 +325,6 @@ private fun Route.id() = route("/{id}", {
             statuses(HttpStatus.OK)
         }
     }) { changeState() }
-
-    get("/secret", {
-        description = """
-            获取帖子的密码, 仅限全局管理员和作者可以获取.
-            
-            任何帖子都可以获得秘钥, 具体访问权限见 GET /post/{id}.
-        """.trimIndent()
-        response {
-            statuses<PostSecret>(HttpStatus.OK, example = PostSecret("secret"))
-            statuses(HttpStatus.BadRequest, HttpStatus.NotFound, HttpStatus.Forbidden)
-        }
-    }) { getPostSecret() }
 
     rateLimit(RateLimit.Post.rateLimitName)
     {
@@ -448,6 +437,36 @@ private fun Route.id() = route("/{id}", {
             }
         }) { getLikeList() }
     }
+
+    route("/secret")
+    {
+        get("",{
+            description = "获取文章访问密钥，仅作者可以获取"
+            response {
+                statuses<PostSecret>(HttpStatus.OK, example = PostSecret("secret"))
+                statuses(HttpStatus.BadRequest, HttpStatus.NotFound, HttpStatus.Forbidden)
+            }
+        }) { getSecret() }
+
+        put("/set", {
+            description = """
+                设置文章授权密钥，仅作者，设置后文章进入私密状态，获得过密钥的用户和管理员可以访问
+                设置为空字符串时，文章恢复公共可访问
+                密钥更新后旧密钥失效
+                """.trimIndent()
+            request {
+                body<PostSecret> {
+                    required = true
+                    example("清空", PostSecret("") )
+                    example("设置为123", PostSecret("123") )
+                }
+            }
+            response {
+                statuses(HttpStatus.OK)
+                statuses(HttpStatus.BadRequest, HttpStatus.NotFound, HttpStatus.Forbidden)
+            }
+        }) { setSecret() }
+    }
 }
 
 private fun Route.version() = route("/version", {
@@ -491,23 +510,33 @@ private fun Route.version() = route("/version", {
 
 private suspend fun Context.getPost(basic: Boolean = false)
 {
+    val loginUser = getLoginUser()
     val id = call.parameters["id"]?.toPostIdOrNull() ?: finishCall(HttpStatus.BadRequest)
-    val secret = call.request.queryParameters["secret"]
+    val posts = get<Posts>()
+
+    call.request.queryParameters["secret"]?.let {
+        val (author, secret) = posts.getAuthorAndSecret(id) ?: finishCall(HttpStatus.NotFound)
+        if(secret == "") return@let
+
+        if(loginUser == null) finishCall(HttpStatus.Forbidden.subStatus("请登录后访问" ))
+
+        val postAuthorizations = get<PostAuthorizations>()
+        if(postAuthorizations.hasAuthorized(loginUser.id, id)) return@let
+
+        if (secret != it) finishCall(HttpStatus.Forbidden.subStatus("私密帖子秘钥错误", 2))
+        postAuthorizations.authorize(author,loginUser.id,id)
+    }
+
     if (basic)
     {
-        val post = get<Posts>().getPostFullBasicInfo(id) ?: finishCall(HttpStatus.NotFound)
-        if (post.state != State.PRIVATE) checkPermission { checkRead(post.toPostInfo()) }
-        else if (secret == null) finishCall(HttpStatus.Forbidden.subStatus("私密帖子需要秘钥", 1))
-        else if (secret != post.id.getSecret()) finishCall(HttpStatus.Forbidden.subStatus("私密帖子秘钥错误", 2))
-
+        val post = posts.getPostFullBasicInfo(id) ?: finishCall(HttpStatus.NotFound)
+        checkPermission { checkRead(post.toPostInfo()) }
         call.respond(HttpStatus.OK, checkAnonymous(post))
     }
     else
     {
-        val postFull = get<Posts>().getPostFull(id) ?: finishCall(HttpStatus.NotFound)
-        if (postFull.state != State.PRIVATE) checkPermission { checkRead(postFull.toPostInfo()) }
-        else if (secret == null) finishCall(HttpStatus.Forbidden.subStatus("私密帖子需要秘钥", 1))
-        else if (secret != postFull.id.getSecret()) finishCall(HttpStatus.Forbidden.subStatus("私密帖子秘钥错误", 2))
+        val postFull = posts.getPostFull(id) ?: finishCall(HttpStatus.NotFound)
+        checkPermission { checkRead(postFull.toPostInfo()) }
 
         val wordMarkings = postFull.lastVersionId?.let { get<WordMarkings>().getWordMarkings(it) }
         val resContent = postFull.content?.let { withWordMarkings(it, wordMarkings!!) }
@@ -572,16 +601,6 @@ private suspend fun Context.changeState()
         )
     )
     call.respond(HttpStatus.OK)
-}
-
-@Serializable
-private data class PostSecret(val secret: String)
-private suspend fun Context.getPostSecret()
-{
-    val id = call.parameters["id"]?.toPostIdOrNull() ?: finishCall(HttpStatus.BadRequest)
-    val post = get<Posts>().getPostInfo(id) ?: finishCall(HttpStatus.NotFound)
-    checkPermission { checkGetPostSecret(post) }
-    call.respond(HttpStatus.OK, PostSecret(post.id.getSecret()))
 }
 
 @Serializable
@@ -882,4 +901,30 @@ private suspend fun Context.getVersion()
         if (version.draft && post.author != dbUser?.id && !hasGlobalAdmin) finishCall(HttpStatus.Forbidden)
     }
     call.respond(HttpStatus.OK, version)
+}
+
+@Serializable
+private data class PostSecret(val secret: String)
+private suspend fun Context.getSecret()
+{
+    val loginUser = getLoginUser() ?: finishCall(HttpStatus.Unauthorized)
+    val pid = call.parameters["id"]?.toPostIdOrNull() ?: finishCall(HttpStatus.BadRequest)
+    val (author, secret) = get<Posts>().getAuthorAndSecret(pid) ?: finishCall(HttpStatus.NotFound)
+    if( loginUser.id != author ) finishCall(HttpStatus.Forbidden.subStatus("只有作者可以获取文章授权秘钥"))
+    call.respond(HttpStatus.OK, PostSecret(secret))
+}
+
+private suspend fun Context.setSecret()
+{
+    val postSecret = call.receiveAndCheckBody<PostSecret>()
+    if (postSecret.secret.length >= 256) finishCall(HttpStatus.BadRequest.subStatus(message = "标题过长"))
+
+    val loginUser = getLoginUser() ?: finishCall(HttpStatus.Unauthorized)
+    val posts = get<Posts>()
+    val pid = call.parameters["id"]?.toPostIdOrNull() ?: finishCall(HttpStatus.BadRequest)
+    val (author, secret) = posts.getAuthorAndSecret(pid) ?: finishCall(HttpStatus.NotFound)
+    if( loginUser.id != author ) finishCall(HttpStatus.Forbidden.subStatus("只有作者可以设置文章授权秘钥"))
+
+    if( secret != postSecret.secret ) posts.setSecret(pid, postSecret.secret)
+    call.respond(HttpStatus.OK)
 }

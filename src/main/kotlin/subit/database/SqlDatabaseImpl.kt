@@ -159,6 +159,7 @@ object SqlDatabaseImpl: KoinComponent
             DaoImpl(::WordMarkings, WordMarkings::class),
             DaoImpl(::OldUsers, OldUsers::class),
             DaoImpl(::EmailCodes, EmailCodes::class),
+            DaoImpl(::PostAuthorizations, PostAuthorizations::class),
         )
 
         val module = module(!lazyInit)
@@ -239,3 +240,7 @@ fun Table.wordMarkingId(name: String) = registerColumn(name, WordMarkingIdColumn
 // PrivateChatId
 class PrivateChatIdColumnType: WarpColumnType<Long, PrivateChatId>(LongColumnType(), ::PrivateChatId, PrivateChatId::value)
 fun Table.privateChatId(name: String) = registerColumn(name, PrivateChatIdColumnType())
+
+// PrivateChatGroupId
+class PrivateChatGroupIdColumnType: WarpColumnType<Long, PrivateChatGroupId>(LongColumnType(), ::PrivateChatGroupId, PrivateChatGroupId::value)
+fun Table.privateChatGroupId(name: String) = registerColumn(name, PrivateChatGroupIdColumnType())

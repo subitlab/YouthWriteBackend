@@ -8,6 +8,7 @@ import subit.dataClasses.*
 import subit.dataClasses.State.*
 import subit.database.Blocks
 import subit.database.Permissions
+import subit.database.PostAuthorizations
 import subit.database.Posts
 import subit.database.Prohibits
 import subit.utils.HttpStatus
@@ -59,6 +60,7 @@ open class PermissionGroup(val dbUser: DatabaseUser?, val ssoUser: SsoUserFull?)
     protected val permissions by inject<Permissions>()
     protected val blocks by inject<Blocks>()
     protected val posts by inject<Posts>()
+    protected val postAuthorizations by inject<PostAuthorizations>()
     protected val prohibits by inject<Prohibits>()
 
     val user get() = dbUser?.id ?: ssoUser?.id
@@ -149,20 +151,7 @@ open class PermissionGroup(val dbUser: DatabaseUser?, val ssoUser: SsoUserFull?)
     suspend fun canChangeState(post: PostInfo, newState: State): Boolean =
         !isProhibit() && canRead(post) && hasRealName && when (post.state)
         {
-            NORMAL ->
-                when (newState)
-                {
-                    DELETED -> post.author == user || hasAdminIn(post.block)
-                    PRIVATE -> post.author == user
-                    NORMAL -> true
-                }
-            PRIVATE ->
-                when (newState)
-                {
-                    NORMAL -> post.author == user
-                    DELETED -> post.author == user || hasGlobalAdmin
-                    PRIVATE -> true
-                }
+            NORMAL -> if (newState != NORMAL) post.author == user || hasAdminIn(post.block) else true
             DELETED -> if (newState != DELETED) hasGlobalAdmin else true
         }
 
@@ -170,8 +159,6 @@ open class PermissionGroup(val dbUser: DatabaseUser?, val ssoUser: SsoUserFull?)
     {
         if (isProhibit()) return false
         if (!hasRealName) return false
-        // 板块不能有私密状态
-        if (newState == PRIVATE) return false
         if (!canRead(block)) return false
         if (block.state == newState) return true
         return when (block.state)
@@ -185,8 +172,8 @@ open class PermissionGroup(val dbUser: DatabaseUser?, val ssoUser: SsoUserFull?)
 
     suspend fun canComment(post: PostInfo): Boolean = !isProhibit() && canRead(post) && hasRealName && when (post.state)
     {
-        NORMAL, PRIVATE -> blocks.getBlock(post.block)?.let { getPermission(post.block) >= it.commenting } == true
-        else            -> false
+        NORMAL -> blocks.getBlock(post.block)?.let { getPermission(post.block) >= it.commenting } == true
+        DELETED -> false
     }
 
     /// 可以发贴 ///
@@ -194,7 +181,7 @@ open class PermissionGroup(val dbUser: DatabaseUser?, val ssoUser: SsoUserFull?)
     suspend fun canPost(block: Block): Boolean = !isProhibit() && hasRealName && when (block.state)
     {
         NORMAL  -> getPermission(block.id) >= block.posting && getPermission(block.id) >= block.reading
-        else -> false
+        DELETED -> false
     }
 
     suspend fun canEdit(version: PostVersionBasicInfo): Boolean
@@ -294,22 +281,26 @@ class PermissionChecker(dbUser: DatabaseUser?, ssoUser: SsoUserFull?): Permissio
         {
             NORMAL  -> checkOrFailed(getPermission(block.id) >= block.reading, HttpStatus.Forbidden)
             DELETED -> checkOrFailed(hasGlobalAdmin, HttpStatus.NotFound)
-            PRIVATE -> checkOrFailed(hasGlobalAdmin, HttpStatus.Forbidden)
         }
     }
 
     suspend fun checkRead(post: PostInfo)
     {
         if (post.author == user) return
+        //if (hasGlobalAdmin) return
         checkProhibit()
         val blockInfo = blocks.getBlock(post.block) ?: checkFailed(HttpStatus.NotFound)
         checkRead(blockInfo)
         val root = post.root?.let { posts.getPostInfo(it) }
         if (root != null) checkRead(root)
+        if(post.private) checkOrFailed(
+            user?.let { postAuthorizations.hasAuthorized(it, post.id) } ?: false,
+            HttpStatus.Forbidden.subStatus().subStatus("未授权")
+        )
         return when (post.state)
         {
             NORMAL  -> Unit
-            PRIVATE, DELETED -> checkOrFailed(hasGlobalAdmin, HttpStatus.Forbidden)
+            DELETED -> checkOrFailed(hasGlobalAdmin, HttpStatus.Forbidden)
         }
     }
 
@@ -321,15 +312,6 @@ class PermissionChecker(dbUser: DatabaseUser?, ssoUser: SsoUserFull?): Permissio
         if (version.draft) checkOrFailed(post.author == user || hasGlobalAdmin, HttpStatus.Forbidden)
     }
 
-    /// 可以获得文章秘钥 ///
-
-    suspend fun checkGetPostSecret(post: PostInfo)
-    {
-        checkProhibit()
-        checkRead(post)
-        checkOrFailed(post.author == user || hasGlobalAdmin, HttpStatus.Forbidden.subStatus("只有作者或全局管理员可以获取文章秘钥"))
-    }
-
     /// 可以删除 ///
 
     suspend fun checkChangeState(post: PostInfo, newState: State)
@@ -337,21 +319,16 @@ class PermissionChecker(dbUser: DatabaseUser?, ssoUser: SsoUserFull?): Permissio
         checkProhibit()
         checkRealName()
         checkRead(post)
+
         when (post.state)
         {
             NORMAL ->
                 when (newState)
                 {
-                    DELETED -> checkOrFailed(post.author == user || hasAdminIn(post.block), HttpStatus.Forbidden)
-                    PRIVATE -> checkOrFailed(post.author == user, HttpStatus.Forbidden)
+                    DELETED ->
+                        if(post.private) checkOrFailed(post.author == user || hasGlobalAdmin, HttpStatus.Forbidden)
+                        else checkOrFailed(post.author == user || hasAdminIn(post.block), HttpStatus.Forbidden)
                     NORMAL -> Unit
-                }
-            PRIVATE ->
-                when (newState)
-                {
-                    NORMAL -> checkOrFailed(post.author == user, HttpStatus.Forbidden)
-                    DELETED -> checkOrFailed(post.author == user || hasGlobalAdmin, HttpStatus.Forbidden)
-                    PRIVATE -> Unit
                 }
             DELETED -> checkOrFailed(newState != DELETED, HttpStatus.Forbidden)
         }
@@ -362,8 +339,6 @@ class PermissionChecker(dbUser: DatabaseUser?, ssoUser: SsoUserFull?): Permissio
         checkProhibit()
         checkRealName()
         checkOrFailed(hasRealName, HttpStatus.NotRealName)
-        // 板块不能有私密状态
-        checkOrFailed(newState != PRIVATE, HttpStatus.BadRequest.subStatus("板块不能有私密状态"))
         checkRead(block)
         if (block.state == newState) return
         return when (block.state)

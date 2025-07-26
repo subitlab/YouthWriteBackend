@@ -2,7 +2,6 @@
 
 package subit.utils
 
-import com.auth0.jwt.algorithms.Algorithm
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -12,8 +11,6 @@ import org.jetbrains.exposed.sql.kotlin.datetime.timestampParam
 import org.koin.core.component.KoinComponent
 import subit.Loader
 import subit.config.emailConfig
-import subit.config.systemConfig
-import subit.dataClasses.PostId
 import subit.database.EmailCodes
 import subit.logger.YouthWriteLogger
 import subit.plugin.contentNegotiation.contentNegotiationJson
@@ -50,15 +47,6 @@ fun Long.toInstant(): Instant =
 
 fun Long.toTimestamp() =
     timestampParam(this.toInstant())
-
-fun PostId.getSecret(): String
-{
-    val mod = 36 * 36 * 36 * 36 * 36 * 36L
-    val algorithm: Algorithm = Algorithm.HMAC512(systemConfig.postSecret)
-    val rp = algorithm.sign(this.toString().toByteArray())
-    val r = rp.fold(0L) { acc, byte -> (acc * 256 + byte.toLong()) % mod }
-    return r.toString(36).padStart(6, '0').lowercase()
-}
 
 open class LineOutputStream(private val line: (String) -> Unit): OutputStream()
 {

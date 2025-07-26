@@ -117,6 +117,7 @@ class Posts: DaoSqlImpl<Posts.PostTable>(PostTable), KoinComponent
         val starCount = long("starCount").default(0L).index()
         val likeCount = long("likeCount").default(0L).index()
         val create = timestamp("create").nullable().default(null).index()
+        val secret = varchar("secret", 255).default("")
         override val primaryKey = PrimaryKey(id)
     }
 
@@ -201,7 +202,8 @@ class Posts: DaoSqlImpl<Posts.PostTable>(PostTable), KoinComponent
             comment = if (type != postInfoType) row[table.commentCount] else 0,
             parent = row[table.parent]?.value,
             root = row[table.rootPost]?.value,
-            hotScore = if (type != postInfoType) row[hotScore] else 0.0
+            hotScore = if (type != postInfoType) row[hotScore] else 0.0,
+            private = row[table.secret] != "",
         )
 
         return when (type)
@@ -234,6 +236,7 @@ class Posts: DaoSqlImpl<Posts.PostTable>(PostTable), KoinComponent
         table.lastDraftVersion,
         table.starCount,
         table.likeCount,
+        table.secret,
         lastModified,
         postVersions.table.id,
         hotScore,
@@ -330,10 +333,10 @@ class Posts: DaoSqlImpl<Posts.PostTable>(PostTable), KoinComponent
         else
             andWhere { blockTable.reading lessEq PermissionLevel.NORMAL }
 
-        // 帖子状态限制: 只能看到正常状态的帖子或自己的帖子
-        andWhere { (table.state eq State.NORMAL) or (table.author eq permissionGroup.user) }
+        // 帖子状态限制: 只能看到正常状态的帖子自己的帖子/被授权的帖子
+        andWhere { ((table.state eq State.NORMAL) and (table.secret eq "")) or (table.author eq permissionGroup.user) }
         // 帖子状态限制: 如果有根帖子, 则根帖子也必须是正常状态或自己的帖子
-        andWhere { table.rootPost.isNull() or ((table.alias("rootPost")[table.state] eq State.NORMAL) or (table.alias("rootPost")[table.author] eq permissionGroup.user)) }
+        andWhere { table.rootPost.isNull() or (((table.alias("rootPost")[table.state] eq State.NORMAL) and (table.alias("rootPost")[table.secret] eq "")) or (table.alias("rootPost")[table.author] eq permissionGroup.user)) }
         // 板块状态限制: 只能看到正常状态的板块
         andWhere { blockTable.state eq State.NORMAL }
         return this
@@ -767,6 +770,20 @@ class Posts: DaoSqlImpl<Posts.PostTable>(PostTable), KoinComponent
     suspend fun bindNewAccount(oldAuthor: UserId, newAuthor: UserId): Unit = query()
     {
         table.update({ table.author eq oldAuthor }) { it[table.author] = newAuthor }
+    }
+
+    suspend fun getAuthorAndSecret(pid: PostId): Pair<UserId,String>? = query()
+    {
+        table
+            .select(table.secret, table.author)
+            .where { table.id eq pid }
+            .singleOrNull()
+            ?.let { it[table.author].value to it[table.secret] }
+    }
+
+    suspend fun setSecret(pid: PostId, secret: String): Boolean = query()
+    {
+        table.update({ table.id eq pid }) { it[table.secret] = secret } > 0
     }
 }
 
