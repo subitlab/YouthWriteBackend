@@ -230,4 +230,9 @@ class PrivateChats: DaoSqlImpl<PrivateChats.PrivateChatsTable>(PrivateChatsTable
                 (time neq Instant.PG_MIN) and (time neq Instant.DISTANT_FUTURE)
             }.count()
     }
+
+    suspend fun getPrivateChatById(chatId: PrivateChatId): PrivateChat? = query()
+    {
+        selectAll().where { id eq chatId }.singleOrNull()?.let(::deserialize)
+    }
 }

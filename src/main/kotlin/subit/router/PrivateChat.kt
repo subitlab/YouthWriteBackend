@@ -156,7 +156,7 @@ private data class SendPrivateChat(
 
 private suspend fun Context.sendPrivateChat()
 {
-    val (to, content) =call.receiveAndCheckBody<SendPrivateChat>()
+    val (to, content) = call.receiveAndCheckBody<SendPrivateChat>()
     val from = getLoginUser()?.id ?: return call.respond(HttpStatus.Unauthorized)
     val privateChats = get<PrivateChats>()
     if (privateChats.getIsBlock(to, from)) return call.respond(HttpStatus.UserInBlackList)

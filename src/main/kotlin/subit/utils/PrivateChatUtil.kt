@@ -4,6 +4,7 @@ import kotlinx.datetime.Instant
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import subit.dataClasses.PrivateChat
+import subit.dataClasses.PrivateChatId
 import subit.dataClasses.UserId
 import subit.database.PrivateChats
 import java.util.*
@@ -96,6 +97,12 @@ object PrivateChatUtil: KoinComponent
         getClients(from).forEach { it.onUnreadCountChange(from, 0, 0) }
     }
 
+    private suspend fun loadMessage(chatId: PrivateChatId, to: UserId)
+    {
+        val chat = privateChats.getPrivateChatById(chatId) ?: return
+        getClients(to).forEach { it.onMessage.invoke(chat) }
+    }
+
     class PrivateChatClient(private val user: UserId)
     {
         var onMessage: suspend (message: PrivateChat)->Unit = {}
@@ -108,6 +115,7 @@ object PrivateChatUtil: KoinComponent
         suspend fun read(user: UserId) = read(this.user, user)
         suspend fun readAll() = readAll(this.user)
         suspend fun loadMore(user: UserId, time: Instant, count: Int) = loadMore(this.user, user, time, count)
+        suspend fun loadMessage(chatId: PrivateChatId) = loadMessage(chatId, this.user)
 
         fun onUnreadCountChange(block: suspend (user: UserId, count: Long, totalCount: Long)->Unit)
         {
