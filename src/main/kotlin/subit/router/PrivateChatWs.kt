@@ -56,7 +56,7 @@ fun Route.privateChatWs() = route("/privateChatWs", {
                 - Read: 表示标记一条私信为已读, from表示发送方, 如果为null表示标记所有私信为已读
                 - Block: 表示屏蔽某人, userId表示对方的id
                 - Unblock: 表示取消屏蔽某人, userId表示对方的id
-                - Message: 通过id获取某个私信, 推荐使用加载更多, id错误时无返回
+                - Message: 通过id获取某个私信, 用于从断点继续加载消息, id错误时无返回, pid表示前端从index为pid的包开始加载, 不传则从头加载
                 - LoadMore: 表示加载更多私信, user表示对方的id, time表示最早的私信的时间, 接收到该请求后, 服务器会响应若干Message数据包(若更早的私信数量超过count则响应count条, 否则响应全部), 以便客户端加载更多私信
             """.trimIndent()
             example("发送一条新的私信", PrivateChatPacket.Receive.sendExample)
@@ -64,7 +64,7 @@ fun Route.privateChatWs() = route("/privateChatWs", {
             example("标记所有私信为已读", PrivateChatPacket.Receive.readAllExample)
             example("屏蔽某人", PrivateChatPacket.Receive.blockExample)
             example("取消屏蔽某人", PrivateChatPacket.Receive.unblockExample)
-            example("获取id=1的私信", PrivateChatPacket.Receive.messageExample)
+            example("获取id=1的私信, 从第二个包开始传", PrivateChatPacket.Receive.messageExample)
             example("加载更多私信(10条)", PrivateChatPacket.Receive.loadMoreExample)
         }
     }
@@ -126,7 +126,7 @@ private sealed interface PrivateChatPacket<T: PrivateChatPacket.PacketType>
         data class LoadMore(val user: UserId, val time: Long, val count: Int): Receive(Type.LOAD_MORE)
         @Serializable
         @SerialName("MESSAGE")
-        data class Message(val id: PrivateChatId): Receive(Type.MESSAGE)
+        data class Message(val id: PrivateChatId, val pid: Int?): Receive(Type.MESSAGE)
 
         companion object
         {
@@ -136,7 +136,7 @@ private sealed interface PrivateChatPacket<T: PrivateChatPacket.PacketType>
             val blockExample = Block(UserId(1))
             val unblockExample = Unblock(UserId(1))
             val loadMoreExample = LoadMore(UserId(1), System.currentTimeMillis(), 10)
-            val messageExample = Message(PrivateChatId(1))
+            val messageExample = Message(PrivateChatId(1), 1)
         }
     }
 
@@ -174,10 +174,13 @@ private sealed interface PrivateChatPacket<T: PrivateChatPacket.PacketType>
 
 private const val MAX_CONTENT_LENGTH = 1 shl 12
 
-private fun sendSliced(msg: PrivateChat, send: suspend (PrivateChatPacket.Send) -> Unit)
+private fun sendSliced(msg: PrivateChat, send: suspend (PrivateChatPacket.Send) -> Unit, firstIndex: Int = 0)
 {
     val uuid = UUID.randomUUID().toString()
-    val contents = msg.content.chunked(MAX_CONTENT_LENGTH)
+    val contents = msg.content.chunked(MAX_CONTENT_LENGTH).let{
+        if(firstIndex > it.lastIndex ) it
+        else it.slice(firstIndex..it.lastIndex)
+    }
     CoroutineScope(Dispatchers.IO).launch()
     {
         contents.forEachIndexed()
@@ -185,8 +188,8 @@ private fun sendSliced(msg: PrivateChat, send: suspend (PrivateChatPacket.Send) 
             val packet = PrivateChatPacket.Send.Message(
                 message = msg.copy(content = string),
                 uuid = uuid,
-                pid = index,
-                pCount = contents.size
+                pid = index + firstIndex,
+                pCount = contents.size + firstIndex
             )
             send(packet)
             delay(1)
@@ -200,11 +203,11 @@ private fun Route.privateChatWsImpl() = webSocket()
 
     PrivateChatUtil.client(loginUser)
     {
-        onMessage {
-            if (it.content.length <= MAX_CONTENT_LENGTH)
-                sendSerialized(PrivateChatPacket.Send.Message(it, UUID.randomUUID().toString(), 0, 1))
+        onMessage { message, pid ->
+            if (message.content.length <= MAX_CONTENT_LENGTH)
+                sendSerialized(PrivateChatPacket.Send.Message(message, UUID.randomUUID().toString(), 0, 1))
             else
-                sendSliced(it, ::sendSerialized)
+                sendSliced(message, ::sendSerialized, pid)
         }
         onUnreadCountChange { user, count, totalCount ->
             sendSerialized(PrivateChatPacket.Send.UnreadCount(user, count, totalCount))
@@ -228,7 +231,7 @@ private fun Route.privateChatWsImpl() = webSocket()
                     is PrivateChatPacket.Receive.Block -> block(packet.userId, true)
                     is PrivateChatPacket.Receive.Unblock -> block(packet.userId, false)
                     is PrivateChatPacket.Receive.LoadMore -> loadMore(packet.user, packet.time.toInstant(), packet.count)
-                    is PrivateChatPacket.Receive.Message -> loadMessage(packet.id)
+                    is PrivateChatPacket.Receive.Message -> loadMessage(packet.id, packet.pid ?: 0)
                 }
             }
             catch (_: ClosedReceiveChannelException)

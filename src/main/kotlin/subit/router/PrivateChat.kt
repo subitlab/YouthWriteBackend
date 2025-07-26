@@ -16,6 +16,7 @@ import subit.dataClasses.sliceOf
 import subit.database.PrivateChats
 import subit.router.utils.*
 import subit.utils.HttpStatus
+import subit.utils.PrivateChatUtil
 import subit.utils.respond
 import subit.utils.statuses
 
@@ -160,7 +161,7 @@ private suspend fun Context.sendPrivateChat()
     val from = getLoginUser()?.id ?: return call.respond(HttpStatus.Unauthorized)
     val privateChats = get<PrivateChats>()
     if (privateChats.getIsBlock(to, from)) return call.respond(HttpStatus.UserInBlackList)
-    privateChats.addPrivateChat(from, to, content)
+    PrivateChatUtil.client(from){ send(to,content) }
     call.respond(HttpStatus.OK)
 }
 
@@ -219,7 +220,7 @@ private suspend fun Context.setBlock()
 {
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
     val userId = call.parameters["userId"]?.toUserIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
-    val isBlock =call.receiveAndCheckBody<IsBlock>().isBlock
-    get<PrivateChats>().setIsBlock(userId, loginUser.id, isBlock)
+    val isBlock = call.receiveAndCheckBody<IsBlock>().isBlock
+    PrivateChatUtil.client(loginUser.id) { block(userId, isBlock) }
     call.respond(HttpStatus.OK)
 }
