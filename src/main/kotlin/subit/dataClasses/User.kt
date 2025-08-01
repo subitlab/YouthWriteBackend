@@ -41,6 +41,17 @@ data class SsoUserFull(
         val realName: String,
         val archived: Boolean,
     )
+
+    companion object {
+        fun from(oldUserInfo: OldUserInfo) = SsoUserFull(
+            id = oldUserInfo.id,
+            username = oldUserInfo.name,
+            email = listOf(oldUserInfo.email),
+            registrationTime = oldUserInfo.registrationTime,
+            phone = "",
+            seiue = emptyList() // 旧用户没有seiue信息
+        )
+    }
 }
 
 @Serializable
@@ -168,5 +179,28 @@ data class BasicUserInfo(
             dbUser.showStars
         )
         val example = UserFull.example.toBasicUserInfo()
+    }
+}
+
+@Serializable
+data class OldUserInfo(
+    val id: UserId,
+    val name: String,
+    val email: String,
+    val registrationTime: Long,
+    val newId: UserId?,
+    val avatar: String?,
+)
+{
+    companion object
+    {
+        val example = OldUserInfo(
+            UserId(-1),
+            "name",
+            "email",
+            System.currentTimeMillis(),
+            UserId(1),
+            "avatar"
+        )
     }
 }

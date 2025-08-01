@@ -25,13 +25,13 @@ class OldUsers: DaoSqlImpl<OldUsers.OldUsersTable>(OldUsersTable)
         val avatar = text("avatar").nullable().default(null)
     }
 
-    private fun deserialize(row: ResultRow) = SsoUserFull(
+    private fun deserialize(row: ResultRow) = OldUserInfo(
         id = row[OldUsersTable.id].value,
-        username = row[OldUsersTable.name],
-        email = listOf(row[OldUsersTable.email]),
+        name = row[OldUsersTable.name],
+        email = row[OldUsersTable.email],
         registrationTime = row[OldUsersTable.registrationTime].toEpochMilliseconds(),
-        phone = "",
-        seiue = emptyList() // 旧用户没有seiue信息
+        newId = row[OldUsersTable.newId]?.value,
+        avatar = row[OldUsersTable.avatar]
     )
 
     suspend fun hasUser(id: UserId): Boolean = query()
@@ -51,7 +51,7 @@ class OldUsers: DaoSqlImpl<OldUsers.OldUsersTable>(OldUsersTable)
         } > 0
     }
 
-    suspend fun getOldUser(id: UserId): SsoUserFull? = query()
+    suspend fun getOldUser(id: UserId): OldUserInfo? = query()
     {
         selectAll().where { OldUsersTable.id eq id }.singleOrNull()?.let(::deserialize)
     }

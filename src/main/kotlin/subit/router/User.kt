@@ -242,6 +242,21 @@ fun Route.user() = route("/user", {
             statuses(HttpStatus.BadRequest, HttpStatus.NotFound)
         }
     }, Context::searchByUsername)
+
+    get("/oldInfo/{id}", {
+        description = "获取旧用户信息, 仅限旧用户, id为负数"
+        request {
+            pathParameter<UserId>("id")
+            {
+                required = true
+                description = "旧用户ID, 负数"
+            }
+        }
+        response {
+            statuses<OldUserInfo>(HttpStatus.OK, example = OldUserInfo.example)
+            statuses(HttpStatus.BadRequest, HttpStatus.NotFound)
+        }
+    }) { getOldUserInfo() }
 }
 
 private suspend fun Context.getUserInfo()
@@ -272,6 +287,14 @@ private suspend fun Context.getUserInfo()
         )
         else finishCall(HttpStatus.OK, user.toBasicUserInfo())
     }
+}
+
+private suspend fun Context.getOldUserInfo()
+{
+    val id = call.parameters["id"]?.toUserIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
+    if (id >= UserId(0)) return call.respond(HttpStatus.BadRequest.subStatus("只能获取旧用户的信息,id为负数"))
+    val oldUser = get<OldUsers>().getOldUser(id) ?: return call.respond(HttpStatus.NotFound)
+    call.respond(HttpStatus.OK, oldUser)
 }
 
 @Serializable
@@ -375,8 +398,8 @@ private suspend fun Context.bindNewUser(){
 
     val oldUserTable = get<OldUsers>()
     val id = oldUserTable.getEmailUser(body.oldEmail) ?: finishCall(HttpStatus.AccountNotExist)
+    if(oldUserTable.getNewId(id) != null) finishCall(HttpStatus.EmailExist.copy(message = "该账户已被其他用户认领"))
     oldUserTable.setNewId(id, loginUser.id)
-        .takeIf { it } ?: finishCall(HttpStatus.EmailExist.copy(message = "该账户已被其他用户认领"))
     get<Posts>().bindNewAccount(id, loginUser.id)
     get<Likes>().bindNewAccount(id, loginUser.id)
     finishCall(HttpStatus.OK)

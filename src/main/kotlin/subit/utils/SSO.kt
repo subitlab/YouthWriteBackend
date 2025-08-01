@@ -153,7 +153,7 @@ object SSO: KoinComponent
             val newId = oldUsers.getNewId(id)
             if(newId != null && !useOldData)return getUserFullById(newId)
             // 旧用户
-            val oldUser = oldUsers.getOldUser(id) ?: return null
+            val oldUser = SsoUserFull.from(oldUsers.getOldUser(id) ?: return null)
             val dbUser = users.getUser(id) ?: return null
             return UserFull.from(oldUser,dbUser)
         }
