@@ -59,6 +59,7 @@ data class SsoUserInfo(
  * @property showStars 是否公开收藏
  * @property permission 用户管理权限
  * @property filePermission 文件上传权限
+ * @property likeBlocks 收藏的区块ID列表
  */
 @Serializable
 data class DatabaseUser(
@@ -67,6 +68,7 @@ data class DatabaseUser(
     val showStars: Boolean,
     override val permission: PermissionLevel,
     val filePermission: PermissionLevel,
+    val likeBlocks: List<BlockId>,
 ): PermissionUser
 {
     companion object
@@ -76,7 +78,8 @@ data class DatabaseUser(
             "introduction",
             showStars = true,
             permission = PermissionLevel.NORMAL,
-            filePermission = PermissionLevel.NORMAL
+            filePermission = PermissionLevel.NORMAL,
+            likeBlocks = listOf(BlockId(1))
         )
     }
 }
@@ -103,12 +106,13 @@ data class UserFull(
     override val introduction: String?,
     override val showStars: Boolean,
     override val permission: PermissionLevel,
-    val filePermission: PermissionLevel
+    val filePermission: PermissionLevel,
+    val likeBlocks: List<BlockId>,
 ): UserInfo, NamedUser, PermissionUser
 {
     fun toBasicUserInfo() = BasicUserInfo(id, username, registrationTime, email, introduction, showStars)
     fun toSsoUser() = SsoUserFull(id, username, registrationTime, phone, email, seiue)
-    fun toDatabaseUser() = DatabaseUser(id, introduction, showStars, permission, filePermission)
+    fun toDatabaseUser() = DatabaseUser(id, introduction, showStars, permission, filePermission, likeBlocks)
     companion object
     {
         fun from(ssoUser: SsoUserFull, dbUser: DatabaseUser) = UserFull(
@@ -121,7 +125,8 @@ data class UserFull(
             dbUser.introduction,
             dbUser.showStars,
             dbUser.permission,
-            dbUser.filePermission
+            dbUser.filePermission,
+            dbUser.likeBlocks
         )
         val example = UserFull(
             UserId(1),
@@ -133,7 +138,8 @@ data class UserFull(
             "introduction",
             showStars = true,
             permission = PermissionLevel.NORMAL,
-            filePermission = PermissionLevel.NORMAL
+            filePermission = PermissionLevel.NORMAL,
+            likeBlocks = listOf(BlockId(1)),
         )
     }
 }

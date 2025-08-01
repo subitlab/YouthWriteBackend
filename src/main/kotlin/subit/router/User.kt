@@ -36,6 +36,11 @@ fun Route.user() = route("/user", {
                 required = true
                 description = "用户ID"
             }
+            pathParameter<Boolean>("useOldData")
+            {
+                required = false
+                description = "默认为false，传true时获取已绑定新用户的旧用户，获取到的是旧信息"
+            }
         }
         response {
             statuses<UserFull>(
@@ -142,6 +147,22 @@ fun Route.user() = route("/user", {
                 statuses(HttpStatus.Unauthorized)
             }
         }) { switchStars() }
+
+        post("/likeBlocks", {
+            description = "修改当前登录用户的收藏的板块ID列表"
+            request {
+                body<List<BlockId>>
+                {
+                    required = true
+                    description = "新的收藏板块ID列表, 为空则清空，不超过5个"
+                    example("example", listOf(BlockId(1), BlockId(2)))
+                }
+            }
+            response {
+                statuses(HttpStatus.OK)
+                statuses(HttpStatus.Unauthorized, HttpStatus.Forbidden)
+            }
+        }) { changeLikeBlocks() }
     }
 
     rateLimit(RateLimit.SendEmail.rateLimitName)
@@ -201,6 +222,7 @@ fun Route.user() = route("/user", {
             queryParameter<String>("username")
             {
                 required = true
+                allowEmptyValue = true
                 description = "用户名"
             }
             queryParameter<Boolean>("oldUser")
@@ -208,7 +230,7 @@ fun Route.user() = route("/user", {
                 required = false
                 description = "是否搜索旧用户, 默认为true"
             }
-            queryParameter<Long>("newUser")
+            queryParameter<Boolean>("newUser")
             {
                 required = false
                 description = "是否搜索新用户, 默认为true"
@@ -225,6 +247,7 @@ fun Route.user() = route("/user", {
 private suspend fun Context.getUserInfo()
 {
     val id = call.parameters["id"]?.toUserIdOrNull() ?: return call.respond(HttpStatus.NotFound)
+    val useOldData = call.parameters["useOldData"]?.toBooleanStrictOrNull() ?: false
     val loginUser = getLoginUser()
     logger.config("user=${loginUser?.id} get user info id=$id")
     if (id == UserId(0))
@@ -234,7 +257,7 @@ private suspend fun Context.getUserInfo()
     }
     else
     {
-        val user = SSO.getUserFullById(id) ?: return call.respond(HttpStatus.NotFound)
+        val user = SSO.getUserFullById(id, useOldData) ?: return call.respond(HttpStatus.NotFound)
         if (loginUser.hasGlobalAdmin()) finishCall(HttpStatus.OK, user)
         if (user.checkPermission { isProhibit() }) finishCall(
             HttpStatus.OK,
@@ -395,10 +418,19 @@ private suspend fun Context.searchByUsername()
         if (newUser) SSO.searchUser(username, begin, count)
         else sliceOf()
     val oldUsers =
-        if (oldUser) get<OldUsers>().searchUser(username, begin - ssoUsers.totalSize, count - ssoUsers.count)
+        if (oldUser) get<OldUsers>().searchUser(username, begin - ssoUsers.totalSize, count)
         else sliceOf()
     val res = Slice(ssoUsers.totalSize + oldUsers.totalSize, begin, ssoUsers.list + oldUsers.list)
-        .map { SSO.getUserFullById(it)!! }
+        .map { SSO.getUserFullById(it, true)!! }
 
     call.respond(HttpStatus.OK, res)
+}
+
+private suspend fun Context.changeLikeBlocks()
+{
+    val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
+    val blocks = call.receiveAndCheckBody<List<BlockId>>()
+    if( blocks.size !in 0..5) finishCall(HttpStatus.BadRequest.subStatus("收藏的板块不能超过5个"))
+    get<Users>().changeLikeBlocks(loginUser.id, blocks)
+    call.respond(HttpStatus.OK)
 }

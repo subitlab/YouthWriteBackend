@@ -5,6 +5,7 @@ import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.insertIgnore
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.update
+import subit.dataClasses.BlockId
 import subit.dataClasses.DatabaseUser
 import subit.dataClasses.PermissionLevel
 import subit.dataClasses.UserId
@@ -22,6 +23,7 @@ class Users: DaoSqlImpl<Users.UsersTable>(UsersTable)
         val showStars = bool("show_stars").default(true)
         val permission = enumeration<PermissionLevel>("permission").default(PermissionLevel.NORMAL)
         val filePermission = enumeration<PermissionLevel>("file_permission").default(PermissionLevel.NORMAL)
+        val likeBlocks = array("like_blocks", BlockIdColumnType()).default(emptyList())
         override val primaryKey = PrimaryKey(id)
     }
 
@@ -31,6 +33,7 @@ class Users: DaoSqlImpl<Users.UsersTable>(UsersTable)
         showStars = row[UsersTable.showStars],
         permission = row[UsersTable.permission],
         filePermission = row[UsersTable.filePermission],
+        likeBlocks = row[UsersTable.likeBlocks]
     )
 
     /**
@@ -74,5 +77,10 @@ class Users: DaoSqlImpl<Users.UsersTable>(UsersTable)
     suspend fun getUser(id: UserId): DatabaseUser? = query()
     {
         selectAll().where { UsersTable.id eq id }.singleOrNull()?.let(::deserialize)
+    }
+
+    suspend fun changeLikeBlocks(id: UserId, likeBlocks: List<BlockId>): Boolean = query()
+    {
+        update({ UsersTable.id eq id }) { it[UsersTable.likeBlocks] = likeBlocks } > 0
     }
 }

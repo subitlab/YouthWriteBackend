@@ -142,11 +142,16 @@ object SSO: KoinComponent
         return UserFull.from(ssoUser, dbUser)
     }
 
-    suspend fun getUserFullById(id: UserId): UserFull?
+    /**
+     * 获取用户信息,如果用户不存在则返回null
+     * @param id 用户ID
+     * @param useOldData 是否使用旧用户数据,为true时获取已绑定新用户的旧用户，获取到的是旧信息
+     */
+    suspend fun getUserFullById(id: UserId, useOldData: Boolean = false): UserFull?
     {
         if(id < UserId(0)) {
             val newId = oldUsers.getNewId(id)
-            if(newId != null)return getUserFullById(newId)
+            if(newId != null && !useOldData)return getUserFullById(newId)
             // 旧用户
             val oldUser = oldUsers.getOldUser(id) ?: return null
             val dbUser = users.getUser(id) ?: return null
@@ -184,6 +189,7 @@ object SSO: KoinComponent
                 parameter("key", name)
                 parameter("begin", begin)
                 parameter("count", count)
+                parameter("authorizationState", listOf("AUTHORIZED").joinToString())
             }.body<Response<Slice<UserId>>>().data
         }.getOrElse { logger.fine("error in sso", it); sliceOf() }
     }
