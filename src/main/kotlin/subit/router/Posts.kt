@@ -926,5 +926,6 @@ private suspend fun Context.setSecret()
     if( loginUser.id != author ) finishCall(HttpStatus.Forbidden.subStatus("只有作者可以设置文章授权秘钥"))
 
     if( secret != postSecret.secret ) posts.setSecret(pid, postSecret.secret)
+    get<PostAuthorizations>().deleteAuthorizations(pid)
     call.respond(HttpStatus.OK)
 }

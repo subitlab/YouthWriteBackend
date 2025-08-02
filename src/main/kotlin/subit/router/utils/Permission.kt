@@ -287,7 +287,7 @@ class PermissionChecker(dbUser: DatabaseUser?, ssoUser: SsoUserFull?): Permissio
     suspend fun checkRead(post: PostInfo)
     {
         if (post.author == user) return
-        //if (hasGlobalAdmin) return
+        if (hasGlobalAdmin) return
         checkProhibit()
         val blockInfo = blocks.getBlock(post.block) ?: checkFailed(HttpStatus.NotFound)
         checkRead(blockInfo)
