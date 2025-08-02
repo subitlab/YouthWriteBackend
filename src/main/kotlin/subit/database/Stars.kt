@@ -6,14 +6,16 @@ import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.kotlin.datetime.CurrentTimestamp
 import org.jetbrains.exposed.sql.kotlin.datetime.timestamp
-import org.jetbrains.exposed.sql.transactions.transaction
+import org.koin.core.component.inject
 import subit.dataClasses.PostId
 import subit.dataClasses.Slice
 import subit.dataClasses.Star
 import subit.dataClasses.UserId
+import subit.database.StarCountTriggerManager.setupTriggers
 import subit.database.utils.asSlice
 import subit.logger.YouthWriteLogger
 import subit.utils.toInstant
+import kotlin.getValue
 import kotlin.time.Duration
 
 /**
@@ -35,9 +37,10 @@ class Stars: DaoSqlImpl<Stars.StarTable>(StarTable)
         }
     }
 
-    init
+    override fun Transaction.afterTableCreated()
     {
-        StarCountTriggerManager.setupTriggers(database)
+        val posts: Posts by inject()
+        setupTriggers(posts.table, StarTable)
     }
 
     private fun deserialize(row: ResultRow) = Star(
@@ -104,32 +107,26 @@ object StarCountTriggerManager
     private const val DELETE_TRIGGER = "trigger_after_star_delete"
     private const val UPDATE_TRIGGER = "trigger_after_star_update"
 
-    fun setupTriggers(db: Database)
-    {
-        transaction(db)
-        {
-            try
-            {
-                createFunctionsIfNotExists()
-                createTriggersIfNotExists()
-                logger.info("Database triggers initialized successfully")
-            }
-            catch (e: Exception)
-            {
-                logger.severe("Failed to initialize database triggers", e)
-                throw e
-            }
+    fun Transaction.setupTriggers(postsTable: Posts.PostTable, starsTable: Stars.StarTable) {
+        try {
+            // 将 Table 对象传递给内部函数
+            createFunctionsIfNotExists(postsTable)
+            createTriggersIfNotExists(starsTable)
+            logger.info("Like count triggers initialized successfully")
+        } catch (e: Exception) {
+            logger.severe("Failed to initialize like count triggers", e)
+            throw e
         }
     }
 
-    private fun Transaction.createFunctionsIfNotExists()
+    private fun Transaction.createFunctionsIfNotExists(postsTable: Posts.PostTable)
     {
         deleteFunction(INSERT_FUNCTION)
         exec(
             """
             CREATE FUNCTION $INSERT_FUNCTION() RETURNS TRIGGER AS $$
             BEGIN
-                UPDATE posts 
+                UPDATE ${postsTable.tableName} 
                 SET "starCount" = "starCount" + 1 
                 WHERE id = NEW.post;
                 RETURN NEW;
@@ -143,7 +140,7 @@ object StarCountTriggerManager
             """
             CREATE FUNCTION $DELETE_FUNCTION() RETURNS TRIGGER AS $$
             BEGIN
-                UPDATE posts 
+                UPDATE ${postsTable.tableName} 
                 SET "starCount" = "starCount" - 1 
                 WHERE id = OLD.post;
                 RETURN OLD;
@@ -158,8 +155,8 @@ object StarCountTriggerManager
             CREATE FUNCTION $UPDATE_FUNCTION() RETURNS TRIGGER AS $$
             BEGIN
                 IF OLD.post <> NEW.post THEN
-                    UPDATE posts SET "starCount" = "starCount" - 1 WHERE id = OLD.post;
-                    UPDATE posts SET "starCount" = "starCount" + 1 WHERE id = NEW.post;
+                    UPDATE ${postsTable.tableName}  SET "starCount" = "starCount" - 1 WHERE id = OLD.post;
+                    UPDATE ${postsTable.tableName}  SET "starCount" = "starCount" + 1 WHERE id = NEW.post;
                 END IF;
                 RETURN NEW;
             END;
@@ -168,13 +165,13 @@ object StarCountTriggerManager
         )
     }
 
-    private fun Transaction.createTriggersIfNotExists()
+    private fun Transaction.createTriggersIfNotExists(starsTable: Stars.StarTable)
     {
         deleteTrigger(INSERT_TRIGGER)
         exec(
             """
             CREATE TRIGGER $INSERT_TRIGGER
-            AFTER INSERT ON stars
+            AFTER INSERT ON ${starsTable.tableName} 
             FOR EACH ROW
             EXECUTE FUNCTION $INSERT_FUNCTION();
             """.trimIndent()
@@ -183,7 +180,7 @@ object StarCountTriggerManager
         exec(
             """
             CREATE TRIGGER $DELETE_TRIGGER
-            AFTER DELETE ON stars
+            AFTER DELETE ON ${starsTable.tableName} 
             FOR EACH ROW
             EXECUTE FUNCTION $DELETE_FUNCTION();
             """.trimIndent()
@@ -192,7 +189,7 @@ object StarCountTriggerManager
         exec(
             """
             CREATE TRIGGER $UPDATE_TRIGGER
-            AFTER UPDATE ON stars
+            AFTER UPDATE ON ${starsTable.tableName} 
             FOR EACH ROW
             EXECUTE FUNCTION $UPDATE_FUNCTION();
             """.trimIndent()

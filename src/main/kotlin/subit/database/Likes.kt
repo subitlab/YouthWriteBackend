@@ -14,8 +14,8 @@ import subit.dataClasses.UserId
 import subit.database.utils.asSlice
 import subit.utils.toInstant
 import kotlin.time.Duration
-import org.jetbrains.exposed.sql.Database
-import org.jetbrains.exposed.sql.transactions.transaction
+import org.koin.core.component.inject
+import subit.database.LikeCountTriggerManager.setupTriggers
 import subit.logger.YouthWriteLogger
 
 class Likes: DaoSqlImpl<Likes.LikeTable>(LikeTable), KoinComponent
@@ -34,9 +34,10 @@ class Likes: DaoSqlImpl<Likes.LikeTable>(LikeTable), KoinComponent
         }
     }
 
-    init
+    override fun Transaction.afterTableCreated()
     {
-        LikeCountTriggerManager.setupTriggers(database)
+        val posts: Posts by inject()
+        setupTriggers(posts.table, LikeTable)
     }
 
     private fun deserialize(row: ResultRow) = Like(
@@ -109,32 +110,26 @@ object LikeCountTriggerManager
     private const val DELETE_TRIGGER = "trigger_after_like_delete"
     private const val UPDATE_TRIGGER = "trigger_after_like_update"
 
-    fun setupTriggers(db: Database)
-    {
-        transaction(db)
-        {
-            try
-            {
-                createFunctionsIfNotExists()
-                createTriggersIfNotExists()
-                logger.info("Database triggers initialized successfully")
-            }
-            catch (e: Exception)
-            {
-                logger.severe("Failed to initialize database triggers", e)
-                throw e
-            }
+    fun Transaction.setupTriggers(postsTable: Posts.PostTable, likesTable: Likes.LikeTable) {
+        try {
+            // 将 Table 对象传递给内部函数
+            createFunctionsIfNotExists(postsTable)
+            createTriggersIfNotExists(likesTable)
+            logger.info("Like count triggers initialized successfully")
+        } catch (e: Exception) {
+            logger.severe("Failed to initialize like count triggers", e)
+            throw e
         }
     }
 
-    private fun Transaction.createFunctionsIfNotExists()
+    private fun Transaction.createFunctionsIfNotExists(postsTable: Posts.PostTable)
     {
         deleteFunction(INSERT_FUNCTION)
         exec(
         """
             CREATE FUNCTION $INSERT_FUNCTION() RETURNS TRIGGER AS $$
             BEGIN
-                UPDATE posts 
+                UPDATE ${postsTable.tableName} 
                 SET "likeCount" = "likeCount" + 1 
                 WHERE id = NEW.post;
                 RETURN NEW;
@@ -148,7 +143,7 @@ object LikeCountTriggerManager
         """
             CREATE FUNCTION $DELETE_FUNCTION() RETURNS TRIGGER AS $$
             BEGIN
-                UPDATE posts 
+                UPDATE ${postsTable.tableName} 
                 SET "likeCount" = "likeCount" - 1 
                 WHERE id = OLD.post;
                 RETURN OLD;
@@ -163,8 +158,8 @@ object LikeCountTriggerManager
             CREATE FUNCTION $UPDATE_FUNCTION() RETURNS TRIGGER AS $$
             BEGIN
                 IF OLD.post <> NEW.post THEN
-                    UPDATE posts SET "likeCount" = "likeCount" - 1 WHERE id = OLD.post;
-                    UPDATE posts SET "likeCount" = "likeCount" + 1 WHERE id = NEW.post;
+                    UPDATE ${postsTable.tableName}  SET "likeCount" = "likeCount" - 1 WHERE id = OLD.post;
+                    UPDATE ${postsTable.tableName}  SET "likeCount" = "likeCount" + 1 WHERE id = NEW.post;
                 END IF;
                 RETURN NEW;
             END;
@@ -173,13 +168,13 @@ object LikeCountTriggerManager
         )
     }
 
-    private fun Transaction.createTriggersIfNotExists()
+    private fun Transaction.createTriggersIfNotExists(likesTable: Likes.LikeTable)
     {
         deleteTrigger(INSERT_TRIGGER)
         exec(
         """
             CREATE TRIGGER $INSERT_TRIGGER
-            AFTER INSERT ON likes
+            AFTER INSERT ON ${likesTable.tableName} 
             FOR EACH ROW
             EXECUTE FUNCTION $INSERT_FUNCTION();
             """.trimIndent()
@@ -188,7 +183,7 @@ object LikeCountTriggerManager
         exec(
         """
             CREATE TRIGGER $DELETE_TRIGGER
-            AFTER DELETE ON likes
+            AFTER DELETE ON ${likesTable.tableName} 
             FOR EACH ROW
             EXECUTE FUNCTION $DELETE_FUNCTION();
             """.trimIndent()
@@ -197,7 +192,7 @@ object LikeCountTriggerManager
         exec(
         """
             CREATE TRIGGER $UPDATE_TRIGGER
-            AFTER UPDATE ON likes
+            AFTER UPDATE ON ${likesTable.tableName} 
             FOR EACH ROW
             EXECUTE FUNCTION $UPDATE_FUNCTION();
             """.trimIndent()

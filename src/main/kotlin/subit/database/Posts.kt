@@ -21,11 +21,11 @@ import org.jetbrains.exposed.sql.kotlin.datetime.CurrentTimestamp
 import org.jetbrains.exposed.sql.kotlin.datetime.timestamp
 import org.jetbrains.exposed.sql.kotlin.datetime.timestampParam
 import org.jetbrains.exposed.sql.statements.Statement
-import org.jetbrains.exposed.sql.transactions.transaction
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import subit.dataClasses.*
 import subit.dataClasses.Slice
+import subit.database.CommentCountTriggerManager.setupTriggers
 import subit.database.PostVersions.PostVersionTable
 import subit.database.Posts.PostListSort.*
 import subit.database.utils.asSlice
@@ -121,9 +121,8 @@ class Posts: DaoSqlImpl<Posts.PostTable>(PostTable), KoinComponent
         override val primaryKey = PrimaryKey(id)
     }
 
-    init
-    {
-        CommentCountTriggerManager.setupTriggers(database)
+    override fun Transaction.afterTableCreated() {
+        setupTriggers(PostTable)
     }
 
     private val lastModified = PostVersionTable.time
@@ -798,32 +797,26 @@ object CommentCountTriggerManager
     private const val DELETE_TRIGGER = "trigger_after_comment_delete"
     private const val UPDATE_TRIGGER = "trigger_after_comment_update"
 
-    fun setupTriggers(db: Database)
-    {
-        transaction(db)
-        {
-            try
-            {
-                createFunctionsIfNotExists()
-                createTriggersIfNotExists()
-                logger.info("Database triggers initialized successfully")
-            }
-            catch (e: Exception)
-            {
-                logger.severe("Failed to initialize database triggers", e)
-                throw e
-            }
+    fun Transaction.setupTriggers(postsTable: Posts.PostTable) {
+        try {
+            // 将 Table 对象传递给内部函数
+            createFunctionsIfNotExists(postsTable)
+            createTriggersIfNotExists(postsTable)
+            logger.info("Like count triggers initialized successfully")
+        } catch (e: Exception) {
+            logger.severe("Failed to initialize like count triggers", e)
+            throw e
         }
     }
 
-    private fun Transaction.createFunctionsIfNotExists()
+    private fun Transaction.createFunctionsIfNotExists(postsTable: Posts.PostTable)
     {
         deleteFunction(INSERT_FUNCTION)
         exec(
             """
             CREATE FUNCTION $INSERT_FUNCTION() RETURNS TRIGGER AS $$
             BEGIN
-                UPDATE posts 
+                UPDATE ${postsTable.tableName} 
                 SET "commentCount" = "commentCount" + 1
                 WHERE id = NEW."rootPost";
                 RETURN NEW;
@@ -837,7 +830,7 @@ object CommentCountTriggerManager
             """
             CREATE FUNCTION $DELETE_FUNCTION() RETURNS TRIGGER AS $$
             BEGIN
-                UPDATE posts 
+                UPDATE ${postsTable.tableName}
                 SET "commentCount" = "commentCount" - 1 
                 WHERE id = OLD."rootPost";
                 RETURN OLD;
@@ -852,8 +845,8 @@ object CommentCountTriggerManager
             CREATE FUNCTION $UPDATE_FUNCTION() RETURNS TRIGGER AS $$
             BEGIN
                 IF OLD."rootPost" <> NEW."rootPost" THEN
-                    UPDATE posts SET "commentCount" = "commentCount" - 1 WHERE id = OLD.rootPost;
-                    UPDATE posts SET "commentCount" = "commentCount" + 1 WHERE id = NEW.rootPost;
+                    UPDATE ${postsTable.tableName} SET "commentCount" = "commentCount" - 1 WHERE id = OLD.rootPost;
+                    UPDATE ${postsTable.tableName} SET "commentCount" = "commentCount" + 1 WHERE id = NEW.rootPost;
                 END IF;
                 RETURN NEW;
             END;
@@ -862,13 +855,13 @@ object CommentCountTriggerManager
         )
     }
 
-    private fun Transaction.createTriggersIfNotExists()
+    private fun Transaction.createTriggersIfNotExists(postsTable: Posts.PostTable)
     {
         deleteTrigger(INSERT_TRIGGER)
         exec(
             """
             CREATE TRIGGER $INSERT_TRIGGER
-            AFTER INSERT ON posts
+            AFTER INSERT ON ${postsTable.tableName}
             FOR EACH ROW
             EXECUTE FUNCTION $INSERT_FUNCTION();
             """.trimIndent()
@@ -877,7 +870,7 @@ object CommentCountTriggerManager
         exec(
             """
             CREATE TRIGGER $DELETE_TRIGGER
-            AFTER DELETE ON posts
+            AFTER DELETE ON ${postsTable.tableName}
             FOR EACH ROW
             EXECUTE FUNCTION $DELETE_FUNCTION();
             """.trimIndent()
@@ -886,7 +879,7 @@ object CommentCountTriggerManager
         exec(
             """
             CREATE TRIGGER $UPDATE_TRIGGER
-            AFTER UPDATE ON posts
+            AFTER UPDATE ON ${postsTable.tableName}
             FOR EACH ROW
             EXECUTE FUNCTION $UPDATE_FUNCTION();
             """.trimIndent()

@@ -49,11 +49,14 @@ abstract class DaoSqlImpl<T: Table>(table: T): KoinComponent
         res
     }
 
+    protected open fun Transaction.afterTableCreated() {}
+
     protected val database: Database by inject()
     val table: T by lazy {
         transaction(database)
         {
             SchemaUtils.createMissingTablesAndColumns(table)
+            afterTableCreated()
         }
         table
     }
