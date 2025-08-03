@@ -301,7 +301,6 @@ class Posts: DaoSqlImpl<Posts.PostTable>(PostTable), KoinComponent
         val blockTable = blocks.table
         val permissionTable = permissions.table
         var j = this.join(blockTable, JoinType.INNER, this@Posts.table.block, blockTable.id)
-        j = j.join(this@Posts.table.alias("rootPost"), JoinType.LEFT, this@Posts.table.rootPost, this@Posts.table.id)
         if (permissionGroup.user != null)
         {
             j = j.join(permissionTable, JoinType.LEFT, permissionTable.block, blockTable.id)
@@ -334,8 +333,6 @@ class Posts: DaoSqlImpl<Posts.PostTable>(PostTable), KoinComponent
 
         // 帖子状态限制: 只能看到正常状态的帖子自己的帖子/被授权的帖子
         andWhere { ((table.state eq State.NORMAL) and (table.secret eq "")) or (table.author eq permissionGroup.user) }
-        // 帖子状态限制: 如果有根帖子, 则根帖子也必须是正常状态或自己的帖子
-        andWhere { table.rootPost.isNull() or (((table.alias("rootPost")[table.state] eq State.NORMAL) and (table.alias("rootPost")[table.secret] eq "")) or (table.alias("rootPost")[table.author] eq permissionGroup.user)) }
         // 板块状态限制: 只能看到正常状态的板块
         andWhere { blockTable.state eq State.NORMAL }
         return this
@@ -528,7 +525,7 @@ class Posts: DaoSqlImpl<Posts.PostTable>(PostTable), KoinComponent
         top: Boolean? = null,
         state: State? = null,
         tag: String? = null,
-        comment: Boolean? = null,
+        comment: Boolean,
         draft: Boolean? = null,
         childOf: PostId? = null,
         descendantOf: PostId? = null,
@@ -556,7 +553,7 @@ class Posts: DaoSqlImpl<Posts.PostTable>(PostTable), KoinComponent
             if (block != null) andWhere { table.block eq block }
             if (top != null) andWhere { table.top eq top }
             if (state != null) andWhere { table.state eq state }
-            if (comment != null) andWhere { if (comment) table.parent.isNotNull() else table.parent.isNull() }
+            andWhere { if (comment) table.parent.isNotNull() else table.parent.isNull() }
             if (draft != null)
             {
                 if (draft) andWhere { lastVersion.isNull() or (lastDraftVersion.isNotNull() and (lastVersion less lastDraftVersion)) }

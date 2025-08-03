@@ -75,9 +75,8 @@ fun Route.posts() = route("/post", {
             {
                 required = false
                 description = """
-                    - true -> 只返回评论
-                    - false -> 只返回帖子
-                    - 不填 -> 返回所有
+                    - true -> 只返回评论, 此时childOf/descendantOf必须选填一项
+                    - false / 不填 -> 只返回帖子
                 """.trimIndent()
             }
             queryParameter<Boolean>("draft")
@@ -744,7 +743,7 @@ private suspend fun Context.getPosts(full: Boolean)
     val top = call.parameters["top"]?.lowercase()?.toBooleanStrictOrNull()
     val state = call.parameters["state"].decodeOrNull<State>()
     val tag = call.parameters["tag"]
-    val comment = call.parameters["comment"]?.lowercase()?.toBooleanStrictOrNull()
+    val comment = call.parameters["comment"]?.lowercase()?.toBooleanStrictOrNull() ?: false
     val draft = call.parameters["draft"]?.lowercase()?.toBooleanStrictOrNull()
     val childOf = call.parameters["childOf"]?.toPostIdOrNull()
     val descendantOf = call.parameters["descendantOf"]?.toPostIdOrNull()
@@ -756,7 +755,18 @@ private suspend fun Context.getPosts(full: Boolean)
     val sort = call.parameters["sort"].decodeOrElse<Posts.PostListSort> { finishCall(HttpStatus.BadRequest.subStatus("sort参数错误")) }
     val (begin, count) = call.getPage()
 
-    val posts = get<Posts>().getPosts(
+    if(comment && descendantOf == null && childOf == null) finishCall(HttpStatus.BadRequest.subStatus("comment参数为true时必须指定childOf或descendantOf"))
+
+    val postDB = get<Posts>()
+
+    if( descendantOf != null || childOf != null){
+        val ancestor = postDB.getPostInfo(descendantOf ?: childOf!!) ?: finishCall(HttpStatus.NotFound.subStatus("祖先${ descendantOf ?: childOf }不存在"))
+        checkPermission {
+            checkRead( ancestor )
+        }
+    }
+
+    val posts = postDB.getPosts(
         loginUser = loginUser,
         author = if (author == UserId(0)) loginUser?.id else author,
         block = block,

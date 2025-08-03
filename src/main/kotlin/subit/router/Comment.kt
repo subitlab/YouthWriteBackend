@@ -2,7 +2,6 @@
 
 package subit.router.comment
 
-import io.github.smiley4.ktorswaggerui.dsl.routing.get
 import io.github.smiley4.ktorswaggerui.dsl.routing.post
 import io.github.smiley4.ktorswaggerui.dsl.routing.route
 import io.ktor.server.plugins.ratelimit.*
@@ -50,39 +49,6 @@ fun Route.comment() = route("/comment", {
                 statuses(HttpStatus.Forbidden, HttpStatus.NotFound)
             }
         }) { commentPost() }
-    }
-
-    route("/list/{postId}", {
-        deprecated = true
-        summary = "已废弃, 请使用 GET /post/list/full 替代"
-        request {
-            paged()
-            pathParameter<PostId>("postId")
-            {
-                required = true
-                description = "帖子id"
-            }
-            queryParameter<Posts.PostListSort>("sort")
-            {
-                description = "排序方式"
-                required = true
-                example(Posts.PostListSort.NEW)
-            }
-        }
-        response {
-            statuses<Slice<PostFull>>(HttpStatus.OK, example = sliceOf(PostFull.example))
-            statuses(HttpStatus.NotFound)
-        }
-    })
-    {
-        get("", {
-            description = "获取一个帖子的评论列表, 即获得所有parent为{postId}的帖子"
-
-        }) { getComments(all = false) }
-
-        get("/all", {
-            description = "获取一个帖子的所有评论, 即获得所有parent为{postId}的帖子及其所有后代"
-        }) { getComments(all = true) }
     }
 }
 
@@ -162,22 +128,4 @@ private suspend fun Context.commentPost()
     }
 
     call.respond(HttpStatus.OK)
-}
-
-private suspend fun Context.getComments(all: Boolean)
-{
-    val postId = call.parameters["postId"]?.toPostIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
-    val type = call.parameters["sort"].decodeOrElse { Posts.PostListSort.NEW }
-    val (begin, count) = call.getPage()
-    val posts = get<Posts>()
-    @Suppress("UNCHECKED_CAST")
-    val comments: Slice<PostFull> =
-        if (all) posts.getPosts(loginUser = getLoginUser(), descendantOf = postId, sortBy = type, begin = begin, limit = count, full = true) as Slice<PostFull>
-        else posts.getPosts(loginUser = getLoginUser(), childOf = postId, sortBy = type, begin = begin, limit = count, full = true) as Slice<PostFull>
-    val wordMarkings = get<WordMarkings>()
-    val res = comments.map {
-        if (it.lastVersionId == null || it.content == null) return@map it
-        it.copy(content = withWordMarkings(it.content, wordMarkings.getWordMarkings(it.lastVersionId)))
-    }
-    call.respond(HttpStatus.OK, checkAnonymous(res))
 }
