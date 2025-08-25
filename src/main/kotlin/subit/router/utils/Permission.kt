@@ -1,7 +1,7 @@
 @file:Suppress("MemberVisibilityCanBePrivate", "unused")
 
 package subit.router.utils
-
+import subit.config.systemConfig
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import subit.dataClasses.*
@@ -90,7 +90,7 @@ open class PermissionGroup(val dbUser: DatabaseUser?, val ssoUser: SsoUserFull?)
      * 是否已经实名
      */
     val hasRealName: Boolean
-        get() = (ssoUser?.seiue?.size ?: 0) > 0
+        get() = !systemConfig.requireRealName || (ssoUser?.seiue?.size ?: 0) > 0
 
     private var isProhibit0: Boolean? = null
 
@@ -134,15 +134,6 @@ open class PermissionGroup(val dbUser: DatabaseUser?, val ssoUser: SsoUserFull?)
         val post = posts.getPostInfo(version.post) ?: return false
         if (!canRead(post)) return false
         if (!version.draft) return true
-        return post.author == user || hasGlobalAdmin
-    }
-
-    /// 可以获得文章秘钥 ///
-
-    suspend fun canGetPostSecret(post: PostInfo): Boolean
-    {
-        if (isProhibit()) return false
-        if (!canRead(post)) return false
         return post.author == user || hasGlobalAdmin
     }
 
@@ -337,7 +328,6 @@ class PermissionChecker(dbUser: DatabaseUser?, ssoUser: SsoUserFull?): Permissio
     suspend fun checkChangeState(block: Block, newState: State)
     {
         checkProhibit()
-        checkRealName()
         checkOrFailed(hasRealName, HttpStatus.NotRealName)
         checkRead(block)
         if (block.state == newState) return

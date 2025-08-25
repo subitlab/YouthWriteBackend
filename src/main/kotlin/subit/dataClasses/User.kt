@@ -66,6 +66,7 @@ data class SsoUserInfo(
 /**
  * 用户数据库数据类
  * @property id 用户ID
+ * @property penName 笔名
  * @property introduction 个人简介
  * @property showStars 是否公开收藏
  * @property permission 用户管理权限
@@ -75,6 +76,7 @@ data class SsoUserInfo(
 @Serializable
 data class DatabaseUser(
     override val id: UserId,
+    val penName: String?,
     val introduction: String?,
     val showStars: Boolean,
     override val permission: PermissionLevel,
@@ -86,6 +88,7 @@ data class DatabaseUser(
     {
         val example = DatabaseUser(
             UserId(1),
+            penName = "金粟酒",
             "introduction",
             showStars = true,
             permission = PermissionLevel.NORMAL,
@@ -100,10 +103,12 @@ sealed interface UserInfo: NamedUser
 {
     override val id: UserId
     override val username: String
+    val penName: String?
     val registrationTime: Long
     val email: List<String>
     val introduction: String?
     val showStars: Boolean
+    val permission: PermissionLevel
 }
 
 @Serializable
@@ -114,6 +119,7 @@ data class UserFull(
     val phone: String,
     override val email: List<String>,
     val seiue: List<SsoUserFull.Seiue>,
+    override val penName: String?,
     override val introduction: String?,
     override val showStars: Boolean,
     override val permission: PermissionLevel,
@@ -121,9 +127,9 @@ data class UserFull(
     val likeBlocks: List<BlockId>,
 ): UserInfo, NamedUser, PermissionUser
 {
-    fun toBasicUserInfo() = BasicUserInfo(id, username, registrationTime, email, introduction, showStars)
+    fun toBasicUserInfo() = BasicUserInfo(id, username, registrationTime, email, penName, introduction, permission, showStars)
     fun toSsoUser() = SsoUserFull(id, username, registrationTime, phone, email, seiue)
-    fun toDatabaseUser() = DatabaseUser(id, introduction, showStars, permission, filePermission, likeBlocks)
+    fun toDatabaseUser() = DatabaseUser(id, penName, introduction, showStars, permission, filePermission, likeBlocks)
     companion object
     {
         fun from(ssoUser: SsoUserFull, dbUser: DatabaseUser) = UserFull(
@@ -133,6 +139,7 @@ data class UserFull(
             ssoUser.phone,
             ssoUser.email,
             ssoUser.seiue,
+            dbUser.penName,
             dbUser.introduction,
             dbUser.showStars,
             dbUser.permission,
@@ -146,6 +153,7 @@ data class UserFull(
             "phone",
             listOf("email"),
             listOf(SsoUserFull.Seiue("studentId", "realName", false)),
+            "金粟酒",
             "introduction",
             showStars = true,
             permission = PermissionLevel.NORMAL,
@@ -164,7 +172,9 @@ data class BasicUserInfo(
     override val username: String,
     override val registrationTime: Long,
     override val email: List<String>,
+    override val penName: String?,
     override val introduction: String?,
+    override val permission: PermissionLevel,
     override val showStars: Boolean
 ): UserInfo, NamedUser
 {
@@ -175,7 +185,9 @@ data class BasicUserInfo(
             ssoUser.username,
             ssoUser.registrationTime,
             ssoUser.email,
+            dbUser.penName,
             dbUser.introduction,
+            dbUser.permission,
             dbUser.showStars
         )
         val example = UserFull.example.toBasicUserInfo()

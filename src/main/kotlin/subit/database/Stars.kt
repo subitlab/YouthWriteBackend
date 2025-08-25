@@ -71,7 +71,7 @@ class Stars: DaoSqlImpl<Stars.StarTable>(StarTable)
 
     suspend fun getStarsCount(pid: PostId): Long = query()
     {
-        StarTable.selectAll().where { post eq pid }.count()
+        StarTable.select(id).where { post eq pid }.count()
     }
 
     suspend fun getStars(

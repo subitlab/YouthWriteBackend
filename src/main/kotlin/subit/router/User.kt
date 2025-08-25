@@ -57,21 +57,21 @@ fun Route.user() = route("/user", {
         }
     }) { getUserInfo() }
 
-    post("/introduce/{id}", {
-        description = "修改/删除个人简介, 删除他人个人简介需要全局管理员, 不能修改他人简介"
+    post("/information/{id}", {
+        description = "修改/删除个人信息, 删除他人个人信息需要全局管理员, 不能修改他人简介"
         request {
             pathParameter<UserId>("id")
             {
                 required = true
                 description = """
-                        要修改的用户ID, 0为当前登陆用户
+                        要修改的用户ID, 0为当前登陆用户，修改的话必须传0
                     """.trimIndent()
             }
-            body<ChangeIntroduction>
+            body<ChangeInformation>
             {
                 required = true
-                description = "个人简介, null为删除"
-                example("example", ChangeIntroduction("个人简介"))
+                description = "全局管理员删除时用空字符串表示，不传/null表示不变，全不变会400"
+                example("example", ChangeInformation("金粟酒","个人简介"))
             }
         }
         response {
@@ -130,40 +130,21 @@ fun Route.user() = route("/user", {
         }
     }) { getStars(false) }
 
-    route("/setting")
-    {
-        post("/showStars", {
-            description = "切换是否公开收藏"
-            request {
-                body<BooleanSetting>
-                {
-                    required = true
-                    description = "是否公开收藏"
-                    example("example", BooleanSetting(true))
-                }
+    post("/setting",  {
+        description = "修改设置"
+        request {
+            body<Settings>
+            {
+                required = true
+                description = "设置选项，不传/null表示不修改，全不修改会400"
+                example("example", Settings(true, listOf(BlockId(1), BlockId(2))))
             }
-            response {
-                statuses(HttpStatus.OK)
-                statuses(HttpStatus.Unauthorized)
-            }
-        }) { switchStars() }
-
-        post("/likeBlocks", {
-            description = "修改当前登录用户的收藏的板块ID列表"
-            request {
-                body<List<BlockId>>
-                {
-                    required = true
-                    description = "新的收藏板块ID列表, 为空则清空，不超过5个"
-                    example("example", listOf(BlockId(1), BlockId(2)))
-                }
-            }
-            response {
-                statuses(HttpStatus.OK)
-                statuses(HttpStatus.Unauthorized, HttpStatus.Forbidden)
-            }
-        }) { changeLikeBlocks() }
-    }
+        }
+        response {
+            statuses(HttpStatus.OK)
+            statuses(HttpStatus.Unauthorized)
+        }
+    }) { changeSettings() }
 
     rateLimit(RateLimit.SendEmail.rateLimitName)
     {
@@ -235,6 +216,11 @@ fun Route.user() = route("/user", {
                 required = false
                 description = "是否搜索新用户, 默认为true"
             }
+            queryParameter<Boolean>("penName")
+            {
+                required = false
+                description = "使用笔名搜索, 默认为true"
+            }
             paged()
         }
         response {
@@ -257,6 +243,21 @@ fun Route.user() = route("/user", {
             statuses(HttpStatus.BadRequest, HttpStatus.NotFound)
         }
     }) { getOldUserInfo() }
+
+    get("/statistics/{id}", {
+        description = "获取用户统计信息, 包括发帖数、评论数、文章点赞数、文章收藏数、文章浏览数"
+        request {
+            pathParameter<UserId>("id")
+            {
+                required = true
+                description = "用户ID, 0为当前登录用户"
+            }
+        }
+        response {
+            statuses<UserStatistics>(HttpStatus.OK, example = UserStatistics(10, 20, 30, 40, 50))
+            statuses(HttpStatus.BadRequest, HttpStatus.NotFound)
+        }
+    }) { getUserStatistics() }
 }
 
 private suspend fun Context.getUserInfo()
@@ -282,6 +283,8 @@ private suspend fun Context.getUserInfo()
                 user.registrationTime,
                 user.email,
                 null,
+                null,
+                PermissionLevel.BANNED,
                 false,
             )
         )
@@ -298,31 +301,40 @@ private suspend fun Context.getOldUserInfo()
 }
 
 @Serializable
-private data class ChangeIntroduction(val introduction: String?)
+private data class ChangeInformation(
+    val penName: String? = null,
+    val introduction: String? = null,
+)
 
 private suspend fun Context.changeIntroduction()
 {
     val id = call.parameters["id"]?.toUserIdOrNull() ?: return call.respond(HttpStatus.BadRequest)
-    checkPermission { checkRealName() }
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
-    val changeIntroduction = call.receiveAndCheckBody<ChangeIntroduction>()
+    val changeInformation = call.receiveAndCheckBody<ChangeInformation>()
+
+    if(changeInformation.isAllPropertiesNull())
+        return call.respond(HttpStatus.BadRequest.subStatus("至少需要修改一个字段"))
+
+    changeInformation.penName?.let{ if(it.length > 32) finishCall(HttpStatus.BadRequest.subStatus("笔名长度不能超过32个字符")) }
+
     if (id == UserId(0))
     {
-        get<Users>().changeIntroduction(loginUser.id, changeIntroduction.introduction)
+        get<Users>().changeInformation(loginUser.id, changeInformation.introduction, changeInformation.penName)
         return call.respond(HttpStatus.OK)
     }
-    else if (changeIntroduction.introduction == null)
-    {
+    else{
         checkPermission { checkHasGlobalAdmin() }
-        if (get<Users>().changeIntroduction(id, null))
-        {
-            get<Operations>().addOperation(loginUser.id, changeIntroduction)
-            return call.respond(HttpStatus.OK)
-        }
+        if(changeInformation.introduction?.isNotEmpty() ?: false || changeInformation.penName?.isNotEmpty() ?: false)
+            finishCall(HttpStatus.Forbidden.subStatus("管理员只能删除他人信息不能修改"))
         else
-            return call.respond(HttpStatus.NotFound)
+        {
+            if(get<Users>().changeInformation(loginUser.id, changeInformation.introduction, changeInformation.penName)) {
+                get<Operations>().addOperation(loginUser.id, changeInformation)
+                finishCall(HttpStatus.OK)
+            }
+            else finishCall(HttpStatus.NotFound)
+        }
     }
-    else finishCall(HttpStatus.Forbidden.subStatus("只能删除他人的个性签名不能修改"))
 }
 
 @Serializable
@@ -374,13 +386,31 @@ private suspend fun Context.getStars(isStar: Boolean)
 }
 
 @Serializable
-private data class BooleanSetting(val showStars: Boolean)
+private data class Settings(
+    val showStars: Boolean? = null,
+    val likeBlocksList: List<BlockId>? = null,
+)
 
-private suspend fun Context.switchStars()
+/*
+ * null为不修改
+ */
+private suspend fun Context.changeSettings()
 {
     val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
-    val switchStars = call.receiveAndCheckBody<BooleanSetting>()
-    get<Users>().changeShowStars(loginUser.id, switchStars.showStars)
+    val settings = call.receiveAndCheckBody<Settings>()
+    if( settings.isAllPropertiesNull() ) finishCall(HttpStatus.BadRequest.subStatus("至少需要修改一个字段") )
+
+    val likeBlocksList = settings.likeBlocksList?.distinct()?.let{
+        if( it.size !in 0..5) finishCall(HttpStatus.BadRequest.subStatus("收藏的板块不能超过5个"))
+        it
+    }
+
+    get<Users>().changeSettings(
+        loginUser.id,
+        showStars = settings.showStars,
+        likeBlocks = likeBlocksList
+    )
+
     call.respond(HttpStatus.OK)
 }
 
@@ -418,7 +448,7 @@ private suspend fun Context.sendEmailCode()
         if(oldUserTable.getNewId(id) != null)
             finishCall(HttpStatus.EmailExist.copy(message = "该账户已被其他用户认领"))
     }
-    get<EmailCodes>().sendEmailCode(emailInfo.email, emailInfo.usage)
+    get<EmailCodes>().  sendEmailCode(emailInfo.email, emailInfo.usage)
     finishCall(HttpStatus.OK)
 }
 
@@ -435,13 +465,16 @@ private suspend fun Context.searchByUsername()
     val username = call.parameters["username"] ?: return call.respond(HttpStatus.BadRequest)
     val oldUser = call.parameters["oldUser"]?.toBooleanStrictOrNull() ?: true
     val newUser = call.parameters["newUser"]?.toBooleanStrictOrNull() ?: true
+    val penName = call.parameters["penName"]?.toBooleanStrictOrNull() ?: true
     if (!oldUser && !newUser) return call.respond(HttpStatus.BadRequest.subStatus("至少需要搜索旧用户或新用户"))
     val (begin, count) = call.getPage()
     val ssoUsers =
-        if (newUser) SSO.searchUser(username, begin, count)
+        if (newUser)
+            if(penName) get<Users>().searchUserByPenName(username, begin, count)
+            else SSO.searchUser(username, begin, count)
         else sliceOf()
     val oldUsers =
-        if (oldUser) get<OldUsers>().searchUser(username, begin - ssoUsers.totalSize, count)
+        if (oldUser && !penName) get<OldUsers>().searchUser(username, begin - ssoUsers.totalSize, count) // 用笔名搜索会导致老用户被搜到两次
         else sliceOf()
     val res = Slice(ssoUsers.totalSize + oldUsers.totalSize, begin, ssoUsers.list + oldUsers.list)
         .map { SSO.getUserFullById(it, true)!! }
@@ -449,11 +482,30 @@ private suspend fun Context.searchByUsername()
     call.respond(HttpStatus.OK, res)
 }
 
-private suspend fun Context.changeLikeBlocks()
+@Serializable
+data class UserStatistics(
+    val postCount: Long,
+    val commentCount: Long,
+    val likeCount: Long,
+    val starCount: Long,
+    val viewCount: Long,
+)
+
+private suspend fun Context.getUserStatistics()
 {
-    val loginUser = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
-    val blocks = call.receiveAndCheckBody<List<BlockId>>()
-    if( blocks.size !in 0..5) finishCall(HttpStatus.BadRequest.subStatus("收藏的板块不能超过5个"))
-    get<Users>().changeLikeBlocks(loginUser.id, blocks)
-    call.respond(HttpStatus.OK)
+    val id = call.parameters["id"]?.toUserIdOrNull() ?: finishCall(HttpStatus.BadRequest)
+    val user =
+        if( id == UserId(0) ) getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
+        else SSO.getUserFullById(id) ?: return call.respond(HttpStatus.NotFound)
+
+    val posts = get<Posts>()
+
+    val statistic = UserStatistics(
+        postCount = posts.getPostsCounts(false,user.id),
+        commentCount = posts.getPostsCounts(true,user.id),
+        likeCount = posts.getLikesCount(user.id),
+        starCount = posts.getStarsCount(user.id),
+        viewCount = posts.getViewsCount(user.id),
+    )
+    call.respond(HttpStatus.OK, statistic)
 }

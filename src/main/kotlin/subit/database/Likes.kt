@@ -68,7 +68,7 @@ class Likes: DaoSqlImpl<Likes.LikeTable>(LikeTable), KoinComponent
 
     suspend fun getLikesCount(pid: PostId): Long = query()
     {
-        LikeTable.selectAll().where { post eq pid }.count()
+        LikeTable.select(id).where { post eq pid }.count()
     }
 
     suspend fun getLikes(

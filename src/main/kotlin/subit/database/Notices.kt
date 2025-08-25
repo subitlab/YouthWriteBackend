@@ -95,9 +95,9 @@ class Notices: DaoSqlImpl<Notices.NoticesTable>(NoticesTable), KoinComponent
         update({ table.id eq id }) { it[read] = true }
     }
 
-    suspend fun readNotices(user: UserId): Unit = query()
+    suspend fun readNotices(user: UserId, types: List<Type>?): Unit = query()
     {
-        update({ table.user eq user }) { it[read] = true }
+        update({ (table.user eq user) and ( if(types == null) Op.TRUE else ( table.type inList types ) ) }) { it[read] = true }
     }
 
     suspend fun deleteNotice(id: NoticeId): Unit = query()

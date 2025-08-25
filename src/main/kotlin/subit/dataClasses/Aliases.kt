@@ -149,3 +149,17 @@ value class PrivateChatGroupId(override val value: Long): Id<PrivateChatGroupId,
         fun Number.toPrivateChatGroupId() = PrivateChatGroupId(toLong())
     }
 }
+
+@JvmInline
+@Serializable
+value class TagId(override val value: Long): Id<TagId, Long>
+{
+    override fun toString(): String = value.toString()
+
+    companion object
+    {
+        fun String.toTagId() = TagId(toLong())
+        fun String.toTagIdOrNull() = toLongOrNull()?.let(::TagId)
+        fun Number.toTagId() = TagId(toLong())
+    }
+}

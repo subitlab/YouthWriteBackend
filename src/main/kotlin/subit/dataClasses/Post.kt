@@ -324,3 +324,18 @@ data class PostFullBasicInfo(
     fun toPostInfo(): PostInfo =
         PostInfo(id, author, anonymous, view, block, top, state, parent, root, private)
 }
+
+@Serializable
+data class MonthlyLikedPost(
+    val post: PostFullBasicInfo,
+    val newLikesAdded: Long,
+)
+{
+    companion object
+    {
+        val example = MonthlyLikedPost(
+            PostFullBasicInfo.example,
+            10L,
+        )
+    }
+}

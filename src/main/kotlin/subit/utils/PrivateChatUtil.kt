@@ -32,7 +32,7 @@ object PrivateChatUtil: KoinComponent
     {
         lock.withLock(user)
         {
-            val l = clients[user] ?: return
+            val l = clients[user] ?: return@withLock
             l.remove(client)
             if (l.isEmpty()) clients.remove(user)
         }

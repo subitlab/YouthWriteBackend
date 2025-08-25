@@ -11,7 +11,7 @@ import io.ktor.server.routing.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
-import subit.dataClasses.PostFullBasicInfo
+import subit.dataClasses.MonthlyLikedPost
 import subit.dataClasses.Slice
 import subit.dataClasses.sliceOf
 import subit.database.Posts
@@ -32,7 +32,7 @@ fun Route.home() = route("/home", {
             paged()
         }
         response {
-            statuses<Slice<PostFullBasicInfo>>(HttpStatus.OK, example = sliceOf(PostFullBasicInfo.example))
+            statuses<Slice<MonthlyLikedPost>>(HttpStatus.OK, example = sliceOf(MonthlyLikedPost.example))
         }
     }) { getMonthly() }
 
@@ -120,8 +120,10 @@ fun Route.home() = route("/home", {
 private suspend fun Context.getMonthly()
 {
     val (begin, count) = call.getPage()
-    val posts = get<Posts>().monthly(getLoginUser(), begin, count)
-    call.respond(HttpStatus.OK, checkAnonymous(posts))
+    val monthlyLikedPost = get<Posts>().monthly(getLoginUser(), begin, count)
+    call.respond(HttpStatus.OK, monthlyLikedPost.copy(list = monthlyLikedPost.list.map {
+        it.copy(post = checkAnonymous(it.post) )
+    }))
 }
 
 @Serializable
@@ -137,7 +139,6 @@ private suspend fun Context.putMessage()
     checkPermission()
     {
         checkHasGlobalAdmin()
-        checkRealName()
     }
     val message = call.receiveAndCheckBody<Message>()
     HomeFilesUtils.homeMd = message.message
@@ -155,7 +156,6 @@ private suspend fun Context.putImage()
     checkPermission()
     {
         checkHasGlobalAdmin()
-        checkRealName()
     }
     withContext(Dispatchers.IO)
     {
@@ -174,7 +174,6 @@ private suspend fun Context.putAnnouncement()
     checkPermission()
     {
         checkHasGlobalAdmin()
-        checkRealName()
     }
     val message = call.receiveAndCheckBody<Message>()
     HomeFilesUtils.announcementMd = message.message

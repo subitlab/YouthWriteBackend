@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.withTimeout
 import kotlinx.datetime.Instant
+import me.nullaqua.api.reflect.FieldAccessor
 import org.jetbrains.exposed.sql.kotlin.datetime.timestampParam
 import org.koin.core.component.KoinComponent
 import subit.Loader
@@ -41,12 +42,17 @@ inline fun <reified R> String?.decodeOrElse(block: (Throwable) -> R): R
     return this.runCatching { contentNegotiationJson.decodeFromString<R>(this) }.getOrElse { block(it) }
 }
 inline fun <reified R> String?.decodeOrNull(): R? = decodeOrElse { null }
+inline fun <reified R: List<*>?> String?.decodeSearchListOrElse(block: (Throwable) -> R): R = this?.let{"[$this]"}.decodeOrElse(block)
+inline fun <reified R: List<*>?> String?.decodeSearchListOrNull(): R? = decodeSearchListOrElse { null }
+
 
 fun Long.toInstant(): Instant =
     Instant.fromEpochMilliseconds(this)
 
 fun Long.toTimestamp() =
     timestampParam(this.toInstant())
+
+fun <T: Any> T.isAllPropertiesNull(): Boolean = FieldAccessor.getFields(this.javaClass).all { it.get(this) == null }
 
 open class LineOutputStream(private val line: (String) -> Unit): OutputStream()
 {

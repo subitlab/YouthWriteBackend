@@ -89,6 +89,13 @@ fun Route.notice() = route("/notice", {
 
     post("/all", {
         description = "标记所有通知为已读/未读"
+        request {
+            queryParameter<List<Type>>("types")
+            {
+                required = false
+                description = "通知类型, 不填则标记所有通知"
+            }
+        }
         response {
             statuses(HttpStatus.OK, HttpStatus.Unauthorized, HttpStatus.BadRequest)
         }
@@ -141,9 +148,9 @@ fun Route.notice() = route("/notice", {
 private suspend fun Context.getList()
 {
     val (begin, count) = call.getPage()
-    val type: List<Type>? = call.parameters["type"]?.decodeOrElse { finishCall(HttpStatus.BadRequest.subStatus("type不合法")) }
+    val type: List<Type>? = call.parameters["type"]?.decodeSearchListOrNull()
     val read = call.parameters["read"]?.toBooleanStrictOrNull()
-    val loginUser = getLoginUser() ?: return finishCall(HttpStatus.Unauthorized)
+    val loginUser = getLoginUser() ?: finishCall(HttpStatus.Unauthorized)
     val notices = get<Notices>()
     notices
         .getNotices(loginUser.id, type, read, begin, count)
@@ -173,8 +180,9 @@ private suspend fun Context.readNotice()
 private suspend fun Context.readAll()
 {
     val user = getLoginUser() ?: return call.respond(HttpStatus.Unauthorized)
+    val types = call.parameters["types"].decodeSearchListOrNull<List<Type>>()
     val notices = get<Notices>()
-    notices.readNotices(user.id)
+    notices.readNotices(user.id, types)
     call.respond(HttpStatus.OK)
 }
 

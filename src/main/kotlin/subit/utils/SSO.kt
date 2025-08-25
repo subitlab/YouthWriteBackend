@@ -138,7 +138,7 @@ object SSO: KoinComponent
     suspend fun getUserFull(accessToken: String): UserFull?
     {
         val ssoUser = getUser(accessToken) ?: return null
-        val dbUser = users.getOrCreateUser(ssoUser.id)
+        val dbUser = users.getOrCreateUser(ssoUser.id, ssoUser.username)
         return UserFull.from(ssoUser, dbUser)
     }
 
@@ -159,7 +159,13 @@ object SSO: KoinComponent
         }
         else{
             val accessToken = getAccessToken(id) ?: return null
-            return getUserFull(accessToken)
+            return getUserFull(accessToken)?.let {
+                if(it.penName == null){
+                    users.changeInformation(id, penName = it.username)
+                    return getUserFull(accessToken)
+                }
+                else it
+            }
         }
     }
 
@@ -169,13 +175,22 @@ object SSO: KoinComponent
     suspend fun getDbUser(userId: UserId): DatabaseUser?
     {
         if(!hasUser(userId)) return null
-        return users.getOrCreateUser(userId)
+        val user = users.getOrCreateUser(userId)
+        if(user.penName == null){
+            getAccessToken(userId)?.let { token ->
+                getUserFull(token)?.username?.let { username ->
+                    users.changeInformation(userId,penName = username)
+                    return users.getUser(userId)
+                }
+            }
+        }
+        return user
     }
 
     suspend fun getUserAndDbUser(userId: UserId): Pair<SsoUser, DatabaseUser>?
     {
         val ssoUser = getUserFullById(userId)?.toSsoUser() ?: return null
-        val dbUser = users.getOrCreateUser(userId)
+        val dbUser = users.getOrCreateUser(userId, ssoUser.username)
         return ssoUser to dbUser
     }
 

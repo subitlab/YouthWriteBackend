@@ -50,6 +50,7 @@ class Posts: DaoSqlImpl<Posts.PostTable>(PostTable), KoinComponent
     private val likes: Likes by inject()
     private val permissions: Permissions by inject()
     private val postVersions: PostVersions by inject()
+    private val tagRelations: TagRelations by inject()
     private val tags: Tags by inject()
 
     @Serializable
@@ -252,12 +253,15 @@ class Posts: DaoSqlImpl<Posts.PostTable>(PostTable), KoinComponent
     ): Join
     {
         val postVersionsTable = postVersions.table
+        val tagRelationsTable = tagRelations.table
         val tagsTable = tags.table
 
         var j = this
             .join(postVersionsTable, JoinType.LEFT, postVersionsTable.id, if (containsDraft) this@Posts.table.lastDraftVersion else this@Posts.table.lastVersion )
         if (joinTags)
-            j = j.join(tagsTable, JoinType.LEFT, this@Posts.table.id, tagsTable.post)
+            j = j
+                .join(tagRelationsTable, JoinType.LEFT, this@Posts.table.id, tagRelationsTable.post)
+                .join(tagsTable, JoinType.LEFT, tagRelationsTable.tag, tagsTable.id)
         return j
     }
 
@@ -279,7 +283,7 @@ class Posts: DaoSqlImpl<Posts.PostTable>(PostTable), KoinComponent
             + PostVersionTable.textContent
             - hotScore
         ).toMutableList()
-        if (joinTags) list += Tags.TagsTable.tag
+        if (joinTags) list += TagRelations.TagRelationsTable.tag
         return groupBy(*list.toTypedArray())
     }
 
@@ -524,7 +528,8 @@ class Posts: DaoSqlImpl<Posts.PostTable>(PostTable), KoinComponent
         block: BlockId? = null,
         top: Boolean? = null,
         state: State? = null,
-        tag: String? = null,
+        tag: TagId? = null,
+        classTag: TagId? = null,
         comment: Boolean,
         draft: Boolean? = null,
         childOf: PostId? = null,
@@ -566,19 +571,22 @@ class Posts: DaoSqlImpl<Posts.PostTable>(PostTable), KoinComponent
             if (lastModifiedBefore != null) andWhere { lastModified lessEq timestampParam(lastModifiedBefore) }
             if (lastModifiedAfter != null) andWhere { lastModified greaterEq timestampParam(lastModifiedAfter) }
             if (!containsKeyWord.isNullOrBlank()) andWhere { (PostVersionTable.textContent like "%$containsKeyWord%") or (PostVersionTable.title like "%$containsKeyWord%") }
-            if (!tag.isNullOrBlank()) andHaving { Tags.TagsTable.tag eq tag }
+            if (tag != null) andHaving { (TagRelations.TagRelationsTable.tag eq tag) and (Tags.TagsTable.type eq TagType.NORMAL) }
+            if (classTag != null) andHaving { (TagRelations.TagRelationsTable.tag eq classTag) and (Tags.TagsTable.type eq TagType.CLASS) }
             return this
         }
 
         val permissionGroup = loginUser.permissionGroup()
 
+        val joinTags = tag != null || classTag != null
+
         val res = table
-            .joinPostFull(draft == true, !tag.isNullOrBlank())
+            .joinPostFull(draft == true, joinTags)
             .joinPermission(permissionGroup)
             ?.let { if (descendantIds != null) it.join(descendantIds, JoinType.INNER, table.id, descendantIds[table.id]) else it }
             ?.let { if (full) it.select(postFullColumns) else it.select(postFullBasicInfoColumns) }
             ?.checkLimits()
-            ?.groupPostFull(!tag.isNullOrBlank())
+            ?.groupPostFull(joinTags)
             ?.havingPermission(permissionGroup)
             ?.orderBy(*sortBy.order)
             ?.asSlice(begin, limit)
@@ -606,8 +614,9 @@ class Posts: DaoSqlImpl<Posts.PostTable>(PostTable), KoinComponent
         author: List<UserId>? = null,
         block: List<BlockId>? = null,
         top: Boolean? = null,
-        state: List<State>? = null,
-        tag: List<String>? = null,
+        state: State? = null,
+        tags: List<TagId>? = null,
+        classes: List<TagId>? = null,
         comment: Boolean? = null,
         draft: Boolean? = null,
         childOf: List<PostId>? = null,
@@ -635,7 +644,7 @@ class Posts: DaoSqlImpl<Posts.PostTable>(PostTable), KoinComponent
             if (author != null) andWhere { table.author inList author }
             if (block != null) andWhere { table.block inList block }
             if (top != null) andWhere { table.top eq top }
-            if (state != null) andWhere { table.state inList state }
+            if (state != null) andWhere { table.state eq state }
             if (comment != null) andWhere { if (comment) table.parent.isNotNull() else table.parent.isNull() }
             if (draft != null)
             {
@@ -651,19 +660,20 @@ class Posts: DaoSqlImpl<Posts.PostTable>(PostTable), KoinComponent
             if (!containsKeyWord.isNullOrEmpty()) andWhere { containsKeyWord.map { keyword ->
                 (PostVersionTable.textContent like "%$keyword%") or (PostVersionTable.title like "%$keyword%")
             }.reduce { acc, condition -> acc or condition } }
-            if (!tag.isNullOrEmpty()) andHaving { Tags.TagsTable.tag inList tag }
+            if (!tags.isNullOrEmpty()) andHaving { (Tags.TagsTable.type eq TagType.NORMAL) and (TagRelations.TagRelationsTable.tag inList tags) }
+            if (!classes.isNullOrEmpty()) andHaving { (Tags.TagsTable.type eq TagType.CLASS) and (TagRelations.TagRelationsTable.tag inList classes) }
             return this
         }
 
         val permissionGroup = loginUser.permissionGroup()
 
         val res = table
-            .joinPostFull(draft == true, !tag.isNullOrEmpty())
+            .joinPostFull(draft == true, !tags.isNullOrEmpty())
             .joinPermission(permissionGroup)
             ?.let { if (descendantIds != null) it.join(descendantIds, JoinType.INNER, table.id, descendantIds[table.id]) else it }
             ?.let { if (full) it.select(postFullColumns) else it.select(postFullBasicInfoColumns) }
             ?.checkLimits()
-            ?.groupPostFull(!tag.isNullOrEmpty())
+            ?.groupPostFull(!tags.isNullOrEmpty())
             ?.havingPermission(permissionGroup)
             ?.orderBy(*sortBy.order)
             ?.asSlice(begin, limit)
@@ -721,7 +731,7 @@ class Posts: DaoSqlImpl<Posts.PostTable>(PostTable), KoinComponent
         loginUser: UserFull?,
         begin: Long,
         count: Int
-    ): Slice<PostFullBasicInfo> = query()
+    ): Slice<MonthlyLikedPost> = query()
     {
         val likeTable = likes.table
 
@@ -732,15 +742,21 @@ class Posts: DaoSqlImpl<Posts.PostTable>(PostTable), KoinComponent
             .joinPostFull(false)
             .joinPermission(permissionGroup)
             ?.join(likeTable, JoinType.LEFT, table.id, likeTable.post) { likeTable.time greaterEq aMonthAgo }
-            ?.select(postFullBasicInfoColumns)
+            ?.select(postFullBasicInfoColumns + likeTable.post.count())
             ?.havingPermission(permissionGroup)
             ?.andWhere { parent.isNull() }
             ?.andWhere { table.state eq State.NORMAL }
+            ?.andWhere { table.secret eq "" }
             ?.andWhere { table.lastVersion.isNotNull() }
             ?.groupPostFull()
             ?.orderBy(likeTable.post.count() to SortOrder.DESC)
             ?.asSlice(begin, count)
-            ?.map { deserializePost<PostFullBasicInfo>(it) }
+            ?.map {
+                MonthlyLikedPost(
+                    deserializePost<PostFullBasicInfo>(it),
+                    it[likeTable.post.count()]
+                )
+            }
         ?: Slice.empty()
     }
 
@@ -781,6 +797,59 @@ class Posts: DaoSqlImpl<Posts.PostTable>(PostTable), KoinComponent
     {
         table.update({ table.id eq pid }) { it[table.secret] = secret } > 0
     }
+
+    /**
+     * 获取帖子数量
+     * @param comment: 获取帖子or评论数量
+     * @param author: 作者, null表示所有作者
+     * @param block: 板块, null表示所有板块
+     */
+    suspend fun getPostsCounts(comment: Boolean, author: UserId? = null, block: BlockId? = null): Long = query()
+    {
+        table
+            .select(table.id.count())
+            .apply { if(comment) andWhere { parent.isNotNull() } else andWhere { parent.isNull() }  }
+            .apply { if(author != null) andWhere { table.author eq author } }
+            .apply { if(block != null) andWhere { table.block eq block } }
+            .single()[table.id.count()]
+    }
+
+    /*
+     * 获取用户文章被点赞数
+     */
+    suspend fun getLikesCount(author: UserId): Long = query()
+    {
+        table
+            .select(likeCount.sum())
+            .where { parent.isNull() }
+            .andWhere { table.author eq author }
+            .single()[likeCount.sum()] ?: 0L
+    }
+
+    /*
+     * 获取用户文章被收藏数
+     */
+    suspend fun getStarsCount(author: UserId): Long = query()
+    {
+        table
+            .select(starCount.sum())
+            .where { parent.isNull() }
+            .andWhere{ table.author eq author }
+            .single()[starCount.sum()] ?: 0L
+    }
+
+    /*
+     * 获取用户文章被浏览数
+     */
+    suspend fun getViewsCount(author: UserId): Long = query()
+    {
+        table
+            .select(view.sum())
+            .where { parent.isNull() }
+            .andWhere{ table.author eq author }
+            .single()[view.sum()] ?: 0L
+    }
+
 }
 
 object CommentCountTriggerManager

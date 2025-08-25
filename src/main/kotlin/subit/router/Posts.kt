@@ -66,16 +66,21 @@ fun Route.posts() = route("/post", {
                 required = false
                 description = "帖子状态, 不填则为所有"
             }
-            queryParameter<String>("tag")
+            queryParameter<TagId>("tag")
             {
                 required = false
                 description = "标签, 不填则为所有"
+            }
+            queryParameter<TagId>("class")
+            {
+                required = false
+                description = "课程, 不填则为所有"
             }
             queryParameter<Boolean>("comment")
             {
                 required = false
                 description = """
-                    - true -> 只返回评论, 此时childOf/descendantOf必须选填一项
+                    - true -> 只返回评论, 此时用户不是全局管理员时childOf/descendantOf必须选填一项，否则400
                     - false / 不填 -> 只返回帖子
                 """.trimIndent()
             }
@@ -173,23 +178,28 @@ fun Route.posts() = route("/post", {
                 required = false
                 description = "是否置顶, 不填则为所有"
             }
-            queryParameter<List<State>>("state")
+            queryParameter<State>("state")
             {
                 required = false
-                description = "帖子状态列表, 重复忽略不计, 不填则为所有"
+                description = "帖子状态, 不填则为所有"
             }
-            queryParameter<List<String>>("tag")
+            queryParameter<List<TagId>>("tag")
             {
                 required = false
                 description = "标签, 不填则为所有"
             }
+            queryParameter<List<TagId>>("class")
+            {
+                required = false
+                description = "课程, 不填则为所有"
+            }
             queryParameter<Boolean>("comment")
             {
                 required = false
+                required = false
                 description = """
-                    - true -> 只返回评论
-                    - false -> 只返回帖子
-                    - 不填 -> 返回所有
+                    - true -> 只返回评论, 此时用户不是全局管理员时childOf/descendantOf必须选填一项，否则400
+                    - false / 不填 -> 只返回帖子
                 """.trimIndent()
             }
             queryParameter<Boolean>("draft")
@@ -643,12 +653,12 @@ private suspend fun Context.likePost()
 }
 
 @Serializable
-private data class LikeListResponse(val user: BasicUserInfo?, val time: Long)
+private data class LikeListResponse(val user: UserId?, val time: Long)
 {
     companion object
     {
         val examples = sliceOf(
-            LikeListResponse(BasicUserInfo.example, System.currentTimeMillis()),
+            LikeListResponse(UserId(1), System.currentTimeMillis()),
             LikeListResponse(null, System.currentTimeMillis())
         )
     }
@@ -667,9 +677,9 @@ private suspend fun Context.getLikeList()
 
     val res = checkPermission {
         list.map {
-            val (sso, dbUser) = SSO.getUserAndDbUser(it.first) ?: return@map LikeListResponse(null, it.second)
-            if (!hasGlobalAdmin && !dbUser.showStars) return@map LikeListResponse(null, it.second)
-            LikeListResponse(BasicUserInfo.from(sso, dbUser), it.second)
+            val dbUser = SSO.getDbUser(it.first) ?: return@map LikeListResponse(null, it.second)
+            if (star && !dbUser.showStars) return@map LikeListResponse(null, it.second)
+            LikeListResponse(it.first, it.second)
         }
     }
     call.respond(HttpStatus.OK, res)
@@ -742,7 +752,8 @@ private suspend fun Context.getPosts(full: Boolean)
     val block = call.parameters["block"]?.toBlockIdOrNull()
     val top = call.parameters["top"]?.lowercase()?.toBooleanStrictOrNull()
     val state = call.parameters["state"].decodeOrNull<State>()
-    val tag = call.parameters["tag"]
+    val tag = call.parameters["tag"].decodeOrNull<TagId>()
+    val classTag = call.parameters["class"].decodeOrNull<TagId>()
     val comment = call.parameters["comment"]?.lowercase()?.toBooleanStrictOrNull() ?: false
     val draft = call.parameters["draft"]?.lowercase()?.toBooleanStrictOrNull()
     val childOf = call.parameters["childOf"]?.toPostIdOrNull()
@@ -755,7 +766,8 @@ private suspend fun Context.getPosts(full: Boolean)
     val sort = call.parameters["sort"].decodeOrElse<Posts.PostListSort> { finishCall(HttpStatus.BadRequest.subStatus("sort参数错误")) }
     val (begin, count) = call.getPage()
 
-    if(comment && descendantOf == null && childOf == null) finishCall(HttpStatus.BadRequest.subStatus("comment参数为true时必须指定childOf或descendantOf"))
+    if(comment && descendantOf == null && childOf == null && (loginUser?.permission ?: PermissionLevel.NORMAL) < PermissionLevel.ADMIN)
+        finishCall(HttpStatus.BadRequest.subStatus("comment参数为true时必须指定childOf或descendantOf"))
 
     val postDB = get<Posts>()
 
@@ -773,6 +785,7 @@ private suspend fun Context.getPosts(full: Boolean)
         top = top,
         state = state,
         tag = tag,
+        classTag = classTag,
         comment = comment,
         draft = draft,
         childOf = childOf,
@@ -802,30 +815,46 @@ private suspend fun Context.getPosts(full: Boolean)
 private suspend fun Context.getPostsAdvanced(full: Boolean)
 {
     val loginUser = getLoginUser()
-    val author: List<UserId>? = call.parameters["author"].decodeOrNull()
-    val block: List<BlockId>? = call.parameters["block"].decodeOrNull()
+    val author: List<UserId>? = call.parameters["author"].decodeSearchListOrNull()
+    val block: List<BlockId>? = call.parameters["block"].decodeSearchListOrNull()
     val top = call.parameters["top"]?.lowercase()?.toBooleanStrictOrNull()
-    val state: List<State>? = call.parameters["state"].decodeOrNull()
-    val tag: List<String>? = call.parameters["tag"].decodeOrNull()
-    val comment = call.parameters["comment"]?.lowercase()?.toBooleanStrictOrNull()
+    val state = call.parameters["state"].decodeOrNull<State>()
+    val tags: List<TagId>? = call.parameters["tag"].decodeSearchListOrNull()
+    val classes: List<TagId>? = call.parameters["class"].decodeSearchListOrNull()
+    val comment = call.parameters["comment"]?.lowercase()?.toBooleanStrictOrNull() ?: false
     val draft = call.parameters["draft"]?.lowercase()?.toBooleanStrictOrNull()
-    val childOf: List<PostId>? = call.parameters["childOf"].decodeOrNull()
+    val childOf: List<PostId>? = call.parameters["childOf"].decodeSearchListOrNull()
     val descendantOf = call.parameters["descendantOf"]?.toPostIdOrNull()
     val createBefore = call.parameters["createBefore"]?.toLongOrNull()
     val createAfter = call.parameters["createAfter"]?.toLongOrNull()
     val lastModifiedBefore = call.parameters["lastModifiedBefore"]?.toLongOrNull()
     val lastModifiedAfter = call.parameters["lastModifiedAfter"]?.toLongOrNull()
-    val containsKeyWord: List<String>? = call.parameters["containsKeyWord"].decodeOrNull()
+    val containsKeyWord: List<String>? = call.parameters["containsKeyWord"].decodeSearchListOrNull()
     val sort = call.parameters["sort"].decodeOrElse<Posts.PostListSort> { finishCall(HttpStatus.BadRequest.subStatus("sort参数错误")) }
     val (begin, count) = call.getPage()
 
-    val posts = get<Posts>().getPostsAdvanced(
+    if(comment && descendantOf == null && childOf == null && (loginUser?.permission ?: PermissionLevel.NORMAL) < PermissionLevel.ADMIN)
+        finishCall(HttpStatus.BadRequest.subStatus("comment参数为true时必须指定childOf或descendantOf"))
+
+    val postDB = get<Posts>()
+
+    if( descendantOf != null || childOf != null){
+        (childOf.orEmpty() + (descendantOf?.let { listOf(it) } ?: emptyList())).forEach { postId ->
+            val ancestor = postDB.getPostInfo(postId) ?: finishCall(HttpStatus.NotFound.subStatus("祖先${postId}不存在"))
+            checkPermission {
+                checkRead( ancestor )
+            }
+        }
+    }
+
+    val posts = postDB.getPostsAdvanced(
         loginUser = loginUser,
         author = author,
         block = block,
         top = top,
         state = state,
-        tag = tag,
+        tags = tags,
+        classes = classes,
         comment = comment,
         draft = draft,
         childOf = childOf,
@@ -927,7 +956,7 @@ private suspend fun Context.getSecret()
 private suspend fun Context.setSecret()
 {
     val postSecret = call.receiveAndCheckBody<PostSecret>()
-    if (postSecret.secret.length >= 256) finishCall(HttpStatus.BadRequest.subStatus(message = "标题过长"))
+    if (postSecret.secret.length >= 256) finishCall(HttpStatus.BadRequest.subStatus(message = "密钥过长"))
 
     val loginUser = getLoginUser() ?: finishCall(HttpStatus.Unauthorized)
     val posts = get<Posts>()

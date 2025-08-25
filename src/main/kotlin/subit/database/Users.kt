@@ -8,7 +8,9 @@ import org.jetbrains.exposed.sql.update
 import subit.dataClasses.BlockId
 import subit.dataClasses.DatabaseUser
 import subit.dataClasses.PermissionLevel
+import subit.dataClasses.Slice
 import subit.dataClasses.UserId
+import subit.database.utils.asSlice
 import subit.database.utils.single
 
 class Users: DaoSqlImpl<Users.UsersTable>(UsersTable)
@@ -19,6 +21,7 @@ class Users: DaoSqlImpl<Users.UsersTable>(UsersTable)
     object UsersTable: IdTable<UserId>("users")
     {
         override val id = userId("id").entityId()
+        val penName = varchar("pen_name", 32).nullable().default(null).index() // null为未定义，空字符串为被删除
         val introduction = text("introduction").nullable().default(null)
         val showStars = bool("show_stars").default(true)
         val permission = enumeration<PermissionLevel>("permission").default(PermissionLevel.NORMAL)
@@ -29,6 +32,7 @@ class Users: DaoSqlImpl<Users.UsersTable>(UsersTable)
 
     private fun deserialize(row: ResultRow) = DatabaseUser(
         id = row[UsersTable.id].value,
+        penName = row[UsersTable.penName],
         introduction = row[UsersTable.introduction] ?: "",
         showStars = row[UsersTable.showStars],
         permission = row[UsersTable.permission],
@@ -37,19 +41,35 @@ class Users: DaoSqlImpl<Users.UsersTable>(UsersTable)
     )
 
     /**
+     * 不能修改为null，null表示不修改
      * 若用户不存在返回false
      */
-    suspend fun changeIntroduction(id: UserId, introduction: String?): Boolean = query()
+    suspend fun changeInformation(
+        id: UserId,
+        introduction: String? = null,
+        penName: String? = null,
+    ): Boolean = query()
     {
-        update({ UsersTable.id eq id }) { it[UsersTable.introduction] = introduction } > 0
+        update({ UsersTable.id eq id }) {
+            if(introduction != null) it[UsersTable.introduction] = introduction
+            if(penName != null) it[UsersTable.penName] = penName
+        } > 0
     }
 
     /**
      * 若用户不存在返回false
+     * null为不修改
      */
-    suspend fun changeShowStars(id: UserId, showStars: Boolean): Boolean = query()
+    suspend fun changeSettings(
+        id: UserId,
+        showStars: Boolean? = null,
+        likeBlocks: List<BlockId>? = null,
+    ): Boolean = query()
     {
-        update({ UsersTable.id eq id }) { it[UsersTable.showStars] = showStars } > 0
+        update({ UsersTable.id eq id }) {
+            if( showStars != null ) it[UsersTable.showStars] = showStars
+            if( likeBlocks != null ) it[UsersTable.likeBlocks] = likeBlocks
+        } > 0
     }
 
     /**
@@ -68,9 +88,12 @@ class Users: DaoSqlImpl<Users.UsersTable>(UsersTable)
         update({ UsersTable.id eq id }) { it[filePermission] = permission } > 0
     }
 
-    suspend fun getOrCreateUser(id: UserId): DatabaseUser = query()
+    suspend fun getOrCreateUser(id: UserId, penName: String? = null): DatabaseUser = query()
     {
-        insertIgnore { it[UsersTable.id] = id }
+        insertIgnore {
+            it[UsersTable.id] = id
+            it[UsersTable.penName] = penName
+        }
         selectAll().where { UsersTable.id eq id }.single().let(::deserialize)
     }
 
@@ -79,8 +102,11 @@ class Users: DaoSqlImpl<Users.UsersTable>(UsersTable)
         selectAll().where { UsersTable.id eq id }.singleOrNull()?.let(::deserialize)
     }
 
-    suspend fun changeLikeBlocks(id: UserId, likeBlocks: List<BlockId>): Boolean = query()
+    suspend fun searchUserByPenName(name: String, begin: Long, count: Int): Slice<UserId> = query()
     {
-        update({ UsersTable.id eq id }) { it[UsersTable.likeBlocks] = likeBlocks } > 0
+        select(id)
+            .where { UsersTable.penName like "%$name%" }
+            .asSlice(begin, count)
+            .map { it[id].value }
     }
 }

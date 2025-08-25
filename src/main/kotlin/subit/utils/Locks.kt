@@ -58,10 +58,14 @@ class Locks<K>
     }
 
     @OptIn(ExperimentalContracts::class)
-    suspend fun <R> tryWithLock(key: K, fail: suspend ()->R, block: suspend ()->R): R
+    suspend fun <R> tryWithLock(key: K, fail: suspend (key: K)->R, block: suspend (key: K)->R): R
     {
         val lock = getLock(key)
-        return lock.tryWithLock(fail, block)
+        return lock.tryWithLock({
+            fail(key)
+        }) {
+            block(key)
+        }
     }
 }
 

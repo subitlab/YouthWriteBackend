@@ -163,6 +163,7 @@ object SqlDatabaseImpl: KoinComponent
             DaoImpl(::OldUsers, OldUsers::class),
             DaoImpl(::EmailCodes, EmailCodes::class),
             DaoImpl(::PostAuthorizations, PostAuthorizations::class),
+            DaoImpl(::TagRelations, TagRelations::class),
         )
 
         val module = module(!lazyInit)
@@ -247,3 +248,7 @@ fun Table.privateChatId(name: String) = registerColumn(name, PrivateChatIdColumn
 // PrivateChatGroupId
 class PrivateChatGroupIdColumnType: WarpColumnType<Long, PrivateChatGroupId>(LongColumnType(), ::PrivateChatGroupId, PrivateChatGroupId::value)
 fun Table.privateChatGroupId(name: String) = registerColumn(name, PrivateChatGroupIdColumnType())
+
+// TagId
+class TagIdColumnType: WarpColumnType<Long, TagId>(LongColumnType(), ::TagId, TagId::value)
+fun Table.tagId(name: String) = registerColumn(name, TagIdColumnType())
