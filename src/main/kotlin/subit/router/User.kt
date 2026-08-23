@@ -389,6 +389,7 @@ private suspend fun Context.getStars(isStar: Boolean)
 private data class Settings(
     val showStars: Boolean? = null,
     val likeBlocksList: List<BlockId>? = null,
+    val likeTagList: List<TagId>? = null,
 )
 
 /*
@@ -405,10 +406,16 @@ private suspend fun Context.changeSettings()
         it
     }
 
+    val likeTagList = settings.likeTagList?.distinct()?.let{
+        if( it.size !in 0..10) finishCall(HttpStatus.BadRequest.subStatus("收藏的标签不能超过10个"))
+        it
+    }
+
     get<Users>().changeSettings(
         loginUser.id,
         showStars = settings.showStars,
-        likeBlocks = likeBlocksList
+        likeBlocks = likeBlocksList,
+        likeTags = likeTagList,
     )
 
     call.respond(HttpStatus.OK)

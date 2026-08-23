@@ -72,6 +72,7 @@ data class SsoUserInfo(
  * @property permission 用户管理权限
  * @property filePermission 文件上传权限
  * @property likeBlocks 收藏的区块ID列表
+ * @property likeTags 收藏的标签ID列表
  */
 @Serializable
 data class DatabaseUser(
@@ -82,6 +83,7 @@ data class DatabaseUser(
     override val permission: PermissionLevel,
     val filePermission: PermissionLevel,
     val likeBlocks: List<BlockId>,
+    val likeTags: List<TagId>,
 ): PermissionUser
 {
     companion object
@@ -93,7 +95,8 @@ data class DatabaseUser(
             showStars = true,
             permission = PermissionLevel.NORMAL,
             filePermission = PermissionLevel.NORMAL,
-            likeBlocks = listOf(BlockId(1))
+            likeBlocks = listOf(BlockId(1)),
+            likeTags = listOf(TagId(1)),
         )
     }
 }
@@ -125,11 +128,12 @@ data class UserFull(
     override val permission: PermissionLevel,
     val filePermission: PermissionLevel,
     val likeBlocks: List<BlockId>,
+    val likeTags: List<TagId>,
 ): UserInfo, NamedUser, PermissionUser
 {
     fun toBasicUserInfo() = BasicUserInfo(id, username, registrationTime, email, penName, introduction, permission, showStars)
     fun toSsoUser() = SsoUserFull(id, username, registrationTime, phone, email, seiue)
-    fun toDatabaseUser() = DatabaseUser(id, penName, introduction, showStars, permission, filePermission, likeBlocks)
+    fun toDatabaseUser() = DatabaseUser(id, penName, introduction, showStars, permission, filePermission, likeBlocks, likeTags)
     companion object
     {
         fun from(ssoUser: SsoUserFull, dbUser: DatabaseUser) = UserFull(
@@ -144,7 +148,8 @@ data class UserFull(
             dbUser.showStars,
             dbUser.permission,
             dbUser.filePermission,
-            dbUser.likeBlocks
+            dbUser.likeBlocks,
+            dbUser.likeTags,
         )
         val example = UserFull(
             UserId(1),
@@ -159,6 +164,7 @@ data class UserFull(
             permission = PermissionLevel.NORMAL,
             filePermission = PermissionLevel.NORMAL,
             likeBlocks = listOf(BlockId(1)),
+            likeTags = listOf(TagId(1)),
         )
     }
 }

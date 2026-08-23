@@ -9,6 +9,7 @@ import subit.dataClasses.BlockId
 import subit.dataClasses.DatabaseUser
 import subit.dataClasses.PermissionLevel
 import subit.dataClasses.Slice
+import subit.dataClasses.TagId
 import subit.dataClasses.UserId
 import subit.database.utils.asSlice
 import subit.database.utils.single
@@ -27,6 +28,7 @@ class Users: DaoSqlImpl<Users.UsersTable>(UsersTable)
         val permission = enumeration<PermissionLevel>("permission").default(PermissionLevel.NORMAL)
         val filePermission = enumeration<PermissionLevel>("file_permission").default(PermissionLevel.NORMAL)
         val likeBlocks = array("like_blocks", BlockIdColumnType()).default(emptyList())
+        val likeTags = array("like_tags", TagIdColumnType()).default(emptyList())
         override val primaryKey = PrimaryKey(id)
     }
 
@@ -37,7 +39,8 @@ class Users: DaoSqlImpl<Users.UsersTable>(UsersTable)
         showStars = row[UsersTable.showStars],
         permission = row[UsersTable.permission],
         filePermission = row[UsersTable.filePermission],
-        likeBlocks = row[UsersTable.likeBlocks]
+        likeBlocks = row[UsersTable.likeBlocks],
+        likeTags = row[UsersTable.likeTags],
     )
 
     /**
@@ -64,11 +67,13 @@ class Users: DaoSqlImpl<Users.UsersTable>(UsersTable)
         id: UserId,
         showStars: Boolean? = null,
         likeBlocks: List<BlockId>? = null,
+        likeTags: List<TagId>? = null,
     ): Boolean = query()
     {
         update({ UsersTable.id eq id }) {
             if( showStars != null ) it[UsersTable.showStars] = showStars
             if( likeBlocks != null ) it[UsersTable.likeBlocks] = likeBlocks
+            if( likeTags != null ) it[UsersTable.likeTags] = likeTags
         } > 0
     }
 

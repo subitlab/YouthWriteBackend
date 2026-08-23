@@ -959,6 +959,6 @@ object CommentCountTriggerManager
 
     private fun Transaction.deleteTrigger(triggerName: String)
     {
-        exec("DROP TRIGGER IF EXISTS $triggerName ON likes;")
+        exec("DROP TRIGGER IF EXISTS $triggerName ON posts;")
     }
 }

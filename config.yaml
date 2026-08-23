@@ -1,0 +1,38 @@
+ktor:
+  deployment:
+    port: 8080
+    rootPath: '/api'
+
+# 服务端地址, 该项决定了API文档中的请求地址
+serverUrl:
+  - "/"
+  - 'https://youthwrite.subit.org.cn/api'
+  - "/api"
+
+# 服务器host, 该项决定了CORS策略中的允许请求地址
+# 允许使用通配符例如*.subit.org.cn
+serverHost:
+  - '*.subit.org.cn'
+
+database:
+
+  sql:
+
+    # 支持的数据库：
+    # - Postgres
+
+    #数据库用户名
+    user: 'postgres'
+    #数据库密码
+    password: 'hxr20090204'
+
+    # 数据库连接地址
+    url: 'jdbc:postgresql://localhost:5432/youthwritetest' # postgres
+
+    # 数据库驱动 该项可以不填或填为null以通过url自动识别对应驱动
+    driver: null
+    # 目前支持的数据库驱动有:
+    ## driver: 'org.postgresql.Driver' # postgres
+
+    # 数据库懒惰初始化
+    lazyInit: false
